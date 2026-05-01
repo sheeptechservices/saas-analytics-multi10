@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { db, sqlite } from '@/lib/db'
+import { db } from '@/lib/db'
 import { integrations, pipelines, stages, leads } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 
 function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
-// Yields the Node.js event loop so the HTTP layer can flush buffered SSE chunks.
-// Critical when using better-sqlite3 (synchronous) — without this the stream
-// won't send any data until the entire sync finishes.
 const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
 
 export async function POST() {
@@ -44,16 +41,14 @@ export async function POST() {
         // ── 1. Clean existing data ────────────────────────────────────────
         await emit({ stage: 'cleaning', message: 'Limpando dados anteriores...' })
 
-        // Temporarily disable FK checks for the clean wipe — safe because we're
-        // deleting everything for this tenant in one shot and re-importing from scratch.
-        sqlite.pragma('foreign_keys = OFF')
-        try {
-          sqlite.prepare('DELETE FROM leads WHERE tenant_id = ?').run(tenantId)
-          sqlite.prepare('DELETE FROM stages WHERE pipeline_id IN (SELECT id FROM pipelines WHERE tenant_id = ?)').run(tenantId)
-          sqlite.prepare('DELETE FROM pipelines WHERE tenant_id = ?').run(tenantId)
-        } finally {
-          sqlite.pragma('foreign_keys = ON')
+        // Delete in FK-safe order: leads → stages → pipelines
+        const tenantPipelines = await db.select({ id: pipelines.id }).from(pipelines).where(eq(pipelines.tenantId, tenantId))
+        const pipelineIds = tenantPipelines.map(p => p.id)
+        await db.delete(leads).where(eq(leads.tenantId, tenantId))
+        if (pipelineIds.length > 0) {
+          await db.delete(stages).where(inArray(stages.pipelineId, pipelineIds))
         }
+        await db.delete(pipelines).where(eq(pipelines.tenantId, tenantId))
 
         // ── 2. Sync pipeline + stages ─────────────────────────────────────
         await emit({ stage: 'pipeline', message: 'Sincronizando funil e etapas...' })
