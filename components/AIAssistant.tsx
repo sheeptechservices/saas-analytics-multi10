@@ -683,16 +683,17 @@ function MarkdownText({ text }: { text: string }) {
         }
 
         // text block
+        const lines = block.type === 'text' ? block.lines : []
         return (
           <span key={bi}>
-            {block.lines.map((line, li) => {
+            {lines.map((line, li) => {
               const isBullet = /^[\s]*[-•]\s/.test(line)
               const content = isBullet ? line.replace(/^[\s]*[-•]\s/, '') : line
               return (
                 <span key={li} style={{ display: isBullet ? 'flex' : 'block' }}>
                   {isBullet && <span style={{ marginRight: 6, flexShrink: 0, opacity: 0.5 }}>•</span>}
                   <span><InlineText text={content} /></span>
-                  {li < block.lines.length - 1 && !isBullet && <br />}
+                  {li < lines.length - 1 && !isBullet && <br />}
                 </span>
               )
             })}
