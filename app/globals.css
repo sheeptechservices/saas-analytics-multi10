@@ -1,26 +1,188 @@
 @import "tailwindcss";
 
+/* ── Design Tokens (fiel ao protótipo) ── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #F8F8F6;
+  --white: #FFFFFF;
+  --black: #121316;
+  --gray: #666666;
+  --gray2: #AAAAAA;
+  --gray3: #E3E4DE;
+  --primary: #FFB400;
+  --primary-dim: rgba(255,180,0,0.12);
+  --primary-mid: rgba(255,180,0,0.40);
+  --primary-text: #7A5600;
+  --primary-contrast: #121316;
+  --red: #D93025;
+  --green: #1E8A3E;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 100px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --transition: .2s ease;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@theme {
+  --color-bg: #F8F8F6;
+  --color-app-white: #FFFFFF;
+  --color-app-black: #121316;
+  --color-app-gray: #666666;
+  --color-app-gray2: #AAAAAA;
+  --color-app-gray3: #E3E4DE;
+  --color-app-red: #D93025;
+  --color-app-green: #1E8A3E;
+  --font-sans: 'Manrope', sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 100px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 15px; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--black);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* ── Animations ── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes panelUp {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.94); }
+  70%  { transform: translateY(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes breathe-ring {
+  0%, 100% { transform: scale(1);    opacity: 0.55; }
+  50%       { transform: scale(1.55); opacity: 0; }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes msgRight {
+  from { opacity: 0; transform: translateX(16px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes msgLeft {
+  from { opacity: 0; transform: translateX(-16px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.animate-slide-up  { animation: slideUp .25s ease both; }
+.animate-fade-in   { animation: fadeIn .2s ease both; }
+.animate-slide-right { animation: slideInRight .25s ease both; }
+.delay-1 { animation-delay: .04s; }
+.delay-2 { animation-delay: .08s; }
+.delay-3 { animation-delay: .12s; }
+.delay-4 { animation-delay: .16s; }
+.delay-5 { animation-delay: .20s; }
+.delay-6 { animation-delay: .24s; }
+.delay-7 { animation-delay: .28s; }
+.delay-8 { animation-delay: .32s; }
+.delay-9 { animation-delay: .36s; }
+
+@keyframes ai-step {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-150%); }
+  100% { transform: translateX(250%); }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1;   transform: scale(1);   }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+@keyframes count-pop {
+  0%   { opacity: 0; transform: scale(0.82); }
+  65%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes podiumRise {
+  from { opacity: 0; transform: translateY(40px) scaleY(0.7); }
+  to   { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+@keyframes floatBubble {
+  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.5; }
+  50%       { transform: translateY(-9px) rotate(8deg); opacity: 0.9; }
+}
+@keyframes barSweep {
+  0%   { transform: translateX(-200%); }
+  100% { transform: translateX(300%); }
+}
+@keyframes ringPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.7; }
+  50%       { transform: scale(1.65); opacity: 0; }
+}
+@keyframes rowExpand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.shimmer-bar { position: relative; overflow: hidden; }
+.shimmer-bar::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
+  animation: shimmer 1.8s ease 0.5s infinite;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.animate-count-pop { animation: count-pop .45s cubic-bezier(.34,1.56,.64,1) both; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gray3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray2); }
+
+/* ── Primary color utilities (white label aware) ── */
+.bg-primary { background-color: var(--primary) !important; }
+.text-primary { color: var(--primary) !important; }
+.border-primary { border-color: var(--primary) !important; }
+.bg-primary-dim { background-color: var(--primary-dim) !important; }
+.border-primary-mid { border-color: var(--primary-mid) !important; }
+.text-primary-text { color: var(--primary-text) !important; }
+.ring-primary { --tw-ring-color: var(--primary-dim); }
+
+.focus\:border-primary:focus { border-color: var(--primary) !important; }
+.focus\:ring-primary:focus { box-shadow: 0 0 0 3px var(--primary-dim) !important; }
