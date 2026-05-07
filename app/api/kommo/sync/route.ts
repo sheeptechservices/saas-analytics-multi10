@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
-import { integrations, pipelines, stages, leads } from '@/lib/db/schema'
+import { integrations, pipelines, stages, leads, leadExtras } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 
 function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
@@ -41,9 +41,10 @@ export async function POST() {
         // ── 1. Clean existing data ────────────────────────────────────────
         await emit({ stage: 'cleaning', message: 'Limpando dados anteriores...' })
 
-        // Delete in FK-safe order: leads → stages → pipelines
+        // Delete in FK-safe order: lead_extras → leads → stages → pipelines
         const tenantPipelines = await db.select({ id: pipelines.id }).from(pipelines).where(eq(pipelines.tenantId, tenantId))
         const pipelineIds = tenantPipelines.map(p => p.id)
+        await db.delete(leadExtras).where(eq(leadExtras.tenantId, tenantId))
         await db.delete(leads).where(eq(leads.tenantId, tenantId))
         if (pipelineIds.length > 0) {
           await db.delete(stages).where(inArray(stages.pipelineId, pipelineIds))
