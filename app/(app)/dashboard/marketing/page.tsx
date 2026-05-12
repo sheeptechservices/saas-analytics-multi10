@@ -11,6 +11,16 @@ const PERIOD_LABELS: Record<Period, string> = {
   '365d': 'Este ano',
 }
 
+type Canal = {
+  name: string
+  leads: number
+  invest: number
+  cpl: number
+  roas: number
+  stageDrop: number | null
+  stageRef?: string
+}
+
 // ─── useCountUp ───────────────────────────────────────────────────────────────
 
 function useCountUp(target: number, duration = 750, delay = 0): number {
@@ -157,58 +167,119 @@ function PeriodFilter({ value, onChange }: { value: Period; onChange: (p: Period
   )
 }
 
+// ─── StageDropSlot ───────────────────────────────────────────────────────────
+
+function StageDropSlot({ value, stageRef }: { value: number | null; stageRef?: string }) {
+  let arrow = '↓', color = 'var(--red)', absVal = '0.0'
+  const hasValue = value !== null
+  if (value !== null) {
+    absVal = Math.abs(value).toFixed(1)
+    if (value > 0)      { arrow = '↑'; color = 'var(--green)' }
+    else if (value === 0) { arrow = '→'; color = 'var(--gray2)' }
+  }
+  return (
+    <div style={{ minHeight: 18, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+      <span style={{
+        fontSize: 11, fontWeight: 700,
+        color: hasValue ? color : 'var(--red)',
+        opacity: hasValue ? 1 : 0,
+        transition: 'opacity 0.25s ease',
+        whiteSpace: 'nowrap',
+      }}>
+        {arrow} {absVal}%
+      </span>
+      {stageRef !== undefined && (
+        <span style={{
+          fontSize: 9, fontWeight: 500, color: 'var(--gray2)',
+          opacity: hasValue ? 0.7 : 0,
+          transition: 'opacity 0.25s ease',
+          whiteSpace: 'nowrap',
+        }}>
+          {stageRef}
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ─── ChannelBars ─────────────────────────────────────────────────────────────
 
-function ChannelBars({ data, ready }: { data: typeof CANAIS; ready: boolean }) {
+function ChannelBars({ data, ready }: { data: Canal[]; ready: boolean }) {
   const [hov, setHov] = useState<string | null>(null)
   const max = Math.max(...data.map(c => c.leads))
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {data.map((c, i) => {
-        const isHov = hov === c.name
-        const barW  = (c.leads / max) * 100
-        const alpha = Math.max(1 - i * 0.15, 0.28)
-        return (
-          <div
-            key={c.name}
-            onMouseEnter={() => setHov(c.name)}
-            onMouseLeave={() => setHov(null)}
-            style={{ opacity: hov && !isHov ? 0.28 : 1, transition: 'opacity 0.22s', cursor: 'default' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                  background: 'var(--primary)', opacity: alpha,
-                  transform: isHov ? 'scale(1.7)' : 'scale(1)',
-                  transition: 'transform 0.22s cubic-bezier(0.34,1.56,0.64,1)',
-                }} />
-                <span style={{ fontSize: 13, fontWeight: isHov ? 700 : 600, color: isHov ? 'var(--black)' : 'var(--gray)', transition: 'color .15s' }}>{c.name}</span>
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 560 }}>
+        {data.map((c, i) => {
+          const isHov = hov === c.name
+          const barW  = c.leads / max
+          const alpha = Math.max(1 - i * 0.15, 0.28)
+          return (
+            <div
+              key={c.name}
+              onMouseEnter={() => setHov(c.name)}
+              onMouseLeave={() => setHov(null)}
+              style={{ opacity: hov && !isHov ? 0.28 : 1, transition: 'opacity 0.22s', isolation: 'isolate', cursor: 'default' }}
+            >
+              {/* HeaderGrid: LabelRegion shrinks, PercentageRegion owns fixed 56px */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 56px', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+
+                {/* LabelRegion — absorbs all compression, never invades percentage */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{
+                    width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                    background: 'var(--primary)', opacity: alpha,
+                    transform: isHov ? 'scale(1.7)' : 'scale(1)',
+                    transition: 'transform 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+                  }} />
+                  <span style={{
+                    fontSize: 13, fontWeight: isHov ? 700 : 600,
+                    color: isHov ? 'var(--black)' : 'var(--gray)',
+                    transition: 'color .15s',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{c.name}</span>
+                </div>
+
+                {/* PercentageRegion — 56px fixed, structurally reserved, no width negotiation */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <StageDropSlot value={c.stageDrop} stageRef={c.stageRef} />
+                </div>
+
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                {isHov && c.invest > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, animation: 'ai-step 0.15s ease both' }}>ROAS {c.roas}×</span>
+
+              {/* Value + Timing — below header, indented past dot */}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 8, paddingLeft: 15 }}>
+                <span style={{
+                  fontSize: 12, fontWeight: 800,
+                  color: isHov ? 'var(--primary-text)' : 'var(--gray2)',
+                  transition: 'color .15s', whiteSpace: 'nowrap',
+                }}>{c.leads} leads</span>
+                {c.invest > 0 ? (
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--gray2)', whiteSpace: 'nowrap' }}>
+                    R$ {c.invest.toLocaleString('pt-BR')} · CPL R$ {c.cpl.toFixed(0)} · ROAS {c.roas}×
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--gray2)' }}>orgânico</span>
                 )}
-                <span style={{ fontSize: 12, fontWeight: 800, color: isHov ? 'var(--primary-text)' : 'var(--gray2)', transition: 'color .15s' }}>{c.leads} leads</span>
-                {c.invest > 0
-                  ? <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>R$ {c.invest.toLocaleString('pt-BR')} · CPL R$ {c.cpl.toFixed(0)}</span>
-                  : <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>orgânico</span>
-                }
+              </div>
+
+              {/* Bar — scaleX transform, zero reflow */}
+              <div style={{ position: 'relative', height: 7, background: 'var(--gray3)', borderRadius: 100, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', width: '100%', borderRadius: 100,
+                  background: 'var(--primary)',
+                  opacity: isHov ? 1 : alpha,
+                  transform: ready ? `scaleX(${barW})` : 'scaleX(0)',
+                  transformOrigin: 'left center',
+                  boxShadow: isHov ? '0 0 14px var(--primary)77' : 'none',
+                  transition: `transform 0.55s cubic-bezier(0.4,0,0.2,1) ${i * 70}ms, opacity 0.2s, box-shadow 0.22s`,
+                }} />
               </div>
             </div>
-            <div style={{ position: 'relative', height: isHov ? 11 : 7, background: 'var(--gray3)', borderRadius: 100, overflow: 'hidden', transition: 'height 0.22s cubic-bezier(0.34,1.56,0.64,1)' }}>
-              <div style={{
-                height: '100%', borderRadius: 100, background: 'var(--primary)',
-                opacity: isHov ? 1 : alpha,
-                width: ready ? `${barW}%` : '0%',
-                boxShadow: isHov ? '0 0 14px var(--primary)77' : 'none',
-                transition: `width 0.55s cubic-bezier(0.4,0,0.2,1) ${i * 70}ms, opacity 0.2s, box-shadow 0.22s`,
-              }} />
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -292,12 +363,12 @@ function RoasChart({ data, ready }: { data: typeof CANAIS; ready: boolean }) {
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-const CANAIS = [
-  { name: 'Meta Ads',   leads: 162, invest: 5200, cpl: 32.1, roas: 4.2 },
-  { name: 'Google Ads', leads: 98,  invest: 4100, cpl: 41.8, roas: 3.6 },
-  { name: 'Orgânico',   leads: 54,  invest: 0,    cpl: 0,    roas: 0   },
-  { name: 'E-mail',     leads: 22,  invest: 700,  cpl: 31.8, roas: 5.6 },
-  { name: 'TikTok Ads', leads: 10,  invest: 2000, cpl: 200,  roas: 0.8 },
+const CANAIS: Canal[] = [
+  { name: 'Meta Ads',   leads: 162, invest: 5200, cpl: 32.1, roas: 4.2, stageDrop: null },
+  { name: 'Google Ads', leads: 98,  invest: 4100, cpl: 41.8, roas: 3.6, stageDrop: null },
+  { name: 'Orgânico',   leads: 54,  invest: 0,    cpl: 0,    roas: 0,   stageDrop: null },
+  { name: 'E-mail',     leads: 22,  invest: 700,  cpl: 31.8, roas: 5.6, stageDrop: null },
+  { name: 'TikTok Ads', leads: 10,  invest: 2000, cpl: 200,  roas: 0.8, stageDrop: null },
 ]
 
 const WEEKS = [

@@ -306,7 +306,8 @@ function StageFilterPanel({
 
 // ─── HorizontalFunnel ────────────────────────────────────────────────────────
 
-const MIN_SEG_PX = 110 // minimum width per stage segment in pixels
+const MIN_SEG_PX    = 72  // visual floor — minimum viable trapezoid width
+const MIN_METRIC_PX = 160 // analytical floor — minimum readable metric block width
 
 function HorizontalFunnel({
   allStages, stages, visible, ready,
@@ -336,8 +337,9 @@ function HorizontalFunnel({
     const lb = (H + lh) / 2
     const rt = (H - rh) / 2
     const rb = (H + rh) / 2
-    const prev = filteredStages[i - 1]
-    const dropPct = prev ? Math.round(((stage.count - prev.count) / Math.max(prev.count, 1)) * 100) : null
+    const dropPct = next
+      ? Math.round(((next.count - stage.count) / Math.max(stage.count, 1)) * 100)
+      : null
     return { ...stage, i, x, lt, lb, rt, rb, dropPct }
   })
 
@@ -355,7 +357,7 @@ function HorizontalFunnel({
 
       {/* Scrollable funnel container */}
       <div style={{ overflowX: 'auto', overflowY: 'visible', marginLeft: -4, marginRight: -4 }}>
-        <div style={{ minWidth: Math.max(400, N * MIN_SEG_PX), paddingLeft: 4, paddingRight: 4 }}>
+        <div style={{ minWidth: Math.max(400, N * MIN_METRIC_PX), paddingLeft: 4, paddingRight: 4 }}>
 
           {/* SVG funnel */}
           <div style={{ position: 'relative' }}>
@@ -427,7 +429,7 @@ function HorizontalFunnel({
             )}
           </div>
 
-          {/* Stage labels row */}
+          {/* Metric blocks — analytical layer owns geometry, funnel adapts */}
           <div style={{ display: 'flex', marginTop: 10 }}>
             {segs.map((seg, i) => {
               const dropColor = seg.dropPct === null ? 'var(--gray2)'
@@ -435,53 +437,74 @@ function HorizontalFunnel({
                 : seg.dropPct > 0 ? 'var(--green)'
                 : 'var(--gray2)'
               const dropArrow = seg.dropPct === null || seg.dropPct === 0 ? '→' : seg.dropPct > 0 ? '↑' : '↓'
+              const badgeBg   = seg.dropPct === null ? 'transparent'
+                : seg.dropPct < 0 ? 'rgba(217,48,37,0.08)'
+                : seg.dropPct > 0 ? 'rgba(30,138,62,0.08)'
+                : 'var(--bg)'
+              const showPct = i < filteredStages.length - 1 && seg.dropPct !== null
               const isHov = hov === i
               return (
-                <div key={seg.stageId}
-                  style={{ flex: 1, minWidth: MIN_SEG_PX, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', padding: '0 4px' }}
+                <div
+                  key={seg.stageId}
+                  style={{
+                    flex: 1, minWidth: MIN_METRIC_PX,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    padding: '0 8px 0 4px',
+                  }}
                   onMouseEnter={() => setHov(i)}
                   onMouseLeave={() => setHov(null)}
                 >
-                  {i > 0 && seg.dropPct !== null && (
-                    <div style={{
-                      position: 'absolute', left: 0, top: 2,
-                      transform: 'translateX(-50%)',
-                      fontSize: 9, fontWeight: 700,
-                      color: dropColor,
-                      background: seg.dropPct < 0 ? 'rgba(217,48,37,0.08)' : seg.dropPct > 0 ? 'rgba(30,138,62,0.08)' : 'var(--bg)',
-                      border: `1px solid ${dropColor}40`,
-                      borderRadius: 100, padding: '1px 5px',
-                      whiteSpace: 'nowrap', zIndex: 2,
-                    }}>
-                      {dropArrow} {Math.abs(seg.dropPct ?? 0)}%
-                    </div>
-                  )}
+                  {/* Nome da etapa */}
                   <div title={seg.stageName} style={{
                     fontSize: 10, fontWeight: isHov ? 700 : 500,
                     color: isHov ? seg.color : 'var(--gray)',
                     transition: 'color 0.15s',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    maxWidth: '100%', textAlign: 'center',
+                    width: '100%', textAlign: 'center',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {seg.stageName}
                   </div>
+
+                  {/* Número + Badge na mesma linha */}
                   <div style={{
-                    fontSize: 15, fontWeight: 800,
-                    color: isHov ? seg.color : 'var(--black)',
-                    transition: 'color 0.15s',
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 6,
+                    marginTop: 2,
                   }}>
-                    {seg.count}
+                    <span style={{
+                      fontSize: 15, fontWeight: 800,
+                      color: isHov ? seg.color : 'var(--black)',
+                      transition: 'color 0.15s',
+                    }}>
+                      {seg.count}
+                    </span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700,
+                      color: dropColor,
+                      background: badgeBg,
+                      border: `1px solid ${dropColor}40`,
+                      borderRadius: 100, padding: '1px 5px',
+                      whiteSpace: 'nowrap',
+                      opacity: showPct ? 1 : 0,
+                      transition: 'opacity 0.2s ease',
+                    }}>
+                      {dropArrow} {Math.abs(seg.dropPct ?? 0)}%
+                    </span>
                   </div>
+
+                  {/* Timing */}
                   {seg.avgLeadTimeDays != null && (
                     <div style={{
                       fontSize: 9, fontWeight: 600,
                       color: isHov ? 'var(--gray)' : 'var(--gray2)',
                       transition: 'color 0.15s',
                       marginTop: 1,
+                      textAlign: 'center',
                     }}>
                       ⏱ {seg.avgLeadTimeDays}d
                     </div>
                   )}
+
                 </div>
               )
             })}
