@@ -170,10 +170,11 @@ body {
 .animate-count-pop { animation: count-pop .45s cubic-bezier(.34,1.56,.64,1) both; }
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar       { width: 6px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--gray3); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--gray3); border-radius: 100px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gray2); }
+* { scrollbar-width: thin; scrollbar-color: var(--gray3) transparent; }
 
 /* ── Primary color utilities (white label aware) ── */
 .bg-primary { background-color: var(--primary) !important; }

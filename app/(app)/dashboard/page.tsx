@@ -356,7 +356,7 @@ function HorizontalFunnel({
       </div>
 
       {/* Scrollable funnel container */}
-      <div style={{ overflowX: 'auto', overflowY: 'visible', marginLeft: -4, marginRight: -4 }}>
+      <div style={{ overflowX: 'auto', overflowY: 'visible', marginLeft: -4, marginRight: -4, paddingBottom: 8 }}>
         <div style={{ minWidth: Math.max(400, N * MIN_METRIC_PX), paddingLeft: 4, paddingRight: 4 }}>
 
           {/* SVG funnel */}
