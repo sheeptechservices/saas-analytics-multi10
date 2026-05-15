@@ -361,13 +361,13 @@ export default function IntegrationPage() {
     refetch()
   }
 
-  async function syncNow() {
+  async function syncNow(full = false) {
     setShowConfirm(false)
     setSyncing(true)
-    setSyncProgress({ stage: 'starting', message: 'Iniciando sincronização...' })
+    setSyncProgress({ stage: 'starting', message: full ? 'Iniciando sincronização completa...' : 'Verificando dados novos...' })
 
     try {
-      const res = await fetch('/api/kommo/sync', { method: 'POST' })
+      const res = await fetch(`/api/kommo/sync${full ? '?full=true' : ''}`, { method: 'POST' })
 
       if (!res.body) {
         setSyncProgress({ stage: 'error', error: 'Resposta inválida do servidor' })
@@ -594,10 +594,35 @@ export default function IntegrationPage() {
                   </button>
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 600, marginBottom: 4 }}>Última sincronização</div>
+              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 600 }}>Última sincronização</div>
+                  <button
+                    onClick={() => syncNow(false)}
+                    disabled={!canSync}
+                    title="Atualização rápida — busca apenas dados novos/alterados"
+                    style={{
+                      width: 26, height: 26, borderRadius: 8, border: '1px solid var(--gray3)',
+                      background: 'var(--bg)', cursor: canSync ? 'pointer' : 'not-allowed',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: !canSync ? 0.4 : 1, transition: 'opacity .2s',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke={syncing ? 'var(--primary-text)' : 'var(--gray)'} strokeWidth="2"
+                      style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }}>
+                      <path d="M1 4v5h5M15 12v-5h-5"/><path d="M13.4 7A6 6 0 1 0 12 12.3"/>
+                    </svg>
+                  </button>
+                </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>
                   {status?.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('pt-BR') : 'Nunca'}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--gray2)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="var(--gray2)" strokeWidth="2">
+                    <path d="M1 4v5h5M15 12v-5h-5"/><path d="M13.4 7A6 6 0 1 0 12 12.3"/>
+                  </svg>
+                  Auto: incremental a cada 6h · full diário às 3h
                 </div>
               </div>
             </div>
@@ -757,7 +782,7 @@ export default function IntegrationPage() {
       {showConfirm && (
         <ConfirmModal
           pipelineName={dbPipelineName}
-          onConfirm={syncNow}
+          onConfirm={() => syncNow(true)}
           onCancel={() => setShowConfirm(false)}
         />
       )}
