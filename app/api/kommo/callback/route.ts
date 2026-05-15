@@ -34,7 +34,12 @@ export async function GET(req: NextRequest) {
     })
 
     if (!res.ok) {
-      return NextResponse.redirect(new URL('/integration?error=token_exchange', req.url))
+      const body = await res.text().catch(() => '')
+      console.error('[kommo/callback] token_exchange failed', res.status, body)
+      let detail = ''
+      try { detail = JSON.parse(body)?.hint ?? JSON.parse(body)?.message ?? JSON.parse(body)?.error ?? body } catch { detail = body }
+      const msg = encodeURIComponent(`HTTP ${res.status}: ${detail}`.slice(0, 200))
+      return NextResponse.redirect(new URL(`/integration?error=token_exchange&detail=${msg}`, req.url))
     }
 
     const data = await res.json()

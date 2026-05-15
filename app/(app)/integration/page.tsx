@@ -300,7 +300,8 @@ export default function IntegrationPage() {
         refetch()
       }
       if (params.get('error')) {
-        setSuccessMsg(`Erro na conexão: ${params.get('error')}`)
+        const detail = params.get('detail')
+        setSuccessMsg(`Erro na conexão: ${params.get('error')}${detail ? ` — ${detail}` : ''}`)
       }
     }
   }, [status])
@@ -559,14 +560,38 @@ export default function IntegrationPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>Status da integração</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor[status?.status ?? 'disconnected'] }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor[status?.status ?? 'disconnected'], flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 700, color: statusColor[status?.status ?? 'disconnected'] }}>
                     {statusLabel[status?.status ?? 'disconnected']}
                   </span>
                   {status?.accountDomain && (
                     <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>· {status.accountDomain}.kommo.com</span>
                   )}
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/kommo/connect')
+                      const data = await res.json()
+                      if (data.oauthUrl) window.location.href = data.oauthUrl
+                    }}
+                    style={{
+                      padding: '3px 10px', fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
+                      background: 'var(--bg)', border: '1px solid var(--gray3)',
+                      borderRadius: 99, cursor: 'pointer', color: 'var(--gray)',
+                    }}
+                  >
+                    Reconectar
+                  </button>
+                  <button
+                    onClick={() => setStep(1)}
+                    style={{
+                      padding: '3px 10px', fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
+                      background: 'var(--bg)', border: '1px solid var(--gray3)',
+                      borderRadius: 99, cursor: 'pointer', color: 'var(--gray)',
+                    }}
+                  >
+                    Editar credenciais
+                  </button>
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>

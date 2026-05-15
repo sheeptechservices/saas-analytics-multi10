@@ -8,16 +8,58 @@ function uid() { return Math.random().toString(36).slice(2) + Date.now().toStrin
 
 const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
 
+async function refreshKommoToken(integration: {
+  id: string
+  accountDomain: string | null
+  clientId: string | null
+  clientSecret: string | null
+  refreshToken: string | null
+}): Promise<string | null> {
+  if (!integration.accountDomain || !integration.clientId || !integration.clientSecret || !integration.refreshToken) {
+    return null
+  }
+  const res = await fetch(`https://${integration.accountDomain}.kommo.com/oauth2/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: integration.clientId,
+      client_secret: integration.clientSecret,
+      grant_type: 'refresh_token',
+      refresh_token: integration.refreshToken,
+      redirect_uri: process.env.KOMMO_REDIRECT_URI ?? 'http://localhost:3000/api/kommo/callback',
+    }),
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  const expiresAt = new Date(Date.now() + data.expires_in * 1000)
+  await db.update(integrations).set({
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt,
+  }).where(eq(integrations.id, integration.id))
+  return data.access_token as string
+}
+
 export async function POST() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const integration = await db.select().from(integrations)
+  let integration = await db.select().from(integrations)
     .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))
     .then(r => r[0])
 
   if (!integration?.accessToken || !integration?.accountDomain) {
     return NextResponse.json({ error: 'Kommo não conectado' }, { status: 400 })
+  }
+
+  // Refresh token if expired or about to expire (within 5 min)
+  const isExpired = integration.expiresAt && integration.expiresAt.getTime() < Date.now() + 5 * 60 * 1000
+  if (isExpired) {
+    const newToken = await refreshKommoToken(integration)
+    if (!newToken) {
+      return NextResponse.json({ error: 'Token do Kommo expirado. Reconecte a integração.' }, { status: 401 })
+    }
+    integration = { ...integration, accessToken: newToken }
   }
 
   const selectedPipelineId = integration.selectedPipelineId ?? null
@@ -56,7 +98,8 @@ export async function POST() {
 
         const pipRes = await fetch(`${base}/leads/pipelines`, { headers: reqHeaders })
         if (!pipRes.ok) {
-          await emit({ stage: 'error', error: 'Erro ao buscar pipelines do Kommo' })
+          const hint = pipRes.status === 401 ? ' (token inválido — reconecte a integração)' : pipRes.status === 403 ? ' (sem permissão — verifique os escopos no Kommo)' : ` (HTTP ${pipRes.status})`
+          await emit({ stage: 'error', error: `Erro ao buscar pipelines do Kommo${hint}` })
           controller.close(); return
         }
         const pipData = await pipRes.json()
