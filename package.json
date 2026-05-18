@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "seed": "npx tsx lib/db/seed.ts",
+    "check-tables": "npx tsx lib/db/check-tables.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
