@@ -335,13 +335,22 @@ export default function IntegrationPage() {
   async function saveCredentials() {
     if (!clientId || !clientSecret || !accountDomain) return
     setSavingCreds(true)
-    const res = await fetch('/api/kommo/connect', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId, clientSecret, accountDomain }),
-    })
-    const data = await res.json()
-    setSavingCreds(false)
-    if (data.oauthUrl) window.location.href = data.oauthUrl
+    try {
+      const res = await fetch('/api/kommo/connect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret, accountDomain }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        console.error('[saveCredentials]', data?.error)
+        return
+      }
+      if (data.oauthUrl) window.location.href = data.oauthUrl
+    } catch (err) {
+      console.error('[saveCredentials]', err)
+    } finally {
+      setSavingCreds(false)
+    }
   }
 
   async function savePipelineSelection() {

@@ -31,6 +31,11 @@ export default auth((req) => {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
+  // 4. Master on app pages (non-master routes) → /master
+  if (isLoggedIn && isMaster && !pathname.startsWith('/master') && !pathname.startsWith('/api')) {
+    return NextResponse.redirect(new URL('/master', req.url))
+  }
+
   if (!isLoggedIn && !isPublic) {
     return NextResponse.redirect(new URL('/login', req.url))
   }

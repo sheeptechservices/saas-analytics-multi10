@@ -26,38 +26,45 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session.user.tenantId) return NextResponse.json({ error: 'Usuário não possui tenant associado' }, { status: 400 })
 
-  const { clientId, clientSecret, accountDomain } = await req.json()
+    const { clientId, clientSecret, accountDomain } = await req.json()
 
-  if (!clientId || !clientSecret || !accountDomain) {
-    return NextResponse.json({ error: 'Campos obrigatórios: clientId, clientSecret, accountDomain' }, { status: 400 })
+    if (!clientId || !clientSecret || !accountDomain) {
+      return NextResponse.json({ error: 'Campos obrigatórios: clientId, clientSecret, accountDomain' }, { status: 400 })
+    }
+
+    const existing = await db.select().from(integrations)
+      .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))
+      .then(r => r[0])
+
+    const encryptedSecret = encrypt(clientSecret)
+    if (existing) {
+      await db.update(integrations)
+        .set({ clientId, clientSecret: encryptedSecret, accountDomain })
+        .where(eq(integrations.id, existing.id))
+    } else {
+      await db.insert(integrations).values({
+        id: uid(),
+        tenantId: session.user.tenantId,
+        provider: 'kommo',
+        clientId,
+        clientSecret: encryptedSecret,
+        accountDomain,
+        createdAt: new Date(),
+      })
+    }
+
+    const redirectUri = process.env.KOMMO_REDIRECT_URI ?? 'http://localhost:3000/api/kommo/callback'
+    const oauthUrl = `https://www.kommo.com/oauth?client_id=${clientId}&state=${session.user.tenantId}&mode=popup&redirect_uri=${encodeURIComponent(redirectUri)}`
+
+    return NextResponse.json({ oauthUrl })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[kommo/connect POST]', err)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-
-  const existing = await db.select().from(integrations)
-    .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))
-    .then(r => r[0])
-
-  const encryptedSecret = encrypt(clientSecret)
-  if (existing) {
-    await db.update(integrations)
-      .set({ clientId, clientSecret: encryptedSecret, accountDomain })
-      .where(eq(integrations.id, existing.id))
-  } else {
-    await db.insert(integrations).values({
-      id: uid(),
-      tenantId: session.user.tenantId,
-      provider: 'kommo',
-      clientId,
-      clientSecret: encryptedSecret,
-      accountDomain,
-      createdAt: new Date(),
-    })
-  }
-
-  const redirectUri = process.env.KOMMO_REDIRECT_URI ?? 'http://localhost:3000/api/kommo/callback'
-  const oauthUrl = `https://www.kommo.com/oauth?client_id=${clientId}&state=${session.user.tenantId}&mode=popup&redirect_uri=${encodeURIComponent(redirectUri)}`
-
-  return NextResponse.json({ oauthUrl })
 }

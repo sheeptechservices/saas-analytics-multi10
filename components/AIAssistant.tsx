@@ -3,11 +3,11 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; streaming?: boolean }
 
-let _id = Date.now()
+let _id = 0
 const uid = () => ++_id
 
 const WELCOME: Message = {
-  id: uid(),
+  id: 0,
   role: 'assistant',
   content: 'Olá! Posso analisar seus dados de pipeline, tirar dúvidas sobre o sistema ou ajudar com a integração Kommo.\n\nComo posso ajudar?',
 }
