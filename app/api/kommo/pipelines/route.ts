@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { integrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { decrypt } from '@/lib/crypto'
 
 export async function GET() {
   const session = await auth()
@@ -19,7 +20,7 @@ export async function GET() {
   try {
     const base = `https://${integration.accountDomain}.kommo.com/api/v4`
     const res = await fetch(`${base}/leads/pipelines`, {
-      headers: { Authorization: `Bearer ${integration.accessToken}` },
+      headers: { Authorization: `Bearer ${decrypt(integration.accessToken)}` },
     })
     if (!res.ok) return NextResponse.json({ error: 'Erro ao buscar funis' }, { status: 500 })
 

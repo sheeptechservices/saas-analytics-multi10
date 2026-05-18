@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { integrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { refreshKommoToken, runKommoSync, runKommoIncrementalSync } from '@/lib/kommo/sync'
+import { decrypt } from '@/lib/crypto'
 
 const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
 
@@ -11,9 +12,16 @@ export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let integration = await db.select().from(integrations)
+  const raw = await db.select().from(integrations)
     .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))
     .then(r => r[0])
+
+  let integration = raw ? {
+    ...raw,
+    accessToken: raw.accessToken ? decrypt(raw.accessToken) : null,
+    refreshToken: raw.refreshToken ? decrypt(raw.refreshToken) : null,
+    clientSecret: raw.clientSecret ? decrypt(raw.clientSecret) : null,
+  } : undefined
 
   if (!integration?.accessToken || !integration?.accountDomain) {
     return NextResponse.json({ error: 'Kommo não conectado' }, { status: 400 })

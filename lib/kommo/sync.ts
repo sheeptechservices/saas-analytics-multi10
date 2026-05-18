@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { integrations, pipelines, stages, leads, leadExtras } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
+import { encrypt } from '@/lib/crypto'
 
 function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
@@ -38,8 +39,8 @@ export async function refreshKommoToken(integration: KommoIntegration): Promise<
   const data = await res.json()
   const expiresAt = new Date(Date.now() + data.expires_in * 1000)
   await db.update(integrations).set({
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
+    accessToken: encrypt(data.access_token),
+    refreshToken: encrypt(data.refresh_token),
     expiresAt,
   }).where(eq(integrations.id, integration.id))
   return data.access_token as string

@@ -97,3 +97,27 @@ export const leadExtras = sqliteTable('lead_extras', {
   customFields: text('custom_fields').notNull().default('{}'),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
+
+export const aiSettings = sqliteTable('ai_settings', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().unique().references(() => tenants.id),
+  apiKeyEnc: text('api_key_enc'),
+  defaultModel: text('default_model').default('claude-haiku-4-5-20251001'),
+  monthlyBudgetBrl: real('monthly_budget_brl').default(0),
+  cachedSpendUsd: real('cached_spend_usd').default(0),
+  budgetMonth: text('budget_month'),
+  isActive: integer('is_active').default(0),
+  createdAt: integer('created_at'),
+  updatedAt: integer('updated_at'),
+})
+
+export const aiUsageLogs = sqliteTable('ai_usage_logs', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  model: text('model').notNull(),
+  inputTokens: integer('input_tokens').notNull(),
+  outputTokens: integer('output_tokens').notNull(),
+  costUsd: real('cost_usd').notNull(),
+  feature: text('feature').default('chat'),
+  createdAt: integer('created_at').notNull(),
+})

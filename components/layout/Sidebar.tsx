@@ -28,6 +28,10 @@ const navItems = [
         href: '/integration', label: 'Kommo CRM',
         icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0z"/><path d="M8 5v3l2 2"/></svg>,
       },
+      {
+        href: '/integration/ai', label: 'Claude IA',
+        icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="M8 1l1.6 5.4L15 8l-5.4 1.6L8 15l-1.6-5.4L1 8l5.4-1.6z"/></svg>,
+      },
     ],
   },
   {
@@ -100,7 +104,7 @@ export function Sidebar() {
                 </div>
               )
             }
-            const active = pathname === item.href || pathname.startsWith(item.href + '/')
+            const active = pathname === item.href
             return (
               <Link
                 key={item.href}

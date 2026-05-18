@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { integrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { encrypt } from '@/lib/crypto'
 
 function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
@@ -38,9 +39,10 @@ export async function POST(req: NextRequest) {
     .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))
     .then(r => r[0])
 
+  const encryptedSecret = encrypt(clientSecret)
   if (existing) {
     await db.update(integrations)
-      .set({ clientId, clientSecret, accountDomain })
+      .set({ clientId, clientSecret: encryptedSecret, accountDomain })
       .where(eq(integrations.id, existing.id))
   } else {
     await db.insert(integrations).values({
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
       tenantId: session.user.tenantId,
       provider: 'kommo',
       clientId,
-      clientSecret,
+      clientSecret: encryptedSecret,
       accountDomain,
       createdAt: new Date(),
     })

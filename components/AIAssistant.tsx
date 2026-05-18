@@ -30,6 +30,8 @@ export function AIAssistant() {
   const [context, setContext] = useState<any>(null)
   const [hint, setHint] = useState(false)
   const [hintVisible, setHintVisible] = useState(false)
+  const [selectedModel, setSelectedModel] = useState('claude-haiku-4-5-20251001')
+  const [chatError, setChatError] = useState<'budget_exceeded' | 'ai_not_configured' | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -64,6 +66,13 @@ export function AIAssistant() {
   }, [open])
 
   useEffect(() => {
+    fetch('/api/ai-settings')
+      .then(r => r.json())
+      .then(data => { if (data.defaultModel) setSelectedModel(data.defaultModel) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (open) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, open])
 
@@ -76,7 +85,7 @@ export function AIAssistant() {
 
   const send = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim()
-    if (!msg || loading) return
+    if (!msg || loading || chatError) return
 
     const userMsg: Message = { id: uid(), role: 'user', content: msg }
     const aiPlaceholder: Message = { id: uid(), role: 'assistant', content: '', streaming: true }
@@ -93,15 +102,21 @@ export function AIAssistant() {
         body: JSON.stringify({
           messages: history.map(m => ({ role: m.role, content: m.content })),
           context,
+          model: selectedModel,
         }),
       })
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Erro ao conectar com o assistente.' }))
-        setMessages(prev => [
-          ...prev.slice(0, -1),
-          { id: uid(), role: 'assistant', content: err.error ?? 'Erro desconhecido.' },
-        ])
+        const err = await res.json().catch(() => ({}))
+        if (err.error === 'budget_exceeded' || err.error === 'ai_not_configured') {
+          setChatError(err.error)
+          setMessages(prev => prev.slice(0, -1))
+        } else {
+          setMessages(prev => [
+            ...prev.slice(0, -1),
+            { id: uid(), role: 'assistant', content: err.error ?? 'Erro ao conectar com o assistente.' },
+          ])
+        }
         return
       }
 
@@ -129,7 +144,7 @@ export function AIAssistant() {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, messages, context])
+  }, [input, loading, messages, context, selectedModel, chatError])
 
   // Keep sendRef current so the ai-ask event handler always calls the latest version
   useEffect(() => { sendRef.current = send }, [send])
@@ -308,6 +323,21 @@ export function AIAssistant() {
               </span>
             </div>
           </div>
+          <select
+            value={selectedModel}
+            onChange={e => setSelectedModel(e.target.value)}
+            style={{
+              fontSize: 10, fontWeight: 700, padding: '3px 6px',
+              border: '1px solid var(--gray3)', borderRadius: 6,
+              background: 'var(--bg)', color: 'var(--gray)',
+              cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+              outline: 'none',
+            }}
+          >
+            <option value="claude-haiku-4-5-20251001">Haiku</option>
+            <option value="claude-sonnet-4-6">Sonnet</option>
+            <option value="claude-opus-4-7">Opus</option>
+          </select>
           <span style={{
             fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 100,
             background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
@@ -348,6 +378,32 @@ export function AIAssistant() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Error banners */}
+        {chatError === 'budget_exceeded' && (
+          <div style={{
+            padding: '9px 14px', background: 'rgba(217,48,37,0.07)',
+            borderTop: '1px solid rgba(217,48,37,0.2)', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#b02619' }}>Orçamento mensal atingido</span>
+            <a href="/integration/ai" style={{ fontSize: 11, fontWeight: 700, color: '#b02619', textDecoration: 'none', whiteSpace: 'nowrap', padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(217,48,37,0.3)', background: 'rgba(217,48,37,0.06)' }}>
+              Ajustar orçamento →
+            </a>
+          </div>
+        )}
+        {chatError === 'ai_not_configured' && (
+          <div style={{
+            padding: '9px 14px', background: 'rgba(217,148,0,0.07)',
+            borderTop: '1px solid rgba(217,148,0,0.25)', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#92610a' }}>IA não configurada</span>
+            <a href="/integration/ai" style={{ fontSize: 11, fontWeight: 700, color: '#92610a', textDecoration: 'none', whiteSpace: 'nowrap', padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(217,148,0,0.3)', background: 'rgba(217,148,0,0.06)' }}>
+              Configurar agora →
+            </a>
+          </div>
+        )}
+
         {/* Input */}
         <div style={{ padding: '8px 12px 12px', borderTop: '1px solid var(--gray3)', background: 'var(--bg)', flexShrink: 0 }}>
           <InputArea
@@ -356,8 +412,9 @@ export function AIAssistant() {
             onChange={e => { setInput(e.target.value); resizeTextarea() }}
             onKeyDown={onKeyDown}
             onSend={() => send()}
-            canSend={!!input.trim() && !loading}
+            canSend={!!input.trim() && !loading && !chatError}
             loading={loading}
+            disabled={!!chatError}
           />
           <div style={{ fontSize: 10, color: 'var(--gray2)', marginTop: 5, textAlign: 'center', fontWeight: 500, opacity: 0.75 }}>
             Enter para enviar · Shift+Enter para nova linha
@@ -415,7 +472,7 @@ function FABButton({ open, onClick }: { open: boolean; onClick: () => void }) {
 
 // ─── InputArea ────────────────────────────────────────────────────────────────
 
-function InputArea({ value, textareaRef, onChange, onKeyDown, onSend, canSend, loading }: {
+function InputArea({ value, textareaRef, onChange, onKeyDown, onSend, canSend, loading, disabled }: {
   value: string
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onChange: React.ChangeEventHandler<HTMLTextAreaElement>
@@ -423,16 +480,18 @@ function InputArea({ value, textareaRef, onChange, onKeyDown, onSend, canSend, l
   onSend: () => void
   canSend: boolean
   loading: boolean
+  disabled?: boolean
 }) {
   const [focused, setFocused] = useState(false)
   return (
     <div style={{
       display: 'flex', gap: 8, alignItems: 'flex-end',
-      background: 'var(--white)',
-      border: `1.5px solid ${focused ? 'var(--primary)' : 'var(--gray3)'}`,
+      background: disabled ? 'var(--bg)' : 'var(--white)',
+      border: `1.5px solid ${focused && !disabled ? 'var(--primary)' : 'var(--gray3)'}`,
       borderRadius: 14, padding: '8px 8px 8px 12px',
-      boxShadow: focused ? '0 0 0 3px var(--primary-dim)' : 'none',
+      boxShadow: focused && !disabled ? '0 0 0 3px var(--primary-dim)' : 'none',
       transition: 'border-color 0.22s ease, box-shadow 0.22s ease',
+      opacity: disabled ? 0.55 : 1,
     }}>
       <textarea
         ref={textareaRef}
@@ -441,13 +500,15 @@ function InputArea({ value, textareaRef, onChange, onKeyDown, onSend, canSend, l
         onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder="Pergunte sobre seus dados…"
+        placeholder={disabled ? 'Assistente indisponível' : 'Pergunte sobre seus dados…'}
         rows={1}
+        disabled={disabled}
         style={{
           flex: 1, resize: 'none', border: 'none', outline: 'none',
           fontFamily: 'inherit', fontSize: 13, color: 'var(--black)',
           background: 'transparent', lineHeight: 1.5,
           minHeight: 20, maxHeight: 120, overflowY: 'auto', paddingTop: 1,
+          cursor: disabled ? 'not-allowed' : 'text',
         }}
       />
       <SendButton active={canSend} loading={loading} onClick={onSend} />

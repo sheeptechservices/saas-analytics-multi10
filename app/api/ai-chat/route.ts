@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic()
+import { db } from '@/lib/db'
+import { aiSettings, aiUsageLogs } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { decrypt } from '@/lib/crypto'
+import { randomUUID } from 'crypto'
 
 const SYSTEM_PROMPT = `Você é o assistente de BI da plataforma Multi10 — uma plataforma de funil de vendas com integração ao Kommo CRM.
 
@@ -20,18 +23,66 @@ Guia rápido do sistema:
 
 Seja conciso e direto. Use markdown quando útil (listas, negrito). Responda sempre em português brasileiro.`
 
+const ALLOWED_MODELS = ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-7'] as const
+type AllowedModel = typeof ALLOWED_MODELS[number]
+
+const COST_PER_M: Record<AllowedModel, { input: number; output: number }> = {
+  'claude-haiku-4-5-20251001': { input: 0.80,  output: 4.00  },
+  'claude-sonnet-4-6':         { input: 3.00,  output: 15.00 },
+  'claude-opus-4-7':           { input: 15.00, output: 75.00 },
+}
+
+let fxRate = 0
+let fxExpiry = 0
+
+async function getUsdBrlRate(): Promise<number> {
+  if (Date.now() < fxExpiry && fxRate > 0) return fxRate
+  try {
+    const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL', {
+      signal: AbortSignal.timeout(5000),
+    })
+    const data = await res.json()
+    const parsed = parseFloat((data as any).USDBRL?.bid ?? '0')
+    if (parsed > 0) fxRate = parsed
+  } catch {}
+  if (!fxRate) fxRate = 6.0
+  fxExpiry = Date.now() + 60 * 60 * 1000
+  return fxRate
+}
+
 export async function POST(req: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY não configurada. Adicione sua chave em .env.local para usar o assistente.' },
-      { status: 503 }
-    )
+  const settings = await db.select().from(aiSettings)
+    .where(eq(aiSettings.tenantId, session.user.tenantId))
+    .then(r => r[0])
+
+  if (!settings || !settings.apiKeyEnc || settings.isActive === 0) {
+    return NextResponse.json({ error: 'ai_not_configured' }, { status: 402 })
   }
 
-  const { messages, context } = await req.json()
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  if (settings.budgetMonth !== currentMonth) {
+    await db.update(aiSettings).set({
+      cachedSpendUsd: 0,
+      budgetMonth: currentMonth,
+      updatedAt: Date.now(),
+    }).where(eq(aiSettings.tenantId, session.user.tenantId))
+    settings.cachedSpendUsd = 0
+  }
+
+  if (settings.monthlyBudgetBrl && settings.monthlyBudgetBrl > 0) {
+    const rate = await getUsdBrlRate()
+    if ((settings.cachedSpendUsd ?? 0) * rate >= settings.monthlyBudgetBrl) {
+      return NextResponse.json({ error: 'budget_exceeded' }, { status: 402 })
+    }
+  }
+
+  const { messages, context, model: reqModel } = await req.json()
+  const model: AllowedModel = ALLOWED_MODELS.includes(reqModel) ? reqModel : 'claude-haiku-4-5-20251001'
+
+  const client = new Anthropic({ apiKey: decrypt(settings.apiKeyEnc) })
 
   let systemPrompt = SYSTEM_PROMPT
   if (context?.metrics) {
@@ -51,11 +102,14 @@ export async function POST(req: Request) {
   }
 
   const stream = await client.messages.stream({
-    model: 'claude-haiku-4-5-20251001',
+    model,
     max_tokens: 1024,
     system: systemPrompt,
     messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
   })
+
+  const tenantId = session.user.tenantId
+  const spendBase = settings.cachedSpendUsd ?? 0
 
   const readable = new ReadableStream({
     async start(controller) {
@@ -64,6 +118,32 @@ export async function POST(req: Request) {
           controller.enqueue(new TextEncoder().encode(chunk.delta.text))
         }
       }
+
+      try {
+        const { usage } = await stream.finalMessage()
+        const rates = COST_PER_M[model]
+        const costUsd = (usage.input_tokens / 1_000_000) * rates.input
+          + (usage.output_tokens / 1_000_000) * rates.output
+        const now = Date.now()
+
+        await Promise.all([
+          db.insert(aiUsageLogs).values({
+            id: randomUUID(),
+            tenantId,
+            model,
+            inputTokens: usage.input_tokens,
+            outputTokens: usage.output_tokens,
+            costUsd,
+            feature: 'chat',
+            createdAt: now,
+          }),
+          db.update(aiSettings).set({
+            cachedSpendUsd: spendBase + costUsd,
+            updatedAt: now,
+          }).where(eq(aiSettings.tenantId, tenantId)),
+        ])
+      } catch {}
+
       controller.close()
     },
   })

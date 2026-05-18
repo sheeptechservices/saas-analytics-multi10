@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { integrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { encrypt, decrypt } from '@/lib/crypto'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         client_id: integration.clientId,
-        client_secret: integration.clientSecret,
+        client_secret: decrypt(integration.clientSecret),
         grant_type: 'authorization_code',
         code,
         redirect_uri: process.env.KOMMO_REDIRECT_URI ?? 'http://localhost:3000/api/kommo/callback',
@@ -46,8 +47,8 @@ export async function GET(req: NextRequest) {
     const expiresAt = new Date(Date.now() + data.expires_in * 1000)
 
     await db.update(integrations).set({
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
+      accessToken: encrypt(data.access_token),
+      refreshToken: encrypt(data.refresh_token),
       expiresAt,
     }).where(eq(integrations.id, integration.id))
 
