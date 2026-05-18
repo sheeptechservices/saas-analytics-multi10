@@ -7,8 +7,29 @@ const { auth } = NextAuth(authConfig)
 export default auth((req) => {
   const { pathname } = req.nextUrl
   const isLoggedIn = !!req.auth
+  const role = req.auth?.user?.role
+  const isMaster = role === 'master'
 
-  const isPublic = pathname.startsWith('/login') || pathname.startsWith('/api/auth')
+  const isPublic =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/api/auth')
+
+  // 1. Master on /login → /master
+  if (isLoggedIn && isMaster && pathname === '/login') {
+    return NextResponse.redirect(new URL('/master', req.url))
+  }
+
+  // 2. Master on /master/* → allow
+  if (isLoggedIn && isMaster && pathname.startsWith('/master')) {
+    return NextResponse.next()
+  }
+
+  // 3. Non-master on /master/* → /dashboard
+  if (isLoggedIn && !isMaster && pathname.startsWith('/master')) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
+  }
 
   if (!isLoggedIn && !isPublic) {
     return NextResponse.redirect(new URL('/login', req.url))

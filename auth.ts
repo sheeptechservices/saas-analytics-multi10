@@ -29,21 +29,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(credentials.password as string, user.passwordHash)
         if (!valid) return null
 
-        const tenant = await db
-          .select()
-          .from(tenants)
-          .where(eq(tenants.id, user.tenantId))
-          .then(r => r[0])
+        let tenant = null
+        if (user.tenantId) {
+          tenant = await db
+            .select()
+            .from(tenants)
+            .where(eq(tenants.id, user.tenantId))
+            .then(r => r[0] ?? null)
+        }
 
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
-          tenantId: user.tenantId,
-          primaryColor: tenant?.primaryColor ?? '#FFB400',
+          tenantId: user.tenantId ?? '',
+          primaryColor: tenant?.primaryColor ?? '',
           logoUrl: tenant?.logoUrl ?? null,
-          brandName: tenant?.name ?? 'Multi10',
+          brandName: tenant?.name ?? '',
         }
       },
     }),

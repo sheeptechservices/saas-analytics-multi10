@@ -56,7 +56,7 @@ function extractSchemaInfo(): Map<string, SchemaTable> {
 
     // column names live under the public fields that are column builders
     const columns = new Set<string>()
-    for (const [, col] of Object.entries(value as Record<string, unknown>)) {
+    for (const [, col] of Object.entries(value as unknown as Record<string, unknown>)) {
       if (col && typeof col === 'object' && 'name' in col && typeof (col as { name: unknown }).name === 'string') {
         const colObj = col as { name: string; columnType?: string }
         // filter out drizzle internals — real columns always have a columnType
@@ -89,7 +89,7 @@ async function main() {
   const tablesRes = await client.execute(
     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
   )
-  const dbTableNames = (tablesRes.rows as Array<{ name: string }>)
+  const dbTableNames = (tablesRes.rows as unknown as Array<{ name: string }>)
     .map(r => r.name)
     .filter(n => !isIgnored(n))
 
@@ -98,7 +98,7 @@ async function main() {
   for (const tbl of dbTableNames) {
     const colRes = await client.execute(`PRAGMA table_info(${tbl})`)
     const cols = new Set<string>(
-      (colRes.rows as Array<{ name: string }>).map(r => r.name)
+      (colRes.rows as unknown as Array<{ name: string }>).map(r => r.name)
     )
     dbTables.set(tbl, cols)
   }

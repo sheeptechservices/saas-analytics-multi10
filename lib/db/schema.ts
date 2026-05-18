@@ -11,11 +11,11 @@ export const tenants = sqliteTable('tenants', {
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
-  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  tenantId: text('tenant_id').references(() => tenants.id),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
-  role: text('role', { enum: ['admin', 'manager', 'user'] }).notNull().default('user'),
+  role: text('role', { enum: ['master', 'admin', 'manager', 'user'] }).notNull().default('user'),
   avatarColor: text('avatar_color').notNull().default('#FFB400'),
   avatarBg: text('avatar_bg').notNull().default('#121316'),
   photoUrl: text('photo_url'),
@@ -120,4 +120,13 @@ export const aiUsageLogs = sqliteTable('ai_usage_logs', {
   costUsd: real('cost_usd').notNull(),
   feature: text('feature').default('chat'),
   createdAt: integer('created_at').notNull(),
+})
+
+export const passwordResetTokens = sqliteTable('password_reset_tokens', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: integer('expires_at').notNull(),
+  usedAt: integer('used_at'),
+  createdAt: integer('created_at').notNull().$defaultFn(() => Date.now()),
 })

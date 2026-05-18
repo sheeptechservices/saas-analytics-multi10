@@ -27,15 +27,6 @@ export default function LoginPage() {
     }
   }
 
-  async function loginDemo(e: React.MouseEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-    const res = await signIn('credentials', { email: 'admin@multi10.com', password: 'admin123', redirect: false })
-    setLoading(false)
-    if (res?.ok) router.push('/dashboard')
-  }
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '100vh' }}>
       {/* Painel esquerdo escuro */}
@@ -150,29 +141,18 @@ export default function LoginPage() {
             >
               {loading ? 'Entrando…' : 'Entrar'}
             </button>
+
+            <div style={{ textAlign: 'center' }}>
+              <a
+                href="/forgot-password"
+                style={{ fontSize: 13, color: 'var(--gray)', textDecoration: 'none', fontWeight: 500 }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--gray)')}
+              >
+                Esqueci minha senha
+              </a>
+            </div>
           </form>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--gray3)' }} />
-            <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>ou acesse rapidamente</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--gray3)' }} />
-          </div>
-
-          <button
-            onClick={loginDemo}
-            disabled={loading}
-            style={{
-              width: '100%', padding: '11px',
-              fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-              background: 'var(--white)', color: 'var(--black)',
-              border: '1px solid var(--gray3)', borderRadius: 100,
-              cursor: 'pointer', transition: 'all .2s',
-            }}
-            onMouseEnter={e => { (e.target as HTMLButtonElement).style.borderColor = 'var(--primary-mid)'; (e.target as HTMLButtonElement).style.background = 'var(--primary-dim)' }}
-            onMouseLeave={e => { (e.target as HTMLButtonElement).style.borderColor = 'var(--gray3)'; (e.target as HTMLButtonElement).style.background = 'var(--white)' }}
-          >
-            Entrar como Admin (demo)
-          </button>
 
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,

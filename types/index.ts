@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'manager' | 'user'
+export type Role = 'master' | 'admin' | 'manager' | 'user'
 export type Priority = 'high' | 'normal' | 'low'
 export type IntegrationStatus = 'connected' | 'expired' | 'disconnected'
 

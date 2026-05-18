@@ -313,6 +313,361 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {me?.role === 'admin' && <UsersSection meId={me.id} />}
     </div>
+  )
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+type UserRow = {
+  id: string
+  name: string
+  email: string
+  role: string
+  avatarColor: string
+  avatarBg: string
+  createdAt: string | number
+}
+
+const ROLE_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  admin:   { bg: '#dbeafe', color: '#1e40af', label: 'Admin' },
+  manager: { bg: '#fef3c7', color: '#92400e', label: 'Gerente' },
+  user:    { bg: '#f3f4f6', color: '#374151', label: 'Usuário' },
+  master:  { bg: '#ede9fe', color: '#5b21b6', label: 'Master' },
+}
+
+const ROLE_OPTIONS = [
+  { value: 'admin',   label: 'Administrador' },
+  { value: 'manager', label: 'Gerente' },
+  { value: 'user',    label: 'Usuário' },
+]
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%', padding: '10px 14px',
+  fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
+  color: 'var(--black)', background: 'var(--white)',
+  border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
+}
+
+function fmtDate(d: string | number) {
+  try {
+    const dt = typeof d === 'number' ? new Date(d * 1000) : new Date(d)
+    return dt.toLocaleDateString('pt-BR')
+  } catch { return '—' }
+}
+
+function Field({ value, onChange, type = 'text', placeholder, disabled }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled}
+      style={{ ...fieldStyle, ...(disabled ? { background: 'var(--bg)', color: 'var(--gray)', cursor: 'not-allowed' } : {}) }}
+      onFocus={e => { if (!disabled) { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' } }}
+      onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
+    />
+  )
+}
+
+function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ background: 'var(--white)', borderRadius: 16, padding: '28px 32px', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', animation: 'modalSlideUp .2s ease both' }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function BtnRow({ children }: { children: React.ReactNode }) {
+  return <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>{children}</div>
+}
+
+function CancelBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} style={{ flex: 1, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--bg)', color: 'var(--gray)', border: '1px solid var(--gray3)', borderRadius: 100, cursor: 'pointer' }}>
+      Cancelar
+    </button>
+  )
+}
+
+function SubmitBtn({ loading, children }: { loading: boolean; children: React.ReactNode }) {
+  return (
+    <button type="submit" disabled={loading} style={{ flex: 2, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: loading ? 'var(--gray3)' : 'var(--primary)', color: loading ? 'var(--gray)' : 'var(--primary-contrast)', border: 'none', borderRadius: 100, cursor: loading ? 'not-allowed' : 'pointer' }}>
+      {children}
+    </button>
+  )
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>{children}</label>
+}
+
+function ErrorBanner({ msg }: { msg: string }) {
+  return (
+    <div style={{ padding: '10px 14px', background: 'rgba(217,48,37,0.06)', border: '1px solid rgba(217,48,37,0.2)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+      {msg}
+    </div>
+  )
+}
+
+// ─── UsersSection ─────────────────────────────────────────────────────────────
+
+function UsersSection({ meId }: { meId: string }) {
+  const qc = useQueryClient()
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: () => fetch('/api/users').then(r => r.json()),
+  })
+
+  // ── invite ──
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteName, setInviteName] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('user')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState('')
+  const [inviteSuccess, setInviteSuccess] = useState(false)
+
+  // ── edit ──
+  const [editUser, setEditUser] = useState<UserRow | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editRole, setEditRole] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  // ── delete ──
+  const [deleteUser, setDeleteUser] = useState<UserRow | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  const userList: UserRow[] = data?.users ?? []
+
+  function openInvite() {
+    setInviteName(''); setInviteEmail(''); setInviteRole('user')
+    setInviteError(''); setInviteSuccess(false); setShowInvite(true)
+  }
+
+  function openEdit(u: UserRow) {
+    setEditUser(u); setEditName(u.name); setEditRole(u.role); setEditError('')
+  }
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault()
+    setInviteLoading(true); setInviteError('')
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: inviteName, email: inviteEmail, role: inviteRole }),
+    })
+    const body = await res.json()
+    setInviteLoading(false)
+    if (res.ok) {
+      setInviteSuccess(true)
+      qc.invalidateQueries({ queryKey: ['admin-users'] })
+      setTimeout(() => { setShowInvite(false); setInviteSuccess(false) }, 1800)
+    } else {
+      setInviteError(body.error || 'Erro ao enviar convite.')
+    }
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editUser) return
+    setEditLoading(true); setEditError('')
+    const res = await fetch(`/api/users/${editUser.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editName, role: editRole }),
+    })
+    const body = await res.json()
+    setEditLoading(false)
+    if (res.ok) { qc.invalidateQueries({ queryKey: ['admin-users'] }); setEditUser(null) }
+    else setEditError(body.error || 'Erro ao salvar.')
+  }
+
+  async function handleDelete() {
+    if (!deleteUser) return
+    setDeleteLoading(true)
+    await fetch(`/api/users/${deleteUser.id}`, { method: 'DELETE' })
+    setDeleteLoading(false)
+    setDeleteUser(null)
+    qc.invalidateQueries({ queryKey: ['admin-users'] })
+  }
+
+  return (
+    <>
+      <div className="animate-slide-up delay-4" style={{ marginTop: 20 }}>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)' }}>Usuários</div>
+            <button
+              onClick={openInvite}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--primary)', color: 'var(--primary-contrast)', border: 'none', borderRadius: 100, cursor: 'pointer' }}
+            >
+              + Convidar usuário
+            </button>
+          </div>
+
+          {/* States */}
+          {isLoading && (
+            <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Carregando…</div>
+          )}
+          {isError && (
+            <div style={{ padding: '24px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 13, color: 'var(--red)', marginBottom: 12 }}>Erro ao carregar usuários.</div>
+              <button onClick={() => refetch()} style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', background: 'var(--primary-dim)', border: 'none', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
+          {/* Table */}
+          {!isLoading && !isError && (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg)' }}>
+                  {['', 'Nome', 'E-mail', 'Role', 'Membro desde', ''].map((h, i) => (
+                    <th key={i} style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--gray2)', letterSpacing: '0.06em', borderBottom: '1px solid var(--gray3)' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {userList.map((u, i) => {
+                  const badge = ROLE_BADGE[u.role] ?? ROLE_BADGE.user
+                  const isMe = u.id === meId
+                  return (
+                    <tr key={u.id} style={{ borderBottom: i < userList.length - 1 ? '1px solid var(--gray3)' : 'none' }}>
+                      <td style={{ padding: '10px 16px', width: 44 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: u.avatarColor || 'var(--primary)', color: u.avatarBg || '#121316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
+                          {initials(u.name)}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 13, fontWeight: 700, color: 'var(--black)', whiteSpace: 'nowrap' }}>
+                        {u.name}
+                        {isMe && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--gray2)' }}>(você)</span>}
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--gray)' }}>{u.email}</td>
+                      <td style={{ padding: '10px 16px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, background: badge.bg, color: badge.color, padding: '3px 8px', borderRadius: 4, letterSpacing: '0.04em' }}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--gray2)', whiteSpace: 'nowrap' }}>
+                        {fmtDate(u.createdAt)}
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                          <IconBtn title="Editar" onClick={() => openEdit(u)} hoverColor="var(--primary-text)" hoverBorder="var(--primary)">
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M11.5 2.5a1.5 1.5 0 0 1 2 2L5 13H3v-2L11.5 2.5z"/></svg>
+                          </IconBtn>
+                          {!isMe && (
+                            <IconBtn title="Remover" onClick={() => setDeleteUser(u)} hoverColor="var(--red)" hoverBorder="var(--red)">
+                              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 4h10M6 4V2.5h4V4M5.5 4l.5 9.5M10.5 4l-.5 9.5"/></svg>
+                            </IconBtn>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {userList.length === 0 && (
+                  <tr><td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Nenhum usuário encontrado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* ── Invite modal ── */}
+      {showInvite && (
+        <Overlay onClose={() => setShowInvite(false)}>
+          <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 4 }}>Convidar usuário</div>
+          <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 24 }}>O usuário receberá um link para criar sua senha.</div>
+          {inviteSuccess ? (
+            <div style={{ padding: 20, background: 'rgba(30,138,62,0.06)', border: '1px solid rgba(30,138,62,0.25)', borderRadius: 10, fontSize: 14, fontWeight: 600, color: '#145c2a', textAlign: 'center' }}>
+              ✓ Convite enviado com sucesso!
+            </div>
+          ) : (
+            <form onSubmit={handleInvite} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><FieldLabel>NOME *</FieldLabel><Field value={inviteName} onChange={e => setInviteName((e.target as HTMLInputElement).value)} placeholder="Nome completo" required /></div>
+              <div><FieldLabel>E-MAIL *</FieldLabel><Field type="email" value={inviteEmail} onChange={e => setInviteEmail((e.target as HTMLInputElement).value)} placeholder="email@exemplo.com" required /></div>
+              <div>
+                <FieldLabel>PERFIL *</FieldLabel>
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+                  {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              {inviteError && <ErrorBanner msg={inviteError} />}
+              <BtnRow><CancelBtn onClick={() => setShowInvite(false)} /><SubmitBtn loading={inviteLoading}>{inviteLoading ? 'Enviando…' : 'Enviar convite'}</SubmitBtn></BtnRow>
+            </form>
+          )}
+        </Overlay>
+      )}
+
+      {/* ── Edit modal ── */}
+      {editUser && (
+        <Overlay onClose={() => setEditUser(null)}>
+          <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 24 }}>Editar usuário</div>
+          <form onSubmit={handleEdit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div><FieldLabel>E-MAIL</FieldLabel><Field value={editUser.email} disabled /></div>
+            <div><FieldLabel>NOME</FieldLabel><Field value={editName} onChange={e => setEditName((e.target as HTMLInputElement).value)} placeholder="Nome completo" required /></div>
+            <div>
+              <FieldLabel>PERFIL</FieldLabel>
+              {editUser.id === meId ? (
+                <Field value={ROLE_BADGE[editUser.role]?.label ?? editUser.role} disabled />
+              ) : (
+                <select value={editRole} onChange={e => setEditRole(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+                  {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              )}
+            </div>
+            {editError && <ErrorBanner msg={editError} />}
+            <BtnRow><CancelBtn onClick={() => setEditUser(null)} /><SubmitBtn loading={editLoading}>{editLoading ? 'Salvando…' : 'Salvar'}</SubmitBtn></BtnRow>
+          </form>
+        </Overlay>
+      )}
+
+      {/* ── Delete confirmation ── */}
+      {deleteUser && (
+        <Overlay onClose={() => setDeleteUser(null)}>
+          <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 12 }}>Remover usuário</div>
+          <p style={{ fontSize: 14, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 24 }}>
+            Tem certeza que deseja remover <strong style={{ color: 'var(--black)' }}>{deleteUser.name}</strong>? Esta ação não pode ser desfeita.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <CancelBtn onClick={() => setDeleteUser(null)} />
+            <button
+              onClick={handleDelete}
+              disabled={deleteLoading}
+              style={{ flex: 2, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: deleteLoading ? 'var(--gray3)' : 'var(--red)', color: deleteLoading ? 'var(--gray)' : '#fff', border: 'none', borderRadius: 100, cursor: deleteLoading ? 'not-allowed' : 'pointer' }}
+            >
+              {deleteLoading ? 'Removendo…' : 'Remover'}
+            </button>
+          </div>
+        </Overlay>
+      )}
+    </>
+  )
+}
+
+function IconBtn({ children, title, onClick, hoverColor, hoverBorder }: { children: React.ReactNode; title: string; onClick: () => void; hoverColor: string; hoverBorder: string }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--gray3)', borderRadius: 6, cursor: 'pointer', color: 'var(--gray)', transition: 'all .15s' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = hoverBorder; e.currentTarget.style.color = hoverColor }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--gray3)'; e.currentTarget.style.color = 'var(--gray)' }}
+    >
+      {children}
+    </button>
   )
 }
