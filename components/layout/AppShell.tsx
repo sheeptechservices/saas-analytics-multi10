@@ -20,7 +20,8 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
       display: 'grid',
       gridTemplateColumns: inGrid ? '220px 1fr' : '0px 1fr',
       gridTemplateRows: '60px 1fr',
-      minHeight: '100vh',
+      height: '100vh',
+      overflow: 'hidden',
       transition: 'grid-template-columns 0.25s ease',
     }}>
       <Topbar userName={userName} userRole={userRole} brandName={brandName} logoUrl={logoUrl} />
@@ -39,7 +40,7 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
 
       <Sidebar />
 
-      <main style={{ padding: '32px 36px', overflowY: 'auto', background: 'var(--bg)' }}>
+      <main style={{ padding: '32px 36px', overflowY: 'auto', background: 'var(--bg)', minHeight: 0 }}>
         {children}
       </main>
     </div>
