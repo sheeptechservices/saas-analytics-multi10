@@ -3,12 +3,17 @@ import { db } from '@/lib/db'
 import { integrations } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { refreshKommoToken, runKommoIncrementalSync } from '@/lib/kommo/sync'
+import { dailySync as googleDailySync } from '@/lib/ads/google'
+import { dailySync as metaDailySync } from '@/lib/ads/meta'
+import { dailySync as tiktokDailySync } from '@/lib/ads/tiktok'
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // ── Kommo incremental sync ────────────────────────────────────────────────────
 
   const allIntegrations = await db.select().from(integrations)
     .where(eq(integrations.provider, 'kommo'))
@@ -38,6 +43,30 @@ export async function GET(request: Request) {
     } catch (err: any) {
       console.error(`[cron/kommo-sync] tenant=${integration.tenantId}`, err?.message ?? err)
       results.push({ tenantId: integration.tenantId, status: 'error', error: err?.message ?? String(err) })
+    }
+  }
+
+  // ── Ads daily sync ────────────────────────────────────────────────────────────
+
+  const providers = ['google_ads', 'meta_ads', 'tiktok_ads'] as const
+  const syncFns = {
+    google_ads: googleDailySync,
+    meta_ads: metaDailySync,
+    tiktok_ads: tiktokDailySync,
+  }
+
+  for (const provider of providers) {
+    const activeIntegrations = await db
+      .select()
+      .from(integrations)
+      .where(eq(integrations.provider, provider))
+
+    for (const integration of activeIntegrations) {
+      try {
+        await syncFns[provider](integration.tenantId)
+      } catch (e) {
+        console.error(`${provider} daily sync failed for tenant ${integration.tenantId}`, e)
+      }
     }
   }
 

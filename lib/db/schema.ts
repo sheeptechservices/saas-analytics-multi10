@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
 
 export const tenants = sqliteTable('tenants', {
@@ -36,6 +37,7 @@ export const integrations = sqliteTable('integrations', {
   lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
   selectedPipelineId: text('selected_pipeline_id'),
   selectedPipelineName: text('selected_pipeline_name'),
+  metadata: text('metadata'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
 
@@ -129,4 +131,70 @@ export const passwordResetTokens = sqliteTable('password_reset_tokens', {
   expiresAt: integer('expires_at').notNull(),
   usedAt: integer('used_at'),
   createdAt: integer('created_at').notNull().$defaultFn(() => Date.now()),
+})
+
+export const adCampaigns = sqliteTable('ad_campaigns', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  provider: text('provider').notNull(),
+  externalId: text('external_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status'),
+  objective: text('objective'),
+  dailyBudget: real('daily_budget'),
+  lifetimeBudget: real('lifetime_budget'),
+  currency: text('currency'),
+  startDate: text('start_date'),
+  endDate: text('end_date'),
+  syncedAt: text('synced_at'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const adAdsets = sqliteTable('ad_adsets', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  provider: text('provider').notNull(),
+  externalId: text('external_id').notNull(),
+  externalCampaignId: text('external_campaign_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status'),
+  dailyBudget: real('daily_budget'),
+  syncedAt: text('synced_at'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const adAds = sqliteTable('ad_ads', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  provider: text('provider').notNull(),
+  externalId: text('external_id').notNull(),
+  externalAdsetId: text('external_adset_id').notNull(),
+  externalCampaignId: text('external_campaign_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status'),
+  type: text('type'),
+  syncedAt: text('synced_at'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const adInsights = sqliteTable('ad_insights', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  provider: text('provider').notNull(),
+  externalAdId: text('external_ad_id').notNull(),
+  externalAdsetId: text('external_adset_id').notNull(),
+  externalCampaignId: text('external_campaign_id').notNull(),
+  date: text('date').notNull(),
+  impressions: integer('impressions').default(0),
+  clicks: integer('clicks').default(0),
+  spend: real('spend').default(0),
+  reach: integer('reach').default(0),
+  conversions: real('conversions').default(0),
+  conversionValue: real('conversion_value').default(0),
+  ctr: real('ctr').default(0),
+  cpc: real('cpc').default(0),
+  cpm: real('cpm').default(0),
+  roas: real('roas').default(0),
+  frequency: real('frequency').default(0),
+  syncedAt: text('synced_at'),
 })

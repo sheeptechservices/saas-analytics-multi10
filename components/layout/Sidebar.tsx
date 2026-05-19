@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, BarChart3, Sparkles, Clock, Settings } from 'lucide-react'
+import { LayoutGrid, BarChart3, Sparkles, Clock, Settings, Globe, Users, Music } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 
@@ -33,6 +33,18 @@ const navItems = [
       {
         href: '/integration/ai', label: 'Claude IA',
         icon: <SparkleIcon size={16} />,
+      },
+      {
+        href: '/integration/google-ads', label: 'Google Ads',
+        icon: <Globe size={16} />,
+      },
+      {
+        href: '/integration/meta-ads', label: 'Meta Ads',
+        icon: <Users size={16} />,
+      },
+      {
+        href: '/integration/tiktok-ads', label: 'TikTok Ads',
+        icon: <Music size={16} />,
       },
     ],
   },

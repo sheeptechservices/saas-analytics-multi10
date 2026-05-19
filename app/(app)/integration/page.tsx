@@ -443,8 +443,8 @@ export default function IntegrationPage() {
     <div>
       {/* Header */}
       <div className="animate-slide-up delay-1" style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>Integração Kommo</div>
-        <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: 2 }}>Conecte seu CRM para sincronizar leads e pipelines</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>Kommo CRM</div>
+        <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: 2 }}>Conecte e sincronize seus leads do Kommo</div>
       </div>
 
       {/* Stepper */}
