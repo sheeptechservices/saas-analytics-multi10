@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { RefreshCw } from 'lucide-react'
 
 type Step = 1 | 2 | 3
 type IntegrationStatus = 'disconnected' | 'configured' | 'connected' | 'expired'
@@ -618,19 +619,18 @@ export default function IntegrationPage() {
                       flexShrink: 0,
                     }}
                   >
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke={syncing ? 'var(--primary-text)' : 'var(--gray)'} strokeWidth="2"
-                      style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }}>
-                      <path d="M1 4v5h5M15 12v-5h-5"/><path d="M13.4 7A6 6 0 1 0 12 12.3"/>
-                    </svg>
+                    <RefreshCw
+                      size={13}
+                      color={syncing ? 'var(--primary-text)' : 'var(--gray)'}
+                      style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }}
+                    />
                   </button>
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>
                   {status?.lastSyncAt ? new Date(status.lastSyncAt).toLocaleString('pt-BR') : 'Nunca'}
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--gray2)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="var(--gray2)" strokeWidth="2">
-                    <path d="M1 4v5h5M15 12v-5h-5"/><path d="M13.4 7A6 6 0 1 0 12 12.3"/>
-                  </svg>
+                  <RefreshCw size={9} color="var(--gray2)" />
                   Auto: incremental a cada 6h · full diário às 3h
                 </div>
               </div>
@@ -725,16 +725,12 @@ export default function IntegrationPage() {
               >
                 {syncing ? (
                   <>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
-                      <path d="M1 4v5h5M15 12v-5h-5"/><path d="M13.4 7A6 6 0 1 0 12 12.3"/>
-                    </svg>
+                    <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
                     Sincronizando...
                   </>
                 ) : (
                   <>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M1 4v5h5M15 12v-5h-5"/><path d="M13.4 7A6 6 0 1 0 12 12.3"/>
-                    </svg>
+                    <RefreshCw size={14} />
                     Sincronizar agora
                   </>
                 )}

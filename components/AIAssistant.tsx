@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { X, ArrowUp } from 'lucide-react'
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; streaming?: boolean }
 
@@ -224,7 +225,7 @@ export function AIAssistant() {
             }}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.22)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
-          >✕</button>
+          ><X size={10} /></button>
 
           {/* Spark icon */}
           <div style={{ fontSize: 18, marginBottom: 7, lineHeight: 1 }}>✦</div>
@@ -354,7 +355,7 @@ export function AIAssistant() {
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--gray3)'; e.currentTarget.style.color = 'var(--black)'; e.currentTarget.style.transform = 'scale(1.1)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--gray2)'; e.currentTarget.style.transform = 'scale(1)' }}
-          >✕</button>
+          ><X size={14} /></button>
         </div>
 
         {/* Messages */}
@@ -539,7 +540,7 @@ function SendButton({ active, loading, onClick }: { active: boolean; loading: bo
         transition: 'background 0.2s, color 0.2s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s',
         animation: loading ? 'pulse-dot 1s ease-in-out infinite' : 'none',
       }}
-    >↑</button>
+    ><ArrowUp size={16} /></button>
   )
 }
 

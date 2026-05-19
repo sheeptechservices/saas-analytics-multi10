@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ArrowUp, ArrowDown, ArrowRight } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ function ChangeBadge({ value }: { value: number | null }) {
   const zero = value === 0
   const color = zero ? 'var(--gray2)' : positive ? 'var(--green)' : 'var(--red)'
   const bg    = zero ? 'rgba(170,170,170,0.10)' : positive ? 'rgba(30,138,62,0.08)' : 'rgba(217,48,37,0.08)'
-  const arrow = zero ? '→' : positive ? '↑' : '↓'
+  const Arrow = zero ? ArrowRight : positive ? ArrowUp : ArrowDown
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -61,7 +62,7 @@ function ChangeBadge({ value }: { value: number | null }) {
       padding: '2px 8px',
       marginTop: 8,
     }}>
-      {arrow} {Math.abs(value)}% <span style={{ fontWeight: 500, opacity: 0.7 }}>vs ant.</span>
+      <Arrow size={11} /> {Math.abs(value)}% <span style={{ fontWeight: 500, opacity: 0.7 }}>vs ant.</span>
     </span>
   )
 }

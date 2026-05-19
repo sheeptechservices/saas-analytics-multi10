@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
+import { Menu } from 'lucide-react'
 import { initials } from '@/lib/utils'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useSidebar } from '@/stores/sidebarStore'
@@ -50,9 +51,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg)'; e.currentTarget.style.color = 'var(--black)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--gray2)' }}
         >
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-            <line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/>
-          </svg>
+          <Menu size={15} />
         </button>
 
         {displayLogo ? (
