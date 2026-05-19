@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, TriangleAlert, Lock } from 'lucide-react'
 
 type Step = 1 | 2 | 3
 type IntegrationStatus = 'disconnected' | 'configured' | 'connected' | 'expired'
@@ -76,9 +76,9 @@ function ConfirmModal({ pipelineName, onConfirm, onCancel }: {
             <div style={{
               width: 36, height: 36, borderRadius: 10, flexShrink: 0,
               background: 'rgba(217,48,37,0.08)', border: '1px solid rgba(217,48,37,0.18)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              ⚠️
+              <TriangleAlert size={18} color="var(--red)" />
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)' }}>Reimportar dados do Kommo?</div>
@@ -101,9 +101,7 @@ function ConfirmModal({ pipelineName, onConfirm, onCancel }: {
             background: 'rgba(30,138,62,0.06)', border: '1px solid rgba(30,138,62,0.2)',
             display: 'flex', alignItems: 'flex-start', gap: 10,
           }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--green)" strokeWidth="1.5" style={{ flexShrink: 0, marginTop: 1 }}>
-              <rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/>
-            </svg>
+            <Lock size={15} color="var(--green)" style={{ flexShrink: 0, marginTop: 1 }} />
             <div style={{ fontSize: 12, color: '#145c2a', fontWeight: 500, lineHeight: 1.5 }}>
               <strong>100% seguro — somente leitura.</strong> Nenhum dado será alterado, criado ou excluído no Kommo. A sincronização apenas lê seus leads.
             </div>
@@ -131,9 +129,7 @@ function ConfirmModal({ pipelineName, onConfirm, onCancel }: {
               display: 'flex', alignItems: 'center', gap: 7,
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M1 4v5h5M15 12v-5h-5"/><path d="M13.4 7A6 6 0 1 0 12 12.3"/>
-            </svg>
+            <RefreshCw size={13} />
             Sim, reimportar
           </button>
         </div>
