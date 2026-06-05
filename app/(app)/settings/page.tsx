@@ -1,17 +1,134 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { initials } from '@/lib/utils'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Clock } from 'lucide-react'
+import { SparkleIcon } from '@/components/icons/SparkleIcon'
 
 const PRESET_COLORS = [
   '#FFB400', '#2563eb', '#1E8A3E', '#D93025',
   '#7C3AED', '#DB2777', '#0891B2', '#059669',
 ]
 
+type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe'
+const TABS: { id: TabKey; label: string }[] = [
+  { id: 'perfil',      label: 'Perfil' },
+  { id: 'marca',       label: 'Marca' },
+  { id: 'integracoes', label: 'Integrações' },
+  { id: 'equipe',      label: 'Equipe' },
+]
+
+// ─── Integration icons ────────────────────────────────────────────────────────
+
+function GoogleAdsIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  )
+}
+
+function MetaAdsIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="#1877F2">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+    </svg>
+  )
+}
+
+function TikTokAdsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.88a8.28 8.28 0 0 0 4.83 1.56V7a4.85 4.85 0 0 1-1.06-.31z"/>
+    </svg>
+  )
+}
+
+// ─── Integration groups config ────────────────────────────────────────────────
+
+interface IntegrationItem {
+  slug: string
+  label: string
+  desc: string
+  href: string
+  iconBg: string
+  iconColor?: string
+  icon: React.ReactNode
+}
+
+const INTEGRATION_GROUPS: { group: string; items: IntegrationItem[] }[] = [
+  {
+    group: 'CRM',
+    items: [
+      {
+        slug: 'kommo',
+        label: 'Kommo CRM',
+        desc: 'Sincronize leads e funis do seu CRM Kommo.',
+        href: '/settings/integrations/kommo',
+        iconBg: '#fff7ed',
+        iconColor: '#ea580c',
+        icon: <Clock size={20} />,
+      },
+    ],
+  },
+  {
+    group: 'Anúncios',
+    items: [
+      {
+        slug: 'google-ads',
+        label: 'Google Ads',
+        desc: 'Sincronize campanhas e métricas do Google Ads.',
+        href: '/settings/integrations/google-ads',
+        iconBg: '#f8f9fa',
+        icon: <GoogleAdsIcon />,
+      },
+      {
+        slug: 'meta-ads',
+        label: 'Meta Ads',
+        desc: 'Campanhas e insights do Facebook e Instagram Ads.',
+        href: '/settings/integrations/meta-ads',
+        iconBg: '#eff6ff',
+        icon: <MetaAdsIcon />,
+      },
+      {
+        slug: 'tiktok-ads',
+        label: 'TikTok Ads',
+        desc: 'Campanhas e performance do TikTok for Business.',
+        href: '/settings/integrations/tiktok-ads',
+        iconBg: '#111',
+        icon: <TikTokAdsIcon />,
+      },
+    ],
+  },
+  {
+    group: 'IA',
+    items: [
+      {
+        slug: 'ai',
+        label: 'Claude IA',
+        desc: 'Assistente de IA para análises e insights.',
+        href: '/settings/integrations/ai',
+        iconBg: 'var(--primary-dim)',
+        iconColor: 'var(--primary-text)',
+        icon: <SparkleIcon size={20} />,
+      },
+    ],
+  },
+]
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
   const qc = useQueryClient()
+  const searchParams = useSearchParams()
+  const tab = (searchParams.get('tab') ?? 'perfil') as TabKey
+
   const { primaryColor, logoUrl, brandName, setPrimaryColor, setLogoUrl, setBrandName } = useWhiteLabel()
   const [localColor, setLocalColor] = useState(primaryColor)
   const [localLogo, setLocalLogo] = useState(logoUrl ?? '')
@@ -24,6 +141,10 @@ export default function SettingsPage() {
   const [profilePhoto, setProfilePhoto] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [savedProfile, setSavedProfile] = useState(false)
+
+  // Integration statuses — fetched once when the integracoes tab is first opened
+  const [integStatuses, setIntegStatuses] = useState<Record<string, 'loading' | 'connected' | 'disconnected'>>({})
+  const [integFetched, setIntegFetched] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['settings'],
@@ -50,9 +171,32 @@ export default function SettingsPage() {
     }
   }, [meData])
 
+  // Fetch all integration statuses in parallel, once per page load when tab is visited
+  useEffect(() => {
+    if (tab !== 'integracoes' || integFetched) return
+    setIntegFetched(true)
+    setIntegStatuses({ kommo: 'loading', 'google-ads': 'loading', 'meta-ads': 'loading', 'tiktok-ads': 'loading', ai: 'loading' })
+
+    Promise.all([
+      fetch('/api/kommo/sync').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/ads/google_ads').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/ads/meta_ads').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/ads/tiktok_ads').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/ai-settings').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([kommo, google, meta, tiktok, ai]) => {
+      setIntegStatuses({
+        'kommo':       kommo?.status === 'connected' ? 'connected' : 'disconnected',
+        'google-ads':  google?.accountId != null ? 'connected' : 'disconnected',
+        'meta-ads':    meta?.accountId != null ? 'connected' : 'disconnected',
+        'tiktok-ads':  tiktok?.accountId != null ? 'connected' : 'disconnected',
+        'ai':          ai?.configured ? 'connected' : 'disconnected',
+      })
+    })
+  }, [tab, integFetched])
+
   function handleColorChange(color: string) {
     setLocalColor(color)
-    setPrimaryColor(color) // live preview
+    setPrimaryColor(color)
   }
 
   async function save() {
@@ -87,65 +231,145 @@ export default function SettingsPage() {
   const users = data?.users ?? []
   const me = meData?.user
 
+  // ── Loading skeleton ────────────────────────────────────────────────────────
   if (isLoading) {
     const sk = (w: string | number, h: number, r = 8) => (
       <div className="shimmer-bar" style={{ width: w, height: h, borderRadius: r, background: 'var(--gray3)', flexShrink: 0 }} />
     )
     return (
       <div style={{ animation: 'fadeIn .3s ease both' }}>
-        <div style={{ marginBottom: 24 }}>{sk(160, 22, 6)}<div style={{ marginTop: 8 }}>{sk(240, 13, 4)}</div></div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-          <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {sk('40%', 11, 4)}
-            {[0,1,2].map(i => <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{sk('30%', 11, 4)}{sk('100%', 40, 8)}</div>)}
-            {sk('100%', 44, 100)}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {sk('35%', 11, 4)}{sk('100%', 80, 12)}
+        <div style={{ marginBottom: 24 }}>{sk(160, 22, 6)}</div>
+        <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--gray3)', marginBottom: 28, paddingBottom: 12 }}>
+          {[60, 50, 90, 55].map((w, i) => <div key={i}>{sk(w, 14, 4)}</div>)}
+        </div>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 560 }}>
+          {sk('40%', 11, 4)}
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {sk('30%', 11, 4)}{sk('100%', 40, 8)}
             </div>
-            <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {sk('30%', 11, 4)}
-              {[0,1,2].map(i => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>{sk(36, 36, 100)}<div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>{sk('50%', 13, 4)}{sk('35%', 11, 4)}</div></div>)}
-            </div>
-          </div>
+          ))}
+          {sk('100%', 44, 100)}
         </div>
       </div>
     )
   }
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div>
       {/* Header */}
-      <div className="animate-slide-up delay-1" style={{ marginBottom: 24 }}>
+      <div className="animate-slide-up delay-1" style={{ marginBottom: 4 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>Configurações</div>
-        <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: 2 }}>Personalize a identidade visual da plataforma</div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-        {/* White Label Form */}
+      {/* Tab bar */}
+      <div className="animate-slide-up delay-1" style={{ display: 'flex', borderBottom: '1px solid var(--gray3)', marginBottom: 28 }}>
+        {TABS.map(t => (
+          <Link
+            key={t.id}
+            href={`/settings?tab=${t.id}`}
+            style={{
+              fontSize: 13, fontWeight: 700,
+              color: tab === t.id ? 'var(--black)' : 'var(--gray2)',
+              textDecoration: 'none',
+              padding: '10px 16px',
+              borderBottom: tab === t.id ? '2px solid var(--primary)' : '2px solid transparent',
+              marginBottom: -1,
+              display: 'block',
+              transition: 'color .15s',
+            }}
+            onMouseEnter={e => { if (tab !== t.id) (e.currentTarget as HTMLAnchorElement).style.color = 'var(--black)' }}
+            onMouseLeave={e => { if (tab !== t.id) (e.currentTarget as HTMLAnchorElement).style.color = 'var(--gray2)' }}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Perfil ─────────────────────────────────────────────────────────── */}
+      {tab === 'perfil' && (
         <div className="animate-slide-up delay-2">
-          <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 20 }}>
-              Identidade Visual
+
+          {/* Avatar preview */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
+                background: me?.avatarColor ?? 'var(--primary)',
+                overflow: 'hidden', border: '2px solid var(--gray3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                ) : (
+                  <span style={{ fontSize: 20, fontWeight: 800, color: me?.avatarBg ?? '#121316' }}>
+                    {initials(profileName || me?.name || '?')}
+                  </span>
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>{profileName || me?.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--gray2)', marginTop: 2 }}>{me?.email}</div>
+                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 100, background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {me?.role}
+                </span>
+              </div>
             </div>
 
-            {/* Brand name */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>NOME DA MARCA</label>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>NOME</label>
               <input
-                value={localName}
-                onChange={e => setLocalName(e.target.value)}
-                style={{
-                  width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
-                  color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
-                }}
+                value={profileName}
+                onChange={e => setProfileName(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
                 onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                 onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
               />
             </div>
 
-            {/* Color picker */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>URL DA FOTO (opcional)</label>
+              <input
+                value={profilePhoto}
+                onChange={e => setProfilePhoto(e.target.value)}
+                placeholder="https://…/foto.jpg"
+                style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
+              />
+            </div>
+
+            {savedProfile && (
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(30,138,62,0.06)', border: '1px solid rgba(30,138,62,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#145c2a' }}>
+                ✓ Perfil atualizado com sucesso
+              </div>
+            )}
+
+            <button
+              onClick={saveProfile}
+              disabled={savingProfile}
+              style={{ width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
+            >
+              {savingProfile ? 'Salvando…' : 'Salvar perfil'}
+            </button>
+        </div>
+      )}
+
+      {/* ── Marca ──────────────────────────────────────────────────────────── */}
+      {tab === 'marca' && (
+        <div className="animate-slide-up delay-2">
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>NOME DA MARCA</label>
+              <input
+                value={localName}
+                onChange={e => setLocalName(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
+              />
+            </div>
+
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 10 }}>COR PRIMÁRIA</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -172,27 +396,20 @@ export default function SettingsPage() {
                 <input
                   value={localColor}
                   onChange={e => handleColorChange(e.target.value)}
-                  style={{
-                    flex: 1, padding: '10px 14px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-                    color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
-                  }}
+                  style={{ flex: 1, padding: '10px 14px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
                   onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                   onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
             </div>
 
-            {/* Logo URL */}
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>URL DA LOGO (opcional)</label>
               <input
                 value={localLogo}
                 onChange={e => setLocalLogo(e.target.value)}
                 placeholder="https://…/logo.png"
-                style={{
-                  width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
-                  color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
-                }}
+                style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
                 onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                 onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
               />
@@ -207,94 +424,93 @@ export default function SettingsPage() {
             <button
               onClick={save}
               disabled={saving}
-              style={{
-                width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
-                background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer',
-                color: 'var(--primary-contrast)',
-              }}
+              style={{ width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
             >
               {saving ? 'Salvando…' : 'Salvar configurações'}
             </button>
-          </div>
         </div>
+      )}
 
-        {/* Profile + Team */}
-        <div className="animate-slide-up delay-3">
-          {/* Profile */}
-          <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 20 }}>
-              Meu Perfil
-            </div>
-
-            {/* Avatar preview */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
-                background: me?.avatarColor ?? 'var(--primary)',
-                overflow: 'hidden',
-                border: '2px solid var(--gray3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {profilePhoto ? (
-                  <img src={profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                ) : (
-                  <span style={{ fontSize: 20, fontWeight: 800, color: me?.avatarBg ?? '#121316' }}>
-                    {initials(profileName || me?.name || '?')}
-                  </span>
-                )}
+      {/* ── Integrações ────────────────────────────────────────────────────── */}
+      {tab === 'integracoes' && (
+        <div className="animate-slide-up delay-2">
+          {INTEGRATION_GROUPS.map(group => (
+            <div key={group.group} style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--gray2)', marginBottom: 12 }}>
+                {group.group}
               </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>{profileName || me?.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--gray2)', marginTop: 2 }}>{me?.email}</div>
-                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 100, background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {me?.role}
-                </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {group.items.map(item => {
+                  const st = integStatuses[item.slug] ?? 'loading'
+                  const connected = st === 'connected'
+                  return (
+                    <Link
+                      key={item.slug}
+                      href={item.href}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 16,
+                        padding: '14px 16px',
+                        background: 'var(--white)', border: '1px solid var(--gray3)',
+                        borderRadius: 12, textDecoration: 'none',
+                        transition: 'border-color .15s',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--gray2)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--gray3)' }}
+                    >
+                      {/* Icon box */}
+                      <div style={{
+                        width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                        background: item.iconBg,
+                        color: item.iconColor ?? 'inherit',
+                        border: '1px solid rgba(0,0,0,0.06)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {item.icon}
+                      </div>
+
+                      {/* Label + desc */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--black)' }}>{item.label}</div>
+                        <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginTop: 2 }}>{item.desc}</div>
+                      </div>
+
+                      {/* Status badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, marginRight: 8 }}>
+                        {st === 'loading' ? (
+                          <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>—</span>
+                        ) : (
+                          <>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: connected ? 'var(--green)' : 'var(--gray3)' }} />
+                            <span style={{ fontSize: 12, fontWeight: 600, color: connected ? 'var(--green)' : 'var(--gray2)' }}>
+                              {connected ? 'Conectado' : 'Não conectado'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Action pill */}
+                      <div style={{
+                        padding: '6px 14px', borderRadius: 99, flexShrink: 0,
+                        background: 'var(--bg)', border: '1px solid var(--gray3)',
+                        fontSize: 12, fontWeight: 700, color: 'var(--gray)',
+                      }}>
+                        {connected ? 'Gerenciar' : 'Conectar'}
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Name */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>NOME</label>
-              <input
-                value={profileName}
-                onChange={e => setProfileName(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
-                onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
-                onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
-              />
-            </div>
-
-            {/* Photo URL */}
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>URL DA FOTO (opcional)</label>
-              <input
-                value={profilePhoto}
-                onChange={e => setProfilePhoto(e.target.value)}
-                placeholder="https://…/foto.jpg"
-                style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
-                onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
-                onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
-              />
-            </div>
-
-            {savedProfile && (
-              <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(30,138,62,0.06)', border: '1px solid rgba(30,138,62,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#145c2a' }}>
-                ✓ Perfil atualizado com sucesso
-              </div>
-            )}
-
-            <button
-              onClick={saveProfile}
-              disabled={savingProfile}
-              style={{ width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
-            >
-              {savingProfile ? 'Salvando…' : 'Salvar perfil'}
-            </button>
-          </div>
-
-          {/* Team */}
-          <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
+      {/* ── Equipe ─────────────────────────────────────────────────────────── */}
+      {tab === 'equipe' && (
+        <div className="animate-slide-up delay-2">
+          {/* Team members from settings query */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
               <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)' }}>Equipe</div>
             </div>
             {users.map((u: any) => (
@@ -312,10 +528,11 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
-        </div>
-      </div>
 
-      {me?.role === 'admin' && <UsersSection meId={me.id} />}
+          {/* Admin-only user management */}
+          {me?.role === 'admin' && <UsersSection meId={me.id} />}
+        </div>
+      )}
     </div>
   )
 }
@@ -425,7 +642,6 @@ function UsersSection({ meId }: { meId: string }) {
     queryFn: () => fetch('/api/users').then(r => r.json()),
   })
 
-  // ── invite ──
   const [showInvite, setShowInvite] = useState(false)
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
@@ -434,14 +650,12 @@ function UsersSection({ meId }: { meId: string }) {
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState(false)
 
-  // ── edit ──
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [editName, setEditName] = useState('')
   const [editRole, setEditRole] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
 
-  // ── delete ──
   const [deleteUser, setDeleteUser] = useState<UserRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
@@ -501,10 +715,8 @@ function UsersSection({ meId }: { meId: string }) {
 
   return (
     <>
-      <div className="animate-slide-up delay-4" style={{ marginTop: 20 }}>
-        <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
+      <div className="animate-slide-up delay-4">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)' }}>Usuários</div>
             <button
               onClick={openInvite}
@@ -514,7 +726,6 @@ function UsersSection({ meId }: { meId: string }) {
             </button>
           </div>
 
-          {/* States */}
           {isLoading && (
             <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Carregando…</div>
           )}
@@ -527,7 +738,6 @@ function UsersSection({ meId }: { meId: string }) {
             </div>
           )}
 
-          {/* Table */}
           {!isLoading && !isError && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -584,10 +794,8 @@ function UsersSection({ meId }: { meId: string }) {
               </tbody>
             </table>
           )}
-        </div>
       </div>
 
-      {/* ── Invite modal ── */}
       {showInvite && (
         <Overlay onClose={() => setShowInvite(false)}>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 4 }}>Convidar usuário</div>
@@ -613,7 +821,6 @@ function UsersSection({ meId }: { meId: string }) {
         </Overlay>
       )}
 
-      {/* ── Edit modal ── */}
       {editUser && (
         <Overlay onClose={() => setEditUser(null)}>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 24 }}>Editar usuário</div>
@@ -636,7 +843,6 @@ function UsersSection({ meId }: { meId: string }) {
         </Overlay>
       )}
 
-      {/* ── Delete confirmation ── */}
       {deleteUser && (
         <Overlay onClose={() => setDeleteUser(null)}>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 12 }}>Remover usuário</div>

@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const tenantId = searchParams.get('state')
 
   if (!code || !tenantId) {
-    return NextResponse.redirect(new URL('/integration?error=invalid_callback', req.url))
+    return NextResponse.redirect(new URL('/settings/integrations/kommo?error=invalid_callback', req.url))
   }
 
   const integration = await db.select().from(integrations)
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     .then(r => r[0])
 
   if (!integration?.clientId || !integration?.clientSecret || !integration?.accountDomain) {
-    return NextResponse.redirect(new URL('/integration?error=missing_credentials', req.url))
+    return NextResponse.redirect(new URL('/settings/integrations/kommo?error=missing_credentials', req.url))
   }
 
   try {
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       let detail = ''
       try { detail = JSON.parse(body)?.hint ?? JSON.parse(body)?.message ?? JSON.parse(body)?.error ?? body } catch { detail = body }
       const msg = encodeURIComponent(`HTTP ${res.status}: ${detail}`.slice(0, 200))
-      return NextResponse.redirect(new URL(`/integration?error=token_exchange&detail=${msg}`, req.url))
+      return NextResponse.redirect(new URL(`/settings/integrations/kommo?error=token_exchange&detail=${msg}`, req.url))
     }
 
     const data = await res.json()
@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
       expiresAt,
     }).where(eq(integrations.id, integration.id))
 
-    return NextResponse.redirect(new URL('/integration?connected=true', req.url))
+    return NextResponse.redirect(new URL('/settings/integrations/kommo?connected=true', req.url))
   } catch {
-    return NextResponse.redirect(new URL('/integration?error=network', req.url))
+    return NextResponse.redirect(new URL('/settings/integrations/kommo?error=network', req.url))
   }
 }

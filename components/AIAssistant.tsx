@@ -387,7 +387,7 @@ export function AIAssistant() {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
           }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#b02619' }}>Orçamento mensal atingido</span>
-            <a href="/integration/ai" style={{ fontSize: 11, fontWeight: 700, color: '#b02619', textDecoration: 'none', whiteSpace: 'nowrap', padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(217,48,37,0.3)', background: 'rgba(217,48,37,0.06)' }}>
+            <a href="/settings/integrations/ai" style={{ fontSize: 11, fontWeight: 700, color: '#b02619', textDecoration: 'none', whiteSpace: 'nowrap', padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(217,48,37,0.3)', background: 'rgba(217,48,37,0.06)' }}>
               Ajustar orçamento →
             </a>
           </div>
@@ -399,7 +399,7 @@ export function AIAssistant() {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
           }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#92610a' }}>IA não configurada</span>
-            <a href="/integration/ai" style={{ fontSize: 11, fontWeight: 700, color: '#92610a', textDecoration: 'none', whiteSpace: 'nowrap', padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(217,148,0,0.3)', background: 'rgba(217,148,0,0.06)' }}>
+            <a href="/settings/integrations/ai" style={{ fontSize: 11, fontWeight: 700, color: '#92610a', textDecoration: 'none', whiteSpace: 'nowrap', padding: '3px 10px', borderRadius: 99, border: '1px solid rgba(217,148,0,0.3)', background: 'rgba(217,148,0,0.06)' }}>
               Configurar agora →
             </a>
           </div>

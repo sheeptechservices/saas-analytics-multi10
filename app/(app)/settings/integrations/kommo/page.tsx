@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, TriangleAlert, Lock } from 'lucide-react'
@@ -441,6 +442,18 @@ export default function IntegrationPage() {
 
   return (
     <div>
+      {/* Back link */}
+      <Link
+        href="/settings?tab=integracoes"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          fontSize: 13, fontWeight: 600, color: 'var(--gray)',
+          textDecoration: 'none', marginBottom: 20,
+        }}
+      >
+        ← Voltar para Integrações
+      </Link>
+
       {/* Header */}
       <div className="animate-slide-up delay-1" style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>Kommo CRM</div>

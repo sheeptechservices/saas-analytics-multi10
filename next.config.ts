@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  async redirects() {
+    return [
+      { source: '/integration',            destination: '/settings/integrations/kommo',      permanent: true },
+      { source: '/integration/ai',         destination: '/settings/integrations/ai',          permanent: true },
+      { source: '/integration/google-ads', destination: '/settings/integrations/google-ads',  permanent: true },
+      { source: '/integration/meta-ads',   destination: '/settings/integrations/meta-ads',    permanent: true },
+      { source: '/integration/tiktok-ads', destination: '/settings/integrations/tiktok-ads',  permanent: true },
+    ]
+  },
 }
 
 export default nextConfig

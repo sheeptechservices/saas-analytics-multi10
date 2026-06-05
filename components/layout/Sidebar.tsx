@@ -1,9 +1,8 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, BarChart3, Sparkles, Clock, Settings, Globe, Users, Music } from 'lucide-react'
+import { LayoutGrid, BarChart3, Sparkles, Settings } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
-import { SparkleIcon } from '@/components/icons/SparkleIcon'
 
 const navItems = [
   {
@@ -20,31 +19,6 @@ const navItems = [
       {
         href: '/prospeccao-ia', label: 'SDR IA', comingSoon: true,
         icon: <Sparkles size={16} />,
-      },
-    ],
-  },
-  {
-    section: 'Integrações',
-    items: [
-      {
-        href: '/integration', label: 'Kommo CRM',
-        icon: <Clock size={16} />,
-      },
-      {
-        href: '/integration/ai', label: 'Claude IA',
-        icon: <SparkleIcon size={16} />,
-      },
-      {
-        href: '/integration/google-ads', label: 'Google Ads',
-        icon: <Globe size={16} />,
-      },
-      {
-        href: '/integration/meta-ads', label: 'Meta Ads',
-        icon: <Users size={16} />,
-      },
-      {
-        href: '/integration/tiktok-ads', label: 'TikTok Ads',
-        icon: <Music size={16} />,
       },
     ],
   },

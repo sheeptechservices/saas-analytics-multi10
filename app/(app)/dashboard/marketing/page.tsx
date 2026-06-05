@@ -259,7 +259,7 @@ export default function MarketingPage() {
         </div>
         <div style={{ fontSize: 14, color: 'var(--gray2)' }}>
           Configure Google Ads, Meta Ads ou TikTok Ads em{' '}
-          <a href="/integration" style={{ color: 'var(--primary)', fontWeight: 600 }}>Integrações</a>.
+          <a href="/settings?tab=integracoes" style={{ color: 'var(--primary)', fontWeight: 600 }}>Integrações</a>.
         </div>
       </div>
     )
