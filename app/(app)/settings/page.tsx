@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { initials } from '@/lib/utils'
-import { Pencil, Trash2, Clock } from 'lucide-react'
+import { Pencil, Trash2, Clock, Search } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 
 const PRESET_COLORS = [
@@ -135,6 +135,9 @@ export default function SettingsPage() {
   const [localName, setLocalName] = useState(brandName)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [manageEquipe, setManageEquipe] = useState(false)
+  const [equipeSearch, setEquipeSearch] = useState('')
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   // Profile state
   const [profileName, setProfileName] = useState('')
@@ -170,6 +173,10 @@ export default function SettingsPage() {
       setProfilePhoto(meData.user.photoUrl ?? '')
     }
   }, [meData])
+
+  useEffect(() => {
+    if (tab !== 'equipe') { setManageEquipe(false); setEquipeSearch(''); setInviteOpen(false) }
+  }, [tab])
 
   // Fetch all integration statuses in parallel, once per page load when tab is visited
   useEffect(() => {
@@ -230,6 +237,10 @@ export default function SettingsPage() {
 
   const users = data?.users ?? []
   const me = meData?.user
+  const equipeQ = equipeSearch.trim().toLowerCase()
+  const filteredEquipeUsers: any[] = equipeQ
+    ? users.filter((u: any) => u.name?.toLowerCase().includes(equipeQ) || u.email?.toLowerCase().includes(equipeQ))
+    : users
 
   // ── Loading skeleton ────────────────────────────────────────────────────────
   if (isLoading) {
@@ -508,29 +519,73 @@ export default function SettingsPage() {
       {/* ── Equipe ─────────────────────────────────────────────────────────── */}
       {tab === 'equipe' && (
         <div className="animate-slide-up delay-2">
-          {/* Team members from settings query */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)' }}>Equipe</div>
-            </div>
-            {users.map((u: any) => (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--gray3)' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 100, flexShrink: 0, background: u.avatarColor, color: u.avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
-                  {initials(u.name)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{u.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>{u.email}</div>
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 100, background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)' }}>
-                  {u.role}
-                </span>
+          {/* Shared header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
+            {manageEquipe ? (
+              <button
+                onClick={() => setManageEquipe(false)}
+                style={{ padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--bg)', color: 'var(--gray)', border: '1px solid var(--gray3)', borderRadius: 100, cursor: 'pointer', flexShrink: 0 }}
+              >
+                ← Ver equipe
+              </button>
+            ) : (
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', flexShrink: 0 }}>
+                Equipe
               </div>
-            ))}
+            )}
+            <div style={{ flex: 1, maxWidth: 280, position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray2)', pointerEvents: 'none' }} />
+              <input
+                value={equipeSearch}
+                onChange={e => setEquipeSearch(e.target.value)}
+                placeholder="Buscar por nome ou e-mail"
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 14px 7px 30px', fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, outline: 'none' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
+              />
+            </div>
+            {me?.role === 'admin' && (
+              manageEquipe ? (
+                <button
+                  onClick={() => setInviteOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--primary)', color: 'var(--primary-contrast)', border: 'none', borderRadius: 100, cursor: 'pointer', flexShrink: 0 }}
+                >
+                  + Convidar usuário
+                </button>
+              ) : (
+                <button
+                  onClick={() => setManageEquipe(true)}
+                  style={{ padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--primary)', color: 'var(--primary-contrast)', border: 'none', borderRadius: 100, cursor: 'pointer', flexShrink: 0 }}
+                >
+                  Gerenciar usuários
+                </button>
+              )
+            )}
           </div>
 
-          {/* Admin-only user management */}
-          {me?.role === 'admin' && <UsersSection meId={me.id} />}
+          {/* Body */}
+          {me?.role === 'admin' && manageEquipe ? (
+            <UsersSection meId={me.id} search={equipeSearch} inviteOpen={inviteOpen} onInviteOpenChange={setInviteOpen} />
+          ) : (
+            <div>
+              {filteredEquipeUsers.length === 0 && equipeQ ? (
+                <div style={{ padding: '24px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Nenhum membro encontrado.</div>
+              ) : filteredEquipeUsers.map((u: any) => (
+                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--gray3)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 100, flexShrink: 0, background: u.avatarColor, color: u.avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
+                    {initials(u.name)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{u.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>{u.email}</div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 100, background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)' }}>
+                    {u.role}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -634,7 +689,7 @@ function ErrorBanner({ msg }: { msg: string }) {
 
 // ─── UsersSection ─────────────────────────────────────────────────────────────
 
-function UsersSection({ meId }: { meId: string }) {
+function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: string; search: string; inviteOpen: boolean; onInviteOpenChange: (v: boolean) => void }) {
   const qc = useQueryClient()
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -642,7 +697,6 @@ function UsersSection({ meId }: { meId: string }) {
     queryFn: () => fetch('/api/users').then(r => r.json()),
   })
 
-  const [showInvite, setShowInvite] = useState(false)
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('user')
@@ -660,11 +714,17 @@ function UsersSection({ meId }: { meId: string }) {
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   const userList: UserRow[] = data?.users ?? []
+  const searchQ = search.trim().toLowerCase()
+  const filteredList: UserRow[] = searchQ
+    ? userList.filter(u => u.name.toLowerCase().includes(searchQ) || u.email.toLowerCase().includes(searchQ))
+    : userList
 
-  function openInvite() {
-    setInviteName(''); setInviteEmail(''); setInviteRole('user')
-    setInviteError(''); setInviteSuccess(false); setShowInvite(true)
-  }
+  useEffect(() => {
+    if (inviteOpen) {
+      setInviteName(''); setInviteEmail(''); setInviteRole('user')
+      setInviteError(''); setInviteSuccess(false)
+    }
+  }, [inviteOpen])
 
   function openEdit(u: UserRow) {
     setEditUser(u); setEditName(u.name); setEditRole(u.role); setEditError('')
@@ -683,7 +743,7 @@ function UsersSection({ meId }: { meId: string }) {
     if (res.ok) {
       setInviteSuccess(true)
       qc.invalidateQueries({ queryKey: ['admin-users'] })
-      setTimeout(() => { setShowInvite(false); setInviteSuccess(false) }, 1800)
+      setTimeout(() => { onInviteOpenChange(false); setInviteSuccess(false) }, 1800)
     } else {
       setInviteError(body.error || 'Erro ao enviar convite.')
     }
@@ -715,17 +775,7 @@ function UsersSection({ meId }: { meId: string }) {
 
   return (
     <>
-      <div className="animate-slide-up delay-4">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)' }}>Usuários</div>
-            <button
-              onClick={openInvite}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--primary)', color: 'var(--primary-contrast)', border: 'none', borderRadius: 100, cursor: 'pointer' }}
-            >
-              + Convidar usuário
-            </button>
-          </div>
-
+      <div className="animate-slide-up delay-4" style={{ marginTop: 4 }}>
           {isLoading && (
             <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Carregando…</div>
           )}
@@ -750,11 +800,11 @@ function UsersSection({ meId }: { meId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {userList.map((u, i) => {
+                {filteredList.map((u, i) => {
                   const badge = ROLE_BADGE[u.role] ?? ROLE_BADGE.user
                   const isMe = u.id === meId
                   return (
-                    <tr key={u.id} style={{ borderBottom: i < userList.length - 1 ? '1px solid var(--gray3)' : 'none' }}>
+                    <tr key={u.id} style={{ borderBottom: i < filteredList.length - 1 ? '1px solid var(--gray3)' : 'none' }}>
                       <td style={{ padding: '10px 16px', width: 44 }}>
                         <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: u.avatarColor || 'var(--primary)', color: u.avatarBg || '#121316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
                           {initials(u.name)}
@@ -788,7 +838,7 @@ function UsersSection({ meId }: { meId: string }) {
                     </tr>
                   )
                 })}
-                {userList.length === 0 && (
+                {filteredList.length === 0 && (
                   <tr><td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Nenhum usuário encontrado.</td></tr>
                 )}
               </tbody>
@@ -796,8 +846,8 @@ function UsersSection({ meId }: { meId: string }) {
           )}
       </div>
 
-      {showInvite && (
-        <Overlay onClose={() => setShowInvite(false)}>
+      {inviteOpen && (
+        <Overlay onClose={() => onInviteOpenChange(false)}>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 4 }}>Convidar usuário</div>
           <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 24 }}>O usuário receberá um link para criar sua senha.</div>
           {inviteSuccess ? (
@@ -815,7 +865,7 @@ function UsersSection({ meId }: { meId: string }) {
                 </select>
               </div>
               {inviteError && <ErrorBanner msg={inviteError} />}
-              <BtnRow><CancelBtn onClick={() => setShowInvite(false)} /><SubmitBtn loading={inviteLoading}>{inviteLoading ? 'Enviando…' : 'Enviar convite'}</SubmitBtn></BtnRow>
+              <BtnRow><CancelBtn onClick={() => onInviteOpenChange(false)} /><SubmitBtn loading={inviteLoading}>{inviteLoading ? 'Enviando…' : 'Enviar convite'}</SubmitBtn></BtnRow>
             </form>
           )}
         </Overlay>
