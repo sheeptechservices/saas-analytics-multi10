@@ -4,6 +4,7 @@ import { signOut } from 'next-auth/react'
 import { Menu } from 'lucide-react'
 import { initials } from '@/lib/utils'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
+import { useUser } from '@/stores/userStore'
 import { useSidebar } from '@/stores/sidebarStore'
 
 interface TopbarProps {
@@ -17,6 +18,8 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
   const [menuOpen, setMenuOpen] = useState(false)
   const { primaryColor, brandName: storeBrandName, logoUrl: storeLogoUrl } = useWhiteLabel()
   const { toggle } = useSidebar()
+  const { name: storeUserName, photoUrl: storeUserPhoto } = useUser()
+  const displayUserName = storeUserName || userName
 
   const displayName = storeBrandName || brandName
   const displayLogo = storeLogoUrl !== undefined ? storeLogoUrl : logoUrl
@@ -86,9 +89,19 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
               width: 34, height: 34, borderRadius: 100, background: 'var(--primary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 800, color: 'var(--black)', cursor: 'pointer',
+              overflow: 'hidden',
             }}
           >
-            {initials(userName)}
+            {storeUserPhoto ? (
+              <img
+                src={storeUserPhoto}
+                alt={displayUserName}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            ) : (
+              initials(displayUserName)
+            )}
           </div>
 
           {menuOpen && (
@@ -108,7 +121,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
                   borderBottom: '1px solid var(--gray3)',
                   background: 'var(--bg)',
                 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--black)' }}>{userName}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--black)' }}>{displayUserName}</div>
                   <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--gray2)', marginTop: 1 }}>
                     {roleLabels[userRole] ?? userRole}
                   </div>

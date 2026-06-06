@@ -2,6 +2,8 @@ import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { WhiteLabelInit } from '@/components/WhiteLabelInit'
+import { UserInit } from '@/components/UserInit'
+import { getUserProfile } from '@/lib/user'
 import { AIAssistant } from '@/components/AIAssistant'
 import { AppShell } from '@/components/layout/AppShell'
 import { getEnabledModuleKeys } from '@/lib/entitlements'
@@ -13,10 +15,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth()
   if (!session) redirect('/login')
 
-  const { name, role, tenantId } = session.user
-  const [modules, branding] = await Promise.all([
+  const { id, name, role, tenantId } = session.user
+  const [modules, branding, profile] = await Promise.all([
     getEnabledModuleKeys(tenantId),
     getTenantBranding(tenantId),
+    getUserProfile(id),
   ])
 
   const pathname = (await headers()).get('x-pathname') ?? ''
@@ -29,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <ModulesProvider modules={modules}>
       <>
         <WhiteLabelInit primaryColor={branding.primaryColor} logoUrl={branding.logoUrl} brandName={branding.brandName} />
+        <UserInit name={profile.name || name!} photoUrl={profile.photoUrl} />
         {modules.includes('integration.ai') && <AIAssistant />}
         <AppShell
           userName={name!}

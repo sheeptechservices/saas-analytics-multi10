@@ -1,9 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
+import { useUser } from '@/stores/userStore'
 import { initials } from '@/lib/utils'
 import { Pencil, Trash2, Clock, Search, Check } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
@@ -15,11 +16,11 @@ const PRESET_COLORS = [
 ]
 
 type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe'
-const TABS: { id: TabKey; label: string }[] = [
-  { id: 'perfil',      label: 'Perfil' },
-  { id: 'marca',       label: 'Marca' },
+const TABS: { id: TabKey; label: string; adminOnly?: boolean }[] = [
   { id: 'integracoes', label: 'Integrações' },
   { id: 'equipe',      label: 'Equipe' },
+  { id: 'perfil',      label: 'Perfil' },
+  { id: 'marca',       label: 'Marca', adminOnly: true },
 ]
 
 // ─── Integration icons ────────────────────────────────────────────────────────
@@ -127,11 +128,13 @@ const INTEGRATION_GROUPS: { group: string; items: IntegrationItem[] }[] = [
 
 export default function SettingsPage() {
   const qc = useQueryClient()
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const tab = (searchParams.get('tab') ?? 'perfil') as TabKey
+  const tab = (searchParams.get('tab') ?? 'integracoes') as TabKey
   const modules = useModules()
 
   const { primaryColor, logoUrl, brandName, setPrimaryColor, setLogoUrl, setBrandName } = useWhiteLabel()
+  const { setName: setUserName, setPhotoUrl: setUserPhoto } = useUser()
   const [localColor, setLocalColor] = useState(primaryColor)
   const [localLogo, setLocalLogo] = useState(logoUrl ?? '')
   const [localName, setLocalName] = useState(brandName)
@@ -179,6 +182,13 @@ export default function SettingsPage() {
   useEffect(() => {
     if (tab !== 'equipe') { setManageEquipe(false); setEquipeSearch(''); setInviteOpen(false) }
   }, [tab])
+
+  useEffect(() => {
+    if (!meData) return
+    if (!visibleTabs.some(t => t.id === tab)) {
+      router.replace(`/settings?tab=${visibleTabs[0].id}`)
+    }
+  }, [meData, tab])
 
   // Fetch all integration statuses in parallel, once per page load when tab is visited
   useEffect(() => {
@@ -229,6 +239,8 @@ export default function SettingsPage() {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: profileName, photoUrl: profilePhoto || null }),
     })
+    setUserName(profileName)
+    setUserPhoto(profilePhoto || null)
     qc.invalidateQueries({ queryKey: ['me'] })
     qc.invalidateQueries({ queryKey: ['settings'] })
     setSavingProfile(false)
@@ -238,6 +250,8 @@ export default function SettingsPage() {
 
   const users = data?.users ?? []
   const me = meData?.user
+  const isAdmin = me?.role === 'admin' || me?.role === 'master'
+  const visibleTabs = TABS.filter(t => !t.adminOnly || isAdmin)
   const equipeQ = equipeSearch.trim().toLowerCase()
   const filteredEquipeUsers: any[] = equipeQ
     ? users.filter((u: any) => u.name?.toLowerCase().includes(equipeQ) || u.email?.toLowerCase().includes(equipeQ))
@@ -277,7 +291,7 @@ export default function SettingsPage() {
 
       {/* Tab bar */}
       <div className="animate-slide-up delay-1" style={{ display: 'flex', borderBottom: '1px solid var(--gray3)', marginBottom: 28 }}>
-        {TABS.map(t => (
+        {visibleTabs.map(t => (
           <Link
             key={t.id}
             href={`/settings?tab=${t.id}`}
@@ -363,7 +377,7 @@ export default function SettingsPage() {
       )}
 
       {/* ── Marca ──────────────────────────────────────────────────────────── */}
-      {tab === 'marca' && (
+      {tab === 'marca' && isAdmin && (
         <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {/* Coluna esquerda — formulário */}
           <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)', flex: '1 1 380px', maxWidth: 520 }}>
