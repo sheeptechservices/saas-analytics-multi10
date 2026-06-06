@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
 import { Menu } from 'lucide-react'
 import { initials } from '@/lib/utils'
@@ -20,6 +20,8 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
   const { toggle } = useSidebar()
   const { name: storeUserName, photoUrl: storeUserPhoto } = useUser()
   const displayUserName = storeUserName || userName
+  const [photoError, setPhotoError] = useState(false)
+  useEffect(() => { setPhotoError(false) }, [storeUserPhoto])
 
   const displayName = storeBrandName || brandName
   const displayLogo = storeLogoUrl !== undefined ? storeLogoUrl : logoUrl
@@ -92,12 +94,12 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
               overflow: 'hidden',
             }}
           >
-            {storeUserPhoto ? (
+            {storeUserPhoto && !photoError ? (
               <img
                 src={storeUserPhoto}
                 alt={displayUserName}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                onError={() => setPhotoError(true)}
               />
             ) : (
               initials(displayUserName)
