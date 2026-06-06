@@ -18,12 +18,17 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const res = await signIn('credentials', { email, password, redirect: false })
-    setLoading(false)
-    if (res?.ok) {
-      router.push('/dashboard')
-    } else {
+    try {
+      const res = await signIn('credentials', { email, password, redirect: false })
+      if (res?.ok) {
+        router.push('/dashboard')
+      } else {
+        setError('E-mail ou senha incorretos.')
+      }
+    } catch {
       setError('E-mail ou senha incorretos.')
+    } finally {
+      setLoading(false)
     }
   }
 
