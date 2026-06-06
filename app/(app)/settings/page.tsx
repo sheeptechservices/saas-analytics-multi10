@@ -203,7 +203,6 @@ export default function SettingsPage() {
 
   function handleColorChange(color: string) {
     setLocalColor(color)
-    setPrimaryColor(color)
   }
 
   async function save() {
