@@ -1,3 +1,6 @@
+import { loadEnv } from './lib/db/load-env'
+loadEnv()
+
 import type { Config } from 'drizzle-kit'
 
 export default {
