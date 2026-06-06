@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { leads, stages } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { assertEntitlement } from '@/lib/entitlements'
 
 const DAY = 86_400_000
 
@@ -11,6 +12,9 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tenantId } = session.user
+  const denied = await assertEntitlement(tenantId, 'dashboard.ranking')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const period = (searchParams.get('period') ?? 'all') as 'all' | '7d' | '30d' | '90d'
 

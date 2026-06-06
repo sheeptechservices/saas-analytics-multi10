@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutGrid, BarChart3, Sparkles, Settings } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
+import { useModules } from '@/components/ModulesProvider'
 
 const navItems = [
   {
@@ -36,6 +37,15 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const { open, pinned, setPinned, setOpen } = useSidebar()
+  const modules = useModules()
+
+  function isItemVisible(href: string): boolean {
+    if (href === '/settings') return true
+    if (href === '/dashboard') return modules.some(k => k.startsWith('dashboard.'))
+    if (href === '/pipeline') return modules.includes('pipeline')
+    if (href === '/prospeccao-ia') return modules.includes('prospeccao-ia')
+    return true
+  }
 
   return (
     <aside style={{
@@ -60,7 +70,10 @@ export function Sidebar() {
         transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
       }),
     }}>
-      {navItems.map((group) => (
+      {navItems.map((group) => {
+        const visibleItems = group.items.filter(item => isItemVisible(item.href))
+        if (visibleItems.length === 0) return null
+        return (
         <div key={group.section}>
           <div style={{
             fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
@@ -69,7 +82,7 @@ export function Sidebar() {
           }}>
             {group.section}
           </div>
-          {group.items.map(item => {
+          {visibleItems.map(item => {
             if ((item as any).comingSoon) {
               return (
                 <div
@@ -127,7 +140,8 @@ export function Sidebar() {
             )
           })}
         </div>
-      ))}
+        )
+      })}
     </aside>
   )
 }

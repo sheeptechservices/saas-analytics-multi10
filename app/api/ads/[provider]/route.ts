@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { integrations, adCampaigns, adAdsets, adAds, adInsights } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { encrypt } from '@/lib/crypto'
+import { assertEntitlement } from '@/lib/entitlements'
+import { ADS_PROVIDER_MODULE } from '@/lib/modules'
 
 type Params = { params: Promise<{ provider: string }> }
 
@@ -17,6 +19,9 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { provider } = await params
   if (!VALID_PROVIDERS.has(provider)) return NextResponse.json({ error: 'Provider inválido' }, { status: 400 })
+
+  const denied = await assertEntitlement(tenantId, ADS_PROVIDER_MODULE[provider])
+  if (denied) return denied
 
   const row = await db
     .select({
@@ -39,6 +44,9 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { provider } = await params
   if (!VALID_PROVIDERS.has(provider)) return NextResponse.json({ error: 'Provider inválido' }, { status: 400 })
+
+  const deniedPost = await assertEntitlement(tenantId, ADS_PROVIDER_MODULE[provider])
+  if (deniedPost) return deniedPost
 
   try {
     const body = await req.json()
@@ -100,6 +108,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   const { provider } = await params
   if (!VALID_PROVIDERS.has(provider)) return NextResponse.json({ error: 'Provider inválido' }, { status: 400 })
+
+  const deniedDelete = await assertEntitlement(tenantId, ADS_PROVIDER_MODULE[provider])
+  if (deniedDelete) return deniedDelete
 
   try {
     await db.delete(adInsights).where(and(eq(adInsights.tenantId, tenantId), eq(adInsights.provider, provider)))

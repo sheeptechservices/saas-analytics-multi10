@@ -10,9 +10,6 @@ declare module 'next-auth' {
       email: string
       role: Role
       tenantId: string
-      primaryColor: string
-      logoUrl: string | null
-      brandName: string
     }
   }
   interface User {
@@ -21,9 +18,6 @@ declare module 'next-auth' {
     email: string
     role: Role
     tenantId: string
-    primaryColor: string
-    logoUrl: string | null
-    brandName: string
   }
 }
 
@@ -32,8 +26,5 @@ declare module 'next-auth/jwt' {
     id: string
     role: Role
     tenantId: string
-    primaryColor: string
-    logoUrl: string | null
-    brandName: string
   }
 }

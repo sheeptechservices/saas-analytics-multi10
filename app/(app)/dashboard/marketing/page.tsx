@@ -1,6 +1,8 @@
 'use client'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
+import { useModules } from '@/components/ModulesProvider'
+import { ADS_PROVIDER_MODULE } from '@/lib/modules'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
@@ -217,6 +219,12 @@ function RoasTooltip({ active, payload }: any) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MarketingPage() {
+  const modules = useModules()
+  const providerOptions: Provider[] = [
+    '',
+    ...(['google_ads', 'meta_ads', 'tiktok_ads'] as const).filter(p => modules.includes(ADS_PROVIDER_MODULE[p])),
+  ]
+
   const [period, setPeriod] = useState<Period>('30d')
   const [provider, setProvider] = useState<Provider>('')
 
@@ -286,7 +294,7 @@ export default function MarketingPage() {
             onChange={setPeriod}
           />
           <FilterBar
-            options={['', 'google_ads', 'meta_ads', 'tiktok_ads'] as Provider[]}
+            options={providerOptions}
             labels={PROVIDER_LABELS}
             value={provider}
             onChange={setProvider}

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
+import { assertEntitlement } from '@/lib/entitlements'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.ai')
+  if (denied) return denied
 
   const { apiKey } = await req.json()
   if (!apiKey) return NextResponse.json({ valid: false, error: 'API key não fornecida' })

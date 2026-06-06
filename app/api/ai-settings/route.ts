@@ -5,10 +5,14 @@ import { aiSettings } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { encrypt, decrypt } from '@/lib/crypto'
 import { randomUUID } from 'crypto'
+import { assertEntitlement } from '@/lib/entitlements'
 
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.ai')
+  if (denied) return denied
 
   const setting = await db.select().from(aiSettings)
     .where(eq(aiSettings.tenantId, session.user.tenantId))
@@ -34,6 +38,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.ai')
+  if (denied) return denied
 
   const { apiKey, defaultModel, monthlyBudgetBrl } = await req.json()
 

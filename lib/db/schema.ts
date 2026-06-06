@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core'
 
 export const tenants = sqliteTable('tenants', {
   id: text('id').primaryKey(),
@@ -198,3 +198,24 @@ export const adInsights = sqliteTable('ad_insights', {
   frequency: real('frequency').default(0),
   syncedAt: text('synced_at'),
 })
+
+export const tenantModules = sqliteTable('tenant_modules', {
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  moduleKey: text('module_key').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.tenantId, t.moduleKey] }),
+}))
+
+export const plans = sqliteTable('plans', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const planModules = sqliteTable('plan_modules', {
+  planId: text('plan_id').notNull().references(() => plans.id),
+  moduleKey: text('module_key').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.planId, t.moduleKey] }),
+}))

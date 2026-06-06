@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { integrations } from '@/lib/db/schema'
+import { integrations, tenantModules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { refreshKommoToken, runKommoSync } from '@/lib/kommo/sync'
 
@@ -10,12 +10,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const enabledRows = await db.select({ t: tenantModules.tenantId, k: tenantModules.moduleKey })
+    .from(tenantModules).where(eq(tenantModules.enabled, true))
+  const enabled = new Set(enabledRows.map(r => `${r.t}:${r.k}`))
+
   const allIntegrations = await db.select().from(integrations)
     .where(eq(integrations.provider, 'kommo'))
 
   const results: Array<{ tenantId: string; status: string; synced?: number; error?: string }> = []
 
   for (const integration of allIntegrations) {
+    if (!enabled.has(`${integration.tenantId}:integration.kommo`)) {
+      results.push({ tenantId: integration.tenantId, status: 'module_disabled' })
+      continue
+    }
+
     if (!integration.accessToken || !integration.selectedPipelineId) {
       results.push({ tenantId: integration.tenantId, status: 'skipped' })
       continue

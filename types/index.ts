@@ -106,7 +106,4 @@ export interface SessionUser {
   email: string
   role: Role
   tenantId: string
-  primaryColor: string
-  logoUrl: string | null
-  brandName: string
 }

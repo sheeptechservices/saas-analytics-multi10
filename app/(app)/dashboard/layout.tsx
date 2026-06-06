@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { useModules } from '@/components/ModulesProvider'
 
 const TABS = [
   { href: '/dashboard',            label: 'Visão Geral' },
@@ -11,8 +12,17 @@ const TABS = [
   { href: '/dashboard/sdr-ia',     label: 'SDR IA' },
 ]
 
+const TAB_MODULE: Record<string, string> = {
+  '/dashboard':            'dashboard.overview',
+  '/dashboard/ranking':    'dashboard.ranking',
+  '/dashboard/marketing':  'dashboard.marketing',
+  '/dashboard/sdr-ia':     'dashboard.sdr-ia',
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const modules = useModules()
+  const visibleTabs = TABS.filter(t => modules.includes(TAB_MODULE[t.href]))
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<'success' | 'error' | null>(null)
@@ -109,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         marginBottom: 28, borderBottom: '1px solid var(--gray3)',
       }}>
         <div style={{ display: 'flex', gap: 0 }}>
-          {TABS.map(tab => {
+          {visibleTabs.map(tab => {
             const active = pathname === tab.href
             return (
               <Link

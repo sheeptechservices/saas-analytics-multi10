@@ -13,9 +13,6 @@ export const authConfig: NextAuthConfig = {
         token.id = user.id as string
         token.role = (user as any).role
         token.tenantId = (user as any).tenantId
-        token.primaryColor = (user as any).primaryColor
-        token.logoUrl = (user as any).logoUrl
-        token.brandName = (user as any).brandName
       }
       return token
     },
@@ -23,9 +20,6 @@ export const authConfig: NextAuthConfig = {
       session.user.id = token.id as string
       session.user.role = token.role as any
       session.user.tenantId = token.tenantId as string
-      session.user.primaryColor = token.primaryColor as string
-      session.user.logoUrl = token.logoUrl as string | null
-      session.user.brandName = token.brandName as string
       return session
     },
   },

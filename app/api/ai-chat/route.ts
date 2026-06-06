@@ -6,6 +6,7 @@ import { aiSettings, aiUsageLogs } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { randomUUID } from 'crypto'
+import { assertEntitlement } from '@/lib/entitlements'
 
 const SYSTEM_PROMPT = `Você é o assistente de BI da plataforma Multi10 — uma plataforma de funil de vendas com integração ao Kommo CRM.
 
@@ -53,6 +54,9 @@ async function getUsdBrlRate(): Promise<number> {
 export async function POST(req: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.ai')
+  if (denied) return denied
 
   const settings = await db.select().from(aiSettings)
     .where(eq(aiSettings.tenantId, session.user.tenantId))

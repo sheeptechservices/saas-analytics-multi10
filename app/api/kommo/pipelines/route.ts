@@ -4,10 +4,14 @@ import { db } from '@/lib/db'
 import { integrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
+import { assertEntitlement } from '@/lib/entitlements'
 
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.kommo')
+  if (denied) return denied
 
   const integration = await db.select().from(integrations)
     .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))

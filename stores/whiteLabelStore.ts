@@ -1,6 +1,5 @@
 'use client'
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
 function applyPrimaryVars(color: string) {
   if (typeof document === 'undefined') return
@@ -33,22 +32,19 @@ interface WhiteLabelState {
 }
 
 export const useWhiteLabel = create<WhiteLabelState>()(
-  persist(
-    (set) => ({
-      primaryColor: '#FFB400',
-      logoUrl: null,
-      brandName: 'Multi10',
-      setPrimaryColor: (color) => {
-        set({ primaryColor: color })
-        applyPrimaryVars(color)
-      },
-      setLogoUrl: (url) => set({ logoUrl: url }),
-      setBrandName: (name) => set({ brandName: name }),
-      init: (color, logo, name) => {
-        set({ primaryColor: color, logoUrl: logo, brandName: name })
-        applyPrimaryVars(color)
-      },
-    }),
-    { name: 'white-label' }
-  )
+  (set) => ({
+    primaryColor: '#FFB400',
+    logoUrl: null,
+    brandName: 'Multi10',
+    setPrimaryColor: (color) => {
+      set({ primaryColor: color })
+      applyPrimaryVars(color)
+    },
+    setLogoUrl: (url) => set({ logoUrl: url }),
+    setBrandName: (name) => set({ brandName: name }),
+    init: (color, logo, name) => {
+      set({ primaryColor: color, logoUrl: logo, brandName: name })
+      applyPrimaryVars(color)
+    },
+  })
 )

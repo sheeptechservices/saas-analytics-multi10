@@ -1,7 +1,9 @@
 import { db } from '@/lib/db'
-import { tenants, users } from '@/lib/db/schema'
+import { tenants, users, plans, planModules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
+import { getEnabledModuleKeys } from '@/lib/entitlements'
+import { TenantEditor } from './TenantEditor'
 
 type Props = { params: Promise<{ tenantId: string }> }
 
@@ -15,7 +17,7 @@ const ROLE_BADGE: Record<string, { bg: string; color: string; label: string }> =
 export default async function TenantDetailPage({ params }: Props) {
   const { tenantId } = await params
 
-  const [tenant, tenantUsers] = await Promise.all([
+  const [tenant, tenantUsers, enabledKeys, allPlans, allPlanModules] = await Promise.all([
     db.select().from(tenants).where(eq(tenants.id, tenantId)).then(r => r[0]),
     db.select({
       id: users.id,
@@ -24,9 +26,27 @@ export default async function TenantDetailPage({ params }: Props) {
       role: users.role,
       createdAt: users.createdAt,
     }).from(users).where(eq(users.tenantId, tenantId)),
+    getEnabledModuleKeys(tenantId),
+    db.select().from(plans),
+    db.select().from(planModules),
   ])
 
   if (!tenant) notFound()
+
+  const modulesByPlan = new Map<string, string[]>()
+  for (const m of allPlanModules) {
+    if (!modulesByPlan.has(m.planId)) modulesByPlan.set(m.planId, [])
+    modulesByPlan.get(m.planId)!.push(m.moduleKey)
+  }
+  const plansList = allPlans.map(p => ({
+    id: p.id,
+    name: p.name,
+    modules: modulesByPlan.get(p.id) ?? [],
+  }))
+
+  const createdAtDate = tenant.createdAt instanceof Date
+    ? tenant.createdAt
+    : new Date((tenant.createdAt as number) * 1000)
 
   return (
     <div style={{ padding: '40px 48px', maxWidth: 1100 }}>
@@ -38,52 +58,36 @@ export default async function TenantDetailPage({ params }: Props) {
         ← Voltar
       </a>
 
-      {/* Tenant header */}
-      <div style={{ background: '#fff', border: '1px solid #e3e4de', borderRadius: 12, padding: '24px 28px', marginBottom: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+      {/* Read-only context: slug + createdAt */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: tenant.primaryColor,
+            width: 28, height: 28, borderRadius: '50%',
+            background: tenant.primaryColor ?? '#FFB400',
             border: '2px solid rgba(0,0,0,0.08)',
             flexShrink: 0,
           }} />
-          <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#121316', letterSpacing: '-0.02em', marginBottom: 2 }}>
-              {tenant.name}
-            </h1>
-            <span style={{
-              fontSize: 12, fontWeight: 600, color: '#666',
-              background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, fontFamily: 'monospace',
-            }}>
-              {tenant.slug}
-            </span>
-          </div>
+          <span style={{ fontSize: 18, fontWeight: 800, color: '#121316', letterSpacing: '-0.02em' }}>
+            {tenant.name}
+          </span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          <InfoRow label="Cor primária">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 18, height: 18, borderRadius: 4,
-                background: tenant.primaryColor,
-                border: '1px solid rgba(0,0,0,0.1)',
-              }} />
-              <span style={{ fontSize: 13, fontFamily: 'monospace', color: '#555' }}>{tenant.primaryColor}</span>
-            </div>
-          </InfoRow>
-          <InfoRow label="Logo URL">
-            <span style={{ fontSize: 13, color: tenant.logoUrl ? '#555' : '#bbb' }}>
-              {tenant.logoUrl ?? '—'}
-            </span>
-          </InfoRow>
-          <InfoRow label="Criado em">
-            <span style={{ fontSize: 13, color: '#555' }}>
-              {tenant.createdAt instanceof Date
-                ? tenant.createdAt.toLocaleDateString('pt-BR')
-                : new Date(tenant.createdAt as number * 1000).toLocaleDateString('pt-BR')}
-            </span>
-          </InfoRow>
-        </div>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#666', background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, fontFamily: 'monospace' }}>
+          {tenant.slug}
+        </span>
+        <span style={{ fontSize: 12, color: '#aaa' }}>
+          Criado em {createdAtDate.toLocaleDateString('pt-BR')}
+        </span>
       </div>
+
+      {/* Editable form */}
+      <TenantEditor
+        tenantId={tenantId}
+        initialName={tenant.name}
+        initialColor={tenant.primaryColor ?? '#FFB400'}
+        initialLogo={tenant.logoUrl ?? ''}
+        enabledKeys={enabledKeys}
+        plans={plansList}
+      />
 
       {/* Users table */}
       <div style={{ background: '#fff', border: '1px solid #e3e4de', borderRadius: 12, overflow: 'hidden' }}>
@@ -109,6 +113,9 @@ export default async function TenantDetailPage({ params }: Props) {
           <tbody>
             {tenantUsers.map((u, i) => {
               const badge = ROLE_BADGE[u.role] ?? ROLE_BADGE.user
+              const uDate = u.createdAt instanceof Date
+                ? u.createdAt
+                : new Date((u.createdAt as number) * 1000)
               return (
                 <tr key={u.id} style={{ borderBottom: i < tenantUsers.length - 1 ? '1px solid #f0f0ee' : 'none' }}>
                   <td style={{ padding: '14px 20px', fontSize: 13, fontWeight: 700, color: '#121316' }}>
@@ -128,9 +135,7 @@ export default async function TenantDetailPage({ params }: Props) {
                     </span>
                   </td>
                   <td style={{ padding: '14px 20px', fontSize: 12, color: '#888' }}>
-                    {u.createdAt instanceof Date
-                      ? u.createdAt.toLocaleDateString('pt-BR')
-                      : new Date(u.createdAt as number * 1000).toLocaleDateString('pt-BR')}
+                    {uDate.toLocaleDateString('pt-BR')}
                   </td>
                 </tr>
               )
@@ -145,17 +150,6 @@ export default async function TenantDetailPage({ params }: Props) {
           </tbody>
         </table>
       </div>
-    </div>
-  )
-}
-
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#aaa', letterSpacing: '0.06em', marginBottom: 4 }}>
-        {label.toUpperCase()}
-      </div>
-      {children}
     </div>
   )
 }

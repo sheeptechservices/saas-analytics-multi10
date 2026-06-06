@@ -15,7 +15,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!credentials?.email || !credentials?.password) return null
 
         const { db } = await import('@/lib/db')
-        const { users, tenants } = await import('@/lib/db/schema')
+        const { users } = await import('@/lib/db/schema')
         const { eq } = await import('drizzle-orm')
 
         const user = await db
@@ -29,24 +29,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(credentials.password as string, user.passwordHash)
         if (!valid) return null
 
-        let tenant = null
-        if (user.tenantId) {
-          tenant = await db
-            .select()
-            .from(tenants)
-            .where(eq(tenants.id, user.tenantId))
-            .then(r => r[0] ?? null)
-        }
-
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
           tenantId: user.tenantId ?? '',
-          primaryColor: tenant?.primaryColor ?? '',
-          logoUrl: tenant?.logoUrl ?? null,
-          brandName: tenant?.name ?? '',
         }
       },
     }),

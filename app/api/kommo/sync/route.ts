@@ -5,12 +5,16 @@ import { integrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { refreshKommoToken, runKommoSync, runKommoIncrementalSync } from '@/lib/kommo/sync'
 import { decrypt } from '@/lib/crypto'
+import { assertEntitlement } from '@/lib/entitlements'
 
 const yield_ = () => new Promise<void>(resolve => setImmediate(resolve))
 
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.kommo')
+  if (denied) return denied
 
   const raw = await db.select().from(integrations)
     .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))
@@ -81,6 +85,9 @@ export async function POST(request: Request) {
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.kommo')
+  if (denied) return denied
 
   const integration = await db.select().from(integrations)
     .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))

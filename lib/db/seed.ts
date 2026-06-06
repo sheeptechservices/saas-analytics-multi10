@@ -1,6 +1,7 @@
 import { createClient } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import * as schema from './schema'
+import { ALL_MODULE_KEYS } from '../modules'
 import bcrypt from 'bcryptjs'
 import fs from 'fs'
 import path from 'path'
@@ -45,6 +46,10 @@ async function main() {
     primaryColor: '#FFB400',
     createdAt: now,
   })
+
+  await db.insert(schema.tenantModules).values(
+    ALL_MODULE_KEYS.map(moduleKey => ({ tenantId, moduleKey, enabled: true }))
+  )
 
   await db.insert(schema.users).values([
     {

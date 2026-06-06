@@ -1,17 +1,24 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { integrations } from '@/lib/db/schema'
+import { integrations, tenantModules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { refreshKommoToken, runKommoIncrementalSync } from '@/lib/kommo/sync'
 import { dailySync as googleDailySync } from '@/lib/ads/google'
 import { dailySync as metaDailySync } from '@/lib/ads/meta'
 import { dailySync as tiktokDailySync } from '@/lib/ads/tiktok'
+import { ADS_PROVIDER_MODULE } from '@/lib/modules'
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // ── Load enabled modules set ──────────────────────────────────────────────────
+
+  const enabledRows = await db.select({ t: tenantModules.tenantId, k: tenantModules.moduleKey })
+    .from(tenantModules).where(eq(tenantModules.enabled, true))
+  const enabled = new Set(enabledRows.map(r => `${r.t}:${r.k}`))
 
   // ── Kommo incremental sync ────────────────────────────────────────────────────
 
@@ -21,6 +28,11 @@ export async function GET(request: Request) {
   const results: Array<{ tenantId: string; status: string; inserted?: number; updated?: number; error?: string }> = []
 
   for (const integration of allIntegrations) {
+    if (!enabled.has(`${integration.tenantId}:integration.kommo`)) {
+      results.push({ tenantId: integration.tenantId, status: 'module_disabled' })
+      continue
+    }
+
     if (!integration.accessToken || !integration.selectedPipelineId) {
       results.push({ tenantId: integration.tenantId, status: 'skipped' })
       continue
@@ -62,6 +74,7 @@ export async function GET(request: Request) {
       .where(eq(integrations.provider, provider))
 
     for (const integration of activeIntegrations) {
+      if (!enabled.has(`${integration.tenantId}:${ADS_PROVIDER_MODULE[provider]}`)) continue
       try {
         await syncFns[provider](integration.tenantId)
       } catch (e) {

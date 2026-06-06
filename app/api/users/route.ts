@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { users, passwordResetTokens } from '@/lib/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
+import { getTenantBranding } from '@/lib/tenant'
 
 function canManage(role: string) {
   return role === 'admin' || role === 'master'
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
 
   const baseUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
   const inviteLink = `${baseUrl}/reset-password?token=${token}`
-  const brandName = session.user.brandName || 'Multi10'
+  const { brandName } = await getTenantBranding(session.user.tenantId)
 
   await sendInviteEmail({ to: email, userName: name, brandName, inviteLink })
 

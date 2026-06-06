@@ -4,12 +4,16 @@ import { db } from '@/lib/db'
 import { integrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { encrypt } from '@/lib/crypto'
+import { assertEntitlement } from '@/lib/entitlements'
 
 function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.kommo')
+  if (denied) return denied
 
   const integration = await db.select().from(integrations)
     .where(and(eq(integrations.tenantId, session.user.tenantId), eq(integrations.provider, 'kommo')))
@@ -30,6 +34,9 @@ export async function POST(req: NextRequest) {
     const session = await auth()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (!session.user.tenantId) return NextResponse.json({ error: 'Usuário não possui tenant associado' }, { status: 400 })
+
+    const denied = await assertEntitlement(session.user.tenantId, 'integration.kommo')
+    if (denied) return denied
 
     const { clientId, clientSecret, accountDomain } = await req.json()
 

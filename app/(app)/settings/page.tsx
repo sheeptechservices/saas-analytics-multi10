@@ -7,6 +7,7 @@ import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { initials } from '@/lib/utils'
 import { Pencil, Trash2, Clock, Search, Check } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
+import { useModules } from '@/components/ModulesProvider'
 
 const PRESET_COLORS = [
   '#FFB400', '#2563eb', '#1E8A3E', '#D93025',
@@ -128,6 +129,7 @@ export default function SettingsPage() {
   const qc = useQueryClient()
   const searchParams = useSearchParams()
   const tab = (searchParams.get('tab') ?? 'perfil') as TabKey
+  const modules = useModules()
 
   const { primaryColor, logoUrl, brandName, setPrimaryColor, setLogoUrl, setBrandName } = useWhiteLabel()
   const [localColor, setLocalColor] = useState(primaryColor)
@@ -466,7 +468,10 @@ export default function SettingsPage() {
       {/* ── Integrações ────────────────────────────────────────────────────── */}
       {tab === 'integracoes' && (
         <div className="animate-slide-up delay-2">
-          {INTEGRATION_GROUPS.map(group => (
+          {INTEGRATION_GROUPS
+            .map(g => ({ ...g, items: g.items.filter(i => modules.includes('integration.' + i.slug)) }))
+            .filter(g => g.items.length > 0)
+            .map(group => (
             <div key={group.group} style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--gray2)', marginBottom: 12 }}>
                 {group.group}

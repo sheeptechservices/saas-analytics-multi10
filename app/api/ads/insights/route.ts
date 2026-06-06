@@ -3,6 +3,8 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { integrations, adInsights, adCampaigns } from '@/lib/db/schema'
 import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm'
+import { getEnabledModuleKeys } from '@/lib/entitlements'
+import { ADS_PROVIDER_MODULE } from '@/lib/modules'
 
 const AD_PROVIDERS = ['google_ads', 'meta_ads', 'tiktok_ads'] as const
 type AdProvider = typeof AD_PROVIDERS[number]
@@ -13,6 +15,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const tenantId = session.user.tenantId
+
+  const modules = await getEnabledModuleKeys(tenantId)
+
+  if (!modules.includes('dashboard.marketing')) {
+    return NextResponse.json({ error: 'module_disabled' }, { status: 403 })
+  }
+
+  const enabledProviders = AD_PROVIDERS.filter(p => modules.includes(ADS_PROVIDER_MODULE[p]))
+
+  if (enabledProviders.length === 0) {
+    return NextResponse.json({
+      hasIntegrations: false,
+      totals: { totalSpend: 0, totalImpressions: 0, totalClicks: 0, totalConversions: 0, totalConversionValue: 0, avgCtr: 0, avgCpc: 0, avgCpm: 0, avgRoas: 0 },
+      timeSeries: [],
+      byProvider: [],
+      top10: [],
+    })
+  }
 
   const { searchParams } = request.nextUrl
   const startDate = searchParams.get('startDate') ?? ''
@@ -30,7 +50,7 @@ export async function GET(request: NextRequest) {
     .from(integrations)
     .where(and(
       eq(integrations.tenantId, tenantId),
-      inArray(integrations.provider, [...AD_PROVIDERS]),
+      inArray(integrations.provider, [...enabledProviders]),
     ))
   const hasIntegrations = integrationRows.length > 0
 
@@ -38,6 +58,7 @@ export async function GET(request: NextRequest) {
 
   const filters = [
     eq(adInsights.tenantId, tenantId),
+    inArray(adInsights.provider, [...enabledProviders]),
     ...(activeProvider ? [eq(adInsights.provider, activeProvider)] : []),
     ...(startDate ? [gte(adInsights.date, startDate)] : []),
     ...(endDate ? [lte(adInsights.date, endDate)] : []),

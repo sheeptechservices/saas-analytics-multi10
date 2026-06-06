@@ -8,7 +8,9 @@
     "start": "next start",
     "seed": "npx tsx lib/db/seed.ts",
     "check-tables": "npx tsx lib/db/check-tables.ts",
-    "type-check": "tsc --noEmit"
+    "backfill-modules": "npx tsx lib/db/backfill-modules.ts",
+    "type-check": "tsc --noEmit",
+    "create-master": "npx tsx lib/db/create-master.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

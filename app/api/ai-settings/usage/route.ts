@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { aiSettings, aiUsageLogs } from '@/lib/db/schema'
 import { eq, and, gte } from 'drizzle-orm'
+import { assertEntitlement } from '@/lib/entitlements'
 
 function periodStart(period: string): number {
   const now = new Date()
@@ -30,6 +31,9 @@ async function fetchFxRate(): Promise<number> {
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const denied = await assertEntitlement(session.user.tenantId, 'integration.ai')
+  if (denied) return denied
 
   const period = req.nextUrl.searchParams.get('period') ?? 'month'
   const startMs = periodStart(period)
