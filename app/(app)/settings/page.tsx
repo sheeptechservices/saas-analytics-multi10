@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { initials } from '@/lib/utils'
-import { Pencil, Trash2, Clock, Search } from 'lucide-react'
+import { Pencil, Trash2, Clock, Search, Check } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 
 const PRESET_COLORS = [
@@ -299,32 +299,9 @@ export default function SettingsPage() {
 
       {/* ── Perfil ─────────────────────────────────────────────────────────── */}
       {tab === 'perfil' && (
-        <div className="animate-slide-up delay-2">
-
-          {/* Avatar preview */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
-                background: me?.avatarColor ?? 'var(--primary)',
-                overflow: 'hidden', border: '2px solid var(--gray3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {profilePhoto ? (
-                  <img src={profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                ) : (
-                  <span style={{ fontSize: 20, fontWeight: 800, color: me?.avatarBg ?? '#121316' }}>
-                    {initials(profileName || me?.name || '?')}
-                  </span>
-                )}
-              </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>{profileName || me?.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--gray2)', marginTop: 2 }}>{me?.email}</div>
-                <span style={{ display: 'inline-block', marginTop: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 100, background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {me?.role}
-                </span>
-              </div>
-            </div>
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {/* Coluna esquerda — formulário */}
+          <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)', flex: '1 1 380px', maxWidth: 520 }}>
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>NOME</label>
@@ -358,16 +335,36 @@ export default function SettingsPage() {
             <button
               onClick={saveProfile}
               disabled={savingProfile}
-              style={{ width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
+              style={{ padding: '11px 28px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
             >
               {savingProfile ? 'Salvando…' : 'Salvar perfil'}
             </button>
+          </div>
+
+          {/* Coluna direita — preview do usuário */}
+          <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)', flex: '1 1 260px', maxWidth: 340, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', alignSelf: 'flex-start' }}>Pré-visualização</div>
+            <div style={{ width: 80, height: 80, borderRadius: '50%', flexShrink: 0, background: me?.avatarColor ?? 'var(--primary)', overflow: 'hidden', border: '2px solid var(--gray3)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 8 }}>
+              {profilePhoto ? (
+                <img src={profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              ) : (
+                <span style={{ fontSize: 26, fontWeight: 800, color: me?.avatarBg ?? '#121316' }}>{initials(profileName || me?.name || '?')}</span>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>{profileName || me?.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--gray2)', marginTop: 2 }}>{me?.email}</div>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 100, background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{me?.role}</span>
+          </div>
         </div>
       )}
 
       {/* ── Marca ──────────────────────────────────────────────────────────── */}
       {tab === 'marca' && (
-        <div className="animate-slide-up delay-2">
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {/* Coluna esquerda — formulário */}
+          <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)', flex: '1 1 380px', maxWidth: 520 }}>
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 6 }}>NOME DA MARCA</label>
@@ -383,18 +380,25 @@ export default function SettingsPage() {
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 10 }}>COR PRIMÁRIA</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {PRESET_COLORS.map(color => (
-                  <button
-                    key={color}
-                    onClick={() => handleColorChange(color)}
-                    style={{
-                      width: 32, height: 32, borderRadius: 8, background: color, cursor: 'pointer',
-                      border: localColor === color ? '3px solid var(--black)' : '2px solid transparent',
-                      outline: localColor === color ? '2px solid var(--black)' : 'none',
-                      outlineOffset: 2, transition: 'all .15s',
-                    }}
-                  />
-                ))}
+                {PRESET_COLORS.map(color => {
+                  const selected = localColor === color
+                  return (
+                    <button
+                      key={color}
+                      onClick={() => handleColorChange(color)}
+                      aria-label={color}
+                      style={{
+                        width: 32, height: 32, borderRadius: 8, background: color, cursor: 'pointer',
+                        border: '2px solid var(--white)',
+                        boxShadow: selected ? `0 0 0 2px ${color}` : '0 0 0 1px var(--gray3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all .15s',
+                      }}
+                    >
+                      {selected && <Check size={16} color="#fff" strokeWidth={3} style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.45))' }} />}
+                    </button>
+                  )
+                })}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input
@@ -434,10 +438,28 @@ export default function SettingsPage() {
             <button
               onClick={save}
               disabled={saving}
-              style={{ width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
+              style={{ padding: '11px 28px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
             >
               {saving ? 'Salvando…' : 'Salvar configurações'}
             </button>
+          </div>
+
+          {/* Coluna direita — preview de marca */}
+          <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)', flex: '1 1 260px', maxWidth: 340, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)' }}>Pré-visualização</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: localColor, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {localLogo
+                  ? <img src={localLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                  : <span style={{ fontSize: 18, fontWeight: 800, color: textOn(localColor) }}>{initials(localName || 'M')}</span>}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>{localName || 'Sua marca'}</div>
+            </div>
+            <button type="button" disabled style={{ width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: localColor, color: textOn(localColor), border: 'none', borderRadius: 100, cursor: 'default' }}>Botão primário</button>
+            <div>
+              <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 100, background: localColor, color: textOn(localColor), textTransform: 'uppercase', letterSpacing: '0.06em' }}>Badge</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -621,6 +643,13 @@ const fieldStyle: React.CSSProperties = {
   fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
   color: 'var(--black)', background: 'var(--white)',
   border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
+}
+
+function textOn(hex: string) {
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return '#FFFFFF'
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16)
+  return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.55 ? '#121316' : '#FFFFFF'
 }
 
 function fmtDate(d: string | number) {
