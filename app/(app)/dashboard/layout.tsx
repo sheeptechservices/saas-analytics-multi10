@@ -9,14 +9,12 @@ const TABS = [
   { href: '/dashboard',            label: 'Visão Geral' },
   { href: '/dashboard/ranking',    label: 'Ranking' },
   { href: '/dashboard/marketing',  label: 'Marketing' },
-  { href: '/dashboard/sdr-ia',     label: 'SDR IA' },
 ]
 
 const TAB_MODULE: Record<string, string> = {
   '/dashboard':            'dashboard.overview',
   '/dashboard/ranking':    'dashboard.ranking',
   '/dashboard/marketing':  'dashboard.marketing',
-  '/dashboard/sdr-ia':     'dashboard.sdr-ia',
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

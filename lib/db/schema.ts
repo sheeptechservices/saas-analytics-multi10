@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, primaryKey, index, unique } from 'drizzle-orm/sqlite-core'
 
 export const tenants = sqliteTable('tenants', {
   id: text('id').primaryKey(),
@@ -218,4 +218,108 @@ export const planModules = sqliteTable('plan_modules', {
   moduleKey: text('module_key').notNull(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.planId, t.moduleKey] }),
+}))
+
+// ─── Platform: generic data sources & canonical store ───────────────────────────
+// A dedicated, provider-agnostic layer so new clients/connections plug in without
+// overloading the Kommo-shaped `integrations` table. Every row is scoped by
+// tenantId; provider-specific bits live in JSON `extra`/`config` columns.
+
+export const dataSources = sqliteTable('data_sources', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  providerKey: text('provider_key').notNull(),            // e.g. 'supabase-n8n'
+  label: text('label').notNull().default(''),
+  configEnc: text('config_enc'),                          // encrypted JSON (url, read-only key, ...)
+  status: text('status', { enum: ['pending', 'connected', 'error'] }).notNull().default('pending'),
+  syncCursor: text('sync_cursor'),                        // JSON cursor for incremental sync
+  lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
+  lastSyncStatus: text('last_sync_status'),               // 'success' | 'error' | 'running'
+  lastSyncError: text('last_sync_error'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  tenantProviderIdx: index('data_sources_tenant_provider_idx').on(t.tenantId, t.providerKey),
+}))
+
+// Generic numeric time-series (ad insights, KPIs, funnel counts over time, ...).
+// id is deterministic (tenant:source:metric:date:dims) so sync is idempotent via PK upsert.
+export const metrics = sqliteTable('metrics', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  dataSourceId: text('data_source_id').references(() => dataSources.id),
+  source: text('source').notNull(),
+  metricKey: text('metric_key').notNull(),
+  value: real('value').notNull().default(0),
+  date: text('date').notNull(),                           // ISO date or period ('2026-05')
+  dimensions: text('dimensions').notNull().default('{}'), // JSON {campaignId, stageId, ...}
+  extra: text('extra').notNull().default('{}'),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+}, (t) => ({
+  lookupIdx: index('metrics_lookup_idx').on(t.tenantId, t.source, t.metricKey, t.date),
+}))
+
+// Discrete events / interactions (lead logs, touches). occurredAt drives incremental cursor.
+export const events = sqliteTable('events', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  dataSourceId: text('data_source_id').references(() => dataSources.id),
+  source: text('source').notNull(),
+  eventType: text('event_type').notNull(),
+  entityId: text('entity_id'),                            // lead/contact id at the source
+  occurredAt: integer('occurred_at', { mode: 'timestamp' }).notNull(),
+  sentiment: text('sentiment'),                           // positive | neutral | negative | null
+  payload: text('payload').notNull().default('{}'),
+  extra: text('extra').notNull().default('{}'),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+}, (t) => ({
+  lookupIdx: index('events_lookup_idx').on(t.tenantId, t.source, t.occurredAt),
+}))
+
+// Conversation messages (chat histories). Grouped by sessionId; alternating roles.
+export const conversations = sqliteTable('conversations', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  dataSourceId: text('data_source_id').references(() => dataSources.id),
+  source: text('source').notNull(),
+  sessionId: text('session_id').notNull(),
+  role: text('role', { enum: ['human', 'ai', 'system'] }).notNull(),
+  content: text('content').notNull().default(''),
+  occurredAt: integer('occurred_at', { mode: 'timestamp' }),
+  metadata: text('metadata').notNull().default('{}'),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+}, (t) => ({
+  sessionIdx: index('conversations_session_idx').on(t.tenantId, t.source, t.sessionId),
+}))
+
+// Funnel stage snapshots per period (mirrors the 300's funnel_metrics; also fits Kommo stages).
+export const funnelSnapshots = sqliteTable('funnel_snapshots', {
+  id: text('id').primaryKey(),                            // deterministic: tenant:source:period:stageKey
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  dataSourceId: text('data_source_id').references(() => dataSources.id),
+  source: text('source').notNull(),
+  period: text('period').notNull(),                       // '2026-05' | 'all'
+  stageKey: text('stage_key').notNull(),
+  stageName: text('stage_name').notNull(),
+  count: integer('count').notNull().default(0),
+  order: integer('order').notNull().default(0),
+  extra: text('extra').notNull().default('{}'),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+}, (t) => ({
+  periodIdx: index('funnel_snapshots_period_idx').on(t.tenantId, t.source, t.period),
+}))
+
+// Campaign / parameters config per tenant (the "Parâmetros" tab). Passive-persisted,
+// modelled with status + version for future write-back to n8n.
+export const campaignSettings = sqliteTable('campaign_settings', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  source: text('source').notNull().default('sdr-n8n'),
+  settings: text('settings').notNull().default('{}'),     // JSON: tone, cadence, templates, ...
+  status: text('status', { enum: ['draft', 'active', 'paused'] }).notNull().default('draft'),
+  version: integer('version').notNull().default(1),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  tenantSourceUnq: unique('campaign_settings_tenant_source_unq').on(t.tenantId, t.source),
 }))

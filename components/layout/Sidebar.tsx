@@ -5,7 +5,21 @@ import { LayoutGrid, BarChart3, Sparkles, Settings } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
 import { useModules } from '@/components/ModulesProvider'
 
-const navItems = [
+// ─── Nav structure ────────────────────────────────────────────────────────────
+
+interface NavItem {
+  href:         string
+  label:        string
+  icon:         React.ReactNode
+  activePrefix?: string
+}
+
+interface NavGroup {
+  section: string
+  items:   NavItem[]
+}
+
+const navItems: NavGroup[] = [
   {
     section: 'Principal',
     items: [
@@ -18,8 +32,9 @@ const navItems = [
         icon: <BarChart3 size={16} />,
       },
       {
-        href: '/prospeccao-ia', label: 'SDR IA', comingSoon: true,
+        href: '/sdr-ia/dashboard', label: 'SDR IA',
         icon: <Sparkles size={16} />,
+        activePrefix: '/sdr-ia',
       },
     ],
   },
@@ -34,16 +49,18 @@ const navItems = [
   },
 ]
 
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
 export function Sidebar() {
   const pathname = usePathname()
   const { open, pinned, setPinned, setOpen } = useSidebar()
   const modules = useModules()
 
   function isItemVisible(href: string): boolean {
-    if (href === '/settings') return true
-    if (href === '/dashboard') return modules.some(k => k.startsWith('dashboard.'))
-    if (href === '/pipeline') return modules.includes('pipeline')
-    if (href === '/prospeccao-ia') return modules.includes('prospeccao-ia')
+    if (href === '/settings')      return true
+    if (href === '/dashboard')     return modules.some(k => k.startsWith('dashboard.'))
+    if (href === '/pipeline')      return modules.includes('pipeline')
+    if (href === '/sdr-ia/dashboard') return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
     return true
   }
 
@@ -83,29 +100,9 @@ export function Sidebar() {
             {group.section}
           </div>
           {visibleItems.map(item => {
-            if ((item as any).comingSoon) {
-              return (
-                <div
-                  key={item.href}
-                  title="Em breve"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 20px', fontSize: 13, fontWeight: 600,
-                    color: 'var(--gray2)', cursor: 'not-allowed',
-                    borderLeft: '2px solid transparent',
-                  }}
-                >
-                  <span style={{ flexShrink: 0, color: 'var(--gray2)' }}>{item.icon}</span>
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                  <span style={{
-                    fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 100,
-                    background: 'var(--gray2)', color: 'var(--white)',
-                    textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
-                  }}>Em breve</span>
-                </div>
-              )
-            }
-            const active = pathname === item.href
+            const active = item.activePrefix
+              ? pathname.startsWith(item.activePrefix)
+              : pathname === item.href
             return (
               <Link
                 key={item.href}

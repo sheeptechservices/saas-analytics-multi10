@@ -1,11 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/kommo-sync",
-      "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/cron/kommo-full-sync",
+      "path": "/api/cron/all",
       "schedule": "0 3 * * *"
     }
   ]
