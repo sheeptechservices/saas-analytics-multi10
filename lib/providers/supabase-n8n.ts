@@ -18,21 +18,23 @@ type StageKey = 'leads' | 'contacted' | 'responses' | 'meetings' | 'proposals' |
 
 interface FunnelRow {
   month: string
-  leads: number
-  contacted: number
-  responses: number
-  meetings: number
-  proposals: number
-  closures: number
+  total_leads: number
+  contacted_count: number
+  response_count: number
+  meeting_count: number
+  proposal_count: number
+  closed_count: number
 }
 
 interface LeadLogRow {
   id: unknown
-  interaction_type: string | null
-  input_message: string | null
-  output_message: string | null
-  sentiment: 'positive' | 'neutral' | 'negative' | null
-  created_at: Date
+  lead_id: string | null
+  tipo_interacao: string | null
+  mensagem_input: string | null
+  mensagem_output: string | null
+  sentimento: 'positivo' | 'neutro' | 'negativo' | null
+  ocorreu_em: string | Date | null
+  criado_em: string | Date
 }
 
 interface ChatRow {
@@ -137,7 +139,7 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
       }
 
       const { rows: leadLogs } = await client.query<LeadLogRow>(
-        'SELECT * FROM lead_logs WHERE created_at > $1 ORDER BY created_at ASC LIMIT $2',
+        'SELECT * FROM lead_logs WHERE criado_em > $1 ORDER BY criado_em ASC LIMIT $2',
         [leadLogsAfter, N]
       )
 
@@ -151,7 +153,7 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
 
       const nextCursor: SyncCursor = {
         funnelDone: 1,
-        leadLogsAfter: lastLead ? new Date(lastLead.created_at).toISOString() : leadLogsAfter,
+        leadLogsAfter: lastLead ? new Date(lastLead.criado_em).toISOString() : leadLogsAfter,
         chatAfterId: lastChat ? lastChat.id : chatAfterId,
       }
 
@@ -166,24 +168,41 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
   },
 
   normalize(raw: SupabaseN8nRaw, _ctx: SyncContext): CanonicalBatch {
+    type ColKey = 'total_leads' | 'contacted_count' | 'response_count' | 'meeting_count' | 'proposal_count' | 'closed_count'
+    const STAGE_COL_MAP: Array<{ col: ColKey; key: StageKey }> = [
+      { col: 'total_leads',     key: 'leads'     },
+      { col: 'contacted_count', key: 'contacted' },
+      { col: 'response_count',  key: 'responses' },
+      { col: 'meeting_count',   key: 'meetings'  },
+      { col: 'proposal_count',  key: 'proposals' },
+      { col: 'closed_count',    key: 'closures'  },
+    ]
+
     const funnel: CanonicalFunnelStage[] = raw.funnel.flatMap(row =>
-      STAGE_KEYS.map((key, idx) => ({
+      STAGE_COL_MAP.map(({ col, key }, idx) => ({
         period: row.month,
         stageKey: key,
         stageName: STAGE_NAMES[key],
-        count: Number(row[key]) || 0,
+        count: Number(row[col]) || 0,
         order: idx,
       }))
     )
 
+    const sentimentMap: Record<string, 'positive' | 'neutral' | 'negative'> = {
+      positivo: 'positive',
+      neutro:   'neutral',
+      negativo: 'negative',
+    }
+
     const events: CanonicalEvent[] = raw.leadLogs.map(row => ({
-      sourceId: String(row.id),
-      eventType: row.interaction_type ?? 'interaction',
-      occurredAt: new Date(row.created_at).getTime(),
-      sentiment: row.sentiment ?? null,
+      sourceId:   String(row.id),
+      eventType:  row.tipo_interacao ?? 'interaction',
+      entityId:   row.lead_id ?? undefined,
+      occurredAt: new Date(row.ocorreu_em ?? row.criado_em).getTime(),
+      sentiment:  (row.sentimento ? sentimentMap[row.sentimento] : null) ?? null,
       payload: {
-        input: row.input_message,
-        output: row.output_message,
+        input:  row.mensagem_input,
+        output: row.mensagem_output,
       },
     }))
 
