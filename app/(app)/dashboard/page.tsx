@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowUp, ArrowDown, ArrowRight } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -961,6 +962,7 @@ export default function DashboardPage() {
   }
   const { data: meData } = useQuery({ queryKey: ['me'], queryFn: () => fetch('/api/me').then(r => r.json()) })
   const firstName = meData?.user?.name?.split(' ')[0] ?? ''
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (!data) return
@@ -989,7 +991,7 @@ export default function DashboardPage() {
           {sk(200, 36, 100)}
         </div>
         {/* KPI cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
           {[0,1,2,3].map(i => (
             <div key={i} style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {sk('60%', 11, 4)}{sk('75%', 28, 6)}{sk(80, 22, 100)}
@@ -1002,7 +1004,7 @@ export default function DashboardPage() {
           <div style={{ marginTop: 16 }}>{sk('100%', 90, 8)}</div>
         </div>
         {/* charts row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 24 }}>
           {[0,1].map(i => (
             <div key={i} style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {sk(110, 11, 4)}{sk('100%', 160, 8)}
@@ -1039,7 +1041,7 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div className="animate-slide-up delay-1" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, gap: 16 }}>
+      <div className="animate-slide-up delay-1" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, gap: 16 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>
             Seja bem-vindo{firstName ? `, ${firstName}` : ''}! 👋
@@ -1054,7 +1056,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="animate-slide-up delay-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="animate-slide-up delay-2" style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
         <SummaryCard
           label={isFiltered ? 'Leads no período' : 'Total de leads'}
           value={metrics.totalLeads ?? 0}
@@ -1147,7 +1149,7 @@ export default function DashboardPage() {
       )}
 
       {/* Charts row */}
-      <div className="animate-slide-up delay-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+      <div className="animate-slide-up delay-4" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 24 }}>
 
         {/* Donut: leads por status */}
         <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)' }}>
@@ -1166,7 +1168,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Loss reasons + Rep status — side by side */}
-      <div className="animate-slide-up delay-5" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      <div className="animate-slide-up delay-5" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 20 }}>
 
         {/* Motivos de perda */}
         <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)' }}>

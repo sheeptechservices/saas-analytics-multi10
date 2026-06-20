@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { LayoutGrid, BarChart3, Sparkles, Settings } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
 import { useModules } from '@/components/ModulesProvider'
+import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
@@ -55,6 +56,8 @@ export function Sidebar() {
   const pathname = usePathname()
   const { open, pinned, setPinned, setOpen } = useSidebar()
   const modules = useModules()
+  const isMobile = useIsMobile()
+  const overlay = !pinned || isMobile
 
   function isItemVisible(href: string): boolean {
     if (href === '/settings')      return true
@@ -72,11 +75,11 @@ export function Sidebar() {
       display: 'flex',
       flexDirection: 'column',
       overflowX: 'hidden',
-      overflowY: pinned && !open ? 'hidden' : 'auto',
+      overflowY: !overlay && !open ? 'hidden' : 'auto',
       width: 220,
-      visibility: pinned && !open ? 'hidden' : 'visible',
-      // When unpinned: fixed overlay; when pinned: normal grid flow
-      ...(pinned ? {} : {
+      visibility: !overlay && !open ? 'hidden' : 'visible',
+      // overlay mode (unpinned or mobile): fixed drawer; normal mode: grid flow
+      ...(overlay ? {
         position: 'fixed',
         left: 0,
         top: 60,
@@ -85,7 +88,7 @@ export function Sidebar() {
         boxShadow: '4px 0 20px rgba(0,0,0,0.12)',
         transform: open ? 'translateX(0)' : 'translateX(-100%)',
         transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
-      }),
+      } : {}),
     }}>
       {navItems.map((group) => {
         const visibleItems = group.items.filter(item => isItemVisible(item.href))
@@ -107,6 +110,7 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => { if (overlay) setOpen(false) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 20px', fontSize: 13, fontWeight: 600,
