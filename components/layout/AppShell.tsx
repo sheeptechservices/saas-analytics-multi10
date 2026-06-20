@@ -1,5 +1,7 @@
 'use client'
+import { useEffect } from 'react'
 import { useSidebar } from '@/stores/sidebarStore'
+import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 import { Topbar } from './Topbar'
 import { Sidebar } from './Sidebar'
 
@@ -13,7 +15,12 @@ interface Props {
 
 export function AppShell({ children, userName, userRole, brandName, logoUrl }: Props) {
   const { open, pinned, setOpen } = useSidebar()
-  const inGrid = open && pinned
+  const isMobile = useIsMobile()
+  const inGrid = open && pinned && !isMobile
+
+  useEffect(() => {
+    if (isMobile) setOpen(false)
+  }, [isMobile, setOpen])
 
   return (
     <div style={{
@@ -26,8 +33,8 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
     }}>
       <Topbar userName={userName} userRole={userRole} brandName={brandName} logoUrl={logoUrl} />
 
-      {/* Backdrop for unpinned open sidebar */}
-      {open && !pinned && (
+      {/* Backdrop for overlay sidebar (unpinned or mobile) */}
+      {open && (!pinned || isMobile) && (
         <div
           onClick={() => setOpen(false)}
           style={{
@@ -40,7 +47,7 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
 
       <Sidebar />
 
-      <main style={{ padding: '32px 36px', overflowY: 'auto', background: 'var(--bg)', minHeight: 0 }}>
+      <main style={{ padding: isMobile ? '16px 16px' : '32px 36px', overflowY: 'auto', background: 'var(--bg)', minHeight: 0 }}>
         {children}
       </main>
     </div>
