@@ -25,7 +25,7 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: inGrid ? '220px 1fr' : '0px 1fr',
+      gridTemplateColumns: inGrid ? '220px minmax(0, 1fr)' : '0px minmax(0, 1fr)',
       gridTemplateRows: '60px 1fr',
       height: '100vh',
       overflow: 'hidden',
@@ -47,7 +47,7 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
 
       <Sidebar />
 
-      <main style={{ gridColumn: 2, padding: isMobile ? '16px 16px' : '32px 36px', overflowY: 'auto', background: 'var(--bg)', minHeight: 0 }}>
+      <main style={{ gridColumn: 2, padding: isMobile ? '16px 16px' : '32px 36px', overflowY: 'auto', background: 'var(--bg)', minHeight: 0, minWidth: 0 }}>
         {children}
       </main>
     </div>
