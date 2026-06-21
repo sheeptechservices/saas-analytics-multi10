@@ -219,6 +219,9 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
       sessionId: row.session_id,
       role: row.message?.type === 'ai' ? 'ai' : 'human',
       content: row.message?.content ?? '',
+      // n8n_chat_histories não tem coluna de timestamp; guardamos o id sequencial
+      // do chat como proxy de recência para ordenar as "sessões recentes".
+      metadata: { chatId: typeof row.id === 'number' ? row.id : Number(row.id) || 0 },
     }))
 
     return { funnel, events, conversations }

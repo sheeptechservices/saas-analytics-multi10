@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { events, conversations, funnelSnapshots, dataSources } from '@/lib/db/schema'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 
 const DAY = 86_400_000
@@ -64,19 +64,20 @@ export async function GET(request: Request) {
     ))
     .groupBy(events.sentiment)
 
-  // ── Conversations: recent sessions (last 2000 rows, deduplicated in JS) ──
+  // ── Conversations: recent sessions ──────────────────────────────────────
+  // n8n_chat_histories não tem timestamp; usamos o chatId (id sequencial,
+  // guardado em metadata) como proxy de recência. Sem filtro por período.
   const convRows = await db
     .select({
-      sessionId:  conversations.sessionId,
-      occurredAt: conversations.occurredAt,
+      sessionId: conversations.sessionId,
+      chatId:    sql<number>`json_extract(${conversations.metadata}, '$.chatId')`,
     })
     .from(conversations)
     .where(and(
       eq(conversations.tenantId, tenantId),
       eq(conversations.source, 'supabase-n8n'),
-      gte(conversations.occurredAt, periodStart),
     ))
-    .orderBy(desc(conversations.occurredAt))
+    .orderBy(sql`json_extract(${conversations.metadata}, '$.chatId') desc`)
     .limit(2000)
 
   // ── Data source for lastSyncAt ───────────────────────────────────────────
@@ -114,22 +115,22 @@ export async function GET(request: Request) {
     { id: 'unknown',  label: 'Sem análise', color: '#AAAAAA', count: sentMap.get('unknown')  ?? 0 },
   ].filter(s => s.count > 0)
 
-  // ── Dedup conversations by sessionId ────────────────────────────────────
-  const sessionMap = new Map<string, { lastContact: number | null; msgs: number }>()
+  // ── Dedup por sessionId; recência = maior chatId da sessão ──────────────
+  const sessionMap = new Map<string, { maxChatId: number; msgs: number }>()
   for (const row of convRows) {
-    const ms = row.occurredAt instanceof Date ? row.occurredAt.getTime() : null
+    const cid = Number(row.chatId) || 0
     const ex = sessionMap.get(row.sessionId)
     if (!ex) {
-      sessionMap.set(row.sessionId, { lastContact: ms, msgs: 1 })
+      sessionMap.set(row.sessionId, { maxChatId: cid, msgs: 1 })
     } else {
       ex.msgs++
-      if (ms && (!ex.lastContact || ms > ex.lastContact)) ex.lastContact = ms
+      if (cid > ex.maxChatId) ex.maxChatId = cid
     }
   }
   const recent = Array.from(sessionMap.entries())
-    .sort((a, b) => (b[1].lastContact ?? 0) - (a[1].lastContact ?? 0))
+    .sort((a, b) => b[1].maxChatId - a[1].maxChatId)
     .slice(0, 50)
-    .map(([sessionId, { lastContact, msgs }]) => ({ sessionId, lastContact, msgs }))
+    .map(([sessionId, { msgs }]) => ({ sessionId, msgs, lastContact: null as number | null }))
 
   const lastSyncAtMs = ds?.lastSyncAt instanceof Date
     ? ds.lastSyncAt.getTime()
