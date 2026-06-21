@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import {
   dataSources,
@@ -21,6 +21,14 @@ interface UpsertCounts {
   funnel: number
 }
 
+const CHUNK_SIZE = 150
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
 function hashDims(dims: Record<string, unknown> | undefined): string {
   if (!dims || Object.keys(dims).length === 0) return 'empty'
   return createHash('sha256').update(JSON.stringify(dims)).digest('hex').slice(0, 16)
@@ -35,10 +43,9 @@ async function upsertBatch(
   const now = new Date()
   const counts: UpsertCounts = { metrics: 0, events: 0, conversations: 0, funnel: 0 }
 
-  for (const m of batch.metrics ?? []) {
-    const id = `${tenantId}:${source}:${m.metricKey}:${m.date}:${hashDims(m.dimensions)}`
-    const row = {
-      id,
+  if (batch.metrics?.length) {
+    const rows = batch.metrics.map(m => ({
+      id: `${tenantId}:${source}:${m.metricKey}:${m.date}:${hashDims(m.dimensions)}`,
       tenantId,
       dataSourceId,
       source,
@@ -48,102 +55,107 @@ async function upsertBatch(
       dimensions: JSON.stringify(m.dimensions ?? {}),
       extra: JSON.stringify(m.extra ?? {}),
       syncedAt: now,
+    }))
+    for (const chk of chunk(rows, CHUNK_SIZE)) {
+      await db.insert(metrics).values(chk).onConflictDoUpdate({
+        target: metrics.id,
+        set: {
+          value:      sql`excluded.value`,
+          dimensions: sql`excluded.dimensions`,
+          extra:      sql`excluded.extra`,
+          syncedAt:   sql`excluded.synced_at`,
+        },
+      })
     }
-    await db.insert(metrics).values(row).onConflictDoUpdate({
-      target: metrics.id,
-      set: {
-        value: row.value,
-        dimensions: row.dimensions,
-        extra: row.extra,
-        syncedAt: row.syncedAt,
-      },
-    })
-    counts.metrics++
+    counts.metrics = rows.length
   }
 
-  for (const e of batch.events ?? []) {
-    const id = `${tenantId}:${source}:${e.sourceId}`
-    const row = {
-      id,
+  if (batch.events?.length) {
+    const rows = batch.events.map(e => ({
+      id: `${tenantId}:${source}:${e.sourceId}`,
       tenantId,
       dataSourceId,
       source,
-      eventType: e.eventType,
-      entityId: e.entityId ?? null,
+      eventType:  e.eventType,
+      entityId:   e.entityId ?? null,
       occurredAt: new Date(e.occurredAt),
-      sentiment: e.sentiment ?? null,
-      payload: JSON.stringify(e.payload ?? {}),
-      extra: JSON.stringify(e.extra ?? {}),
-      syncedAt: now,
+      sentiment:  e.sentiment ?? null,
+      payload:    JSON.stringify(e.payload ?? {}),
+      extra:      JSON.stringify(e.extra ?? {}),
+      syncedAt:   now,
+    }))
+    for (const chk of chunk(rows, CHUNK_SIZE)) {
+      await db.insert(events).values(chk).onConflictDoUpdate({
+        target: events.id,
+        set: {
+          eventType:  sql`excluded.event_type`,
+          entityId:   sql`excluded.entity_id`,
+          occurredAt: sql`excluded.occurred_at`,
+          sentiment:  sql`excluded.sentiment`,
+          payload:    sql`excluded.payload`,
+          extra:      sql`excluded.extra`,
+          syncedAt:   sql`excluded.synced_at`,
+        },
+      })
     }
-    await db.insert(events).values(row).onConflictDoUpdate({
-      target: events.id,
-      set: {
-        eventType: row.eventType,
-        entityId: row.entityId,
-        occurredAt: row.occurredAt,
-        sentiment: row.sentiment,
-        payload: row.payload,
-        extra: row.extra,
-        syncedAt: row.syncedAt,
-      },
-    })
-    counts.events++
+    counts.events = rows.length
   }
 
-  for (const c of batch.conversations ?? []) {
-    const id = `${tenantId}:${source}:${c.sourceId}`
-    const row = {
-      id,
+  if (batch.conversations?.length) {
+    const rows = batch.conversations.map(conv => ({
+      id: `${tenantId}:${source}:${conv.sourceId}`,
       tenantId,
       dataSourceId,
       source,
-      sessionId: c.sessionId,
-      role: c.role,
-      content: c.content,
-      occurredAt: c.occurredAt != null ? new Date(c.occurredAt) : null,
-      metadata: JSON.stringify(c.metadata ?? {}),
-      syncedAt: now,
+      sessionId:  conv.sessionId,
+      role:       conv.role,
+      content:    conv.content,
+      occurredAt: conv.occurredAt != null ? new Date(conv.occurredAt) : null,
+      metadata:   JSON.stringify(conv.metadata ?? {}),
+      syncedAt:   now,
+    }))
+    for (const chk of chunk(rows, CHUNK_SIZE)) {
+      await db.insert(conversations).values(chk).onConflictDoUpdate({
+        target: conversations.id,
+        set: {
+          role:       sql`excluded.role`,
+          content:    sql`excluded.content`,
+          occurredAt: sql`excluded.occurred_at`,
+          metadata:   sql`excluded.metadata`,
+          syncedAt:   sql`excluded.synced_at`,
+        },
+      })
     }
-    await db.insert(conversations).values(row).onConflictDoUpdate({
-      target: conversations.id,
-      set: {
-        role: row.role,
-        content: row.content,
-        occurredAt: row.occurredAt,
-        metadata: row.metadata,
-        syncedAt: row.syncedAt,
-      },
-    })
-    counts.conversations++
+    counts.conversations = rows.length
   }
 
-  for (const f of batch.funnel ?? []) {
-    const id = `${tenantId}:${source}:${f.period}:${f.stageKey}`
-    const row = {
-      id,
+  if (batch.funnel?.length) {
+    const rows = batch.funnel.map(f => ({
+      id: `${tenantId}:${source}:${f.period}:${f.stageKey}`,
       tenantId,
       dataSourceId,
       source,
-      period: f.period,
-      stageKey: f.stageKey,
+      period:    f.period,
+      stageKey:  f.stageKey,
       stageName: f.stageName,
-      count: f.count,
-      order: f.order ?? 0,
-      extra: JSON.stringify(f.extra ?? {}),
-      syncedAt: now,
+      count:     f.count,
+      order:     f.order ?? 0,
+      extra:     JSON.stringify(f.extra ?? {}),
+      syncedAt:  now,
+    }))
+    for (const chk of chunk(rows, CHUNK_SIZE)) {
+      await db.insert(funnelSnapshots).values(chk).onConflictDoUpdate({
+        target: funnelSnapshots.id,
+        set: {
+          stageName: sql`excluded.stage_name`,
+          count:     sql`excluded.count`,
+          order:     sql`excluded."order"`,
+          extra:     sql`excluded.extra`,
+          syncedAt:  sql`excluded.synced_at`,
+        },
+      })
     }
-    await db.insert(funnelSnapshots).values(row).onConflictDoUpdate({
-      target: funnelSnapshots.id,
-      set: {
-        stageName: row.stageName,
-        count: row.count,
-        order: row.order,
-        extra: row.extra,
-        syncedAt: row.syncedAt,
-      },
-    })
-    counts.funnel++
+    counts.funnel = rows.length
   }
 
   return counts
