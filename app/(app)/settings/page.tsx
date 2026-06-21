@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
 import { initials } from '@/lib/utils'
-import { Pencil, Trash2, Clock, Search, Check } from 'lucide-react'
+import { Pencil, Trash2, Clock, Search, Check, Database } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { useModules } from '@/components/ModulesProvider'
 
@@ -76,6 +76,20 @@ const INTEGRATION_GROUPS: { group: string; items: IntegrationItem[] }[] = [
         iconBg: '#fff7ed',
         iconColor: '#ea580c',
         icon: <Clock size={20} />,
+      },
+    ],
+  },
+  {
+    group: 'Fontes de Dados',
+    items: [
+      {
+        slug: 'sdr-source',
+        label: 'Fonte de Dados SDR',
+        desc: 'Conecte o banco Postgres do projeto 300 (Supabase) para sincronizar os dados.',
+        href: '/settings/integrations/sdr-source',
+        iconBg: '#f0f4ff',
+        iconColor: '#3b82f6',
+        icon: <Database size={20} />,
       },
     ],
   },
@@ -194,7 +208,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (tab !== 'integracoes' || integFetched) return
     setIntegFetched(true)
-    setIntegStatuses({ kommo: 'loading', 'google-ads': 'loading', 'meta-ads': 'loading', 'tiktok-ads': 'loading', ai: 'loading' })
+    setIntegStatuses({ kommo: 'loading', 'google-ads': 'loading', 'meta-ads': 'loading', 'tiktok-ads': 'loading', ai: 'loading', 'sdr-source': 'loading' })
 
     Promise.all([
       fetch('/api/kommo/sync').then(r => r.ok ? r.json() : null).catch(() => null),
@@ -202,13 +216,15 @@ export default function SettingsPage() {
       fetch('/api/ads/meta_ads').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ads/tiktok_ads').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ai-settings').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([kommo, google, meta, tiktok, ai]) => {
+      fetch('/api/sdr/source').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([kommo, google, meta, tiktok, ai, sdrSource]) => {
       setIntegStatuses({
         'kommo':       kommo?.status === 'connected' ? 'connected' : 'disconnected',
         'google-ads':  google?.accountId != null ? 'connected' : 'disconnected',
         'meta-ads':    meta?.accountId != null ? 'connected' : 'disconnected',
         'tiktok-ads':  tiktok?.accountId != null ? 'connected' : 'disconnected',
         'ai':          ai?.configured ? 'connected' : 'disconnected',
+        'sdr-source':  sdrSource?.configured ? 'connected' : 'disconnected',
       })
     })
   }, [tab, integFetched])
