@@ -268,7 +268,7 @@ export default function SdrIaDashboardPage() {
       {!loading && hasData && (
         <>
           {/* ── KPI Cards ──────────────────────────────────────────── */}
-          <div className="animate-slide-up delay-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+          <div className="animate-slide-up delay-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
             <KpiCard
               label="Contatos realizados"
               value={data!.kpis.contatos}
@@ -298,7 +298,7 @@ export default function SdrIaDashboardPage() {
           </div>
 
           {/* ── Funil + Sentiment ──────────────────────────────────── */}
-          <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: sentimentSlices.length > 0 ? '3fr 2fr' : '1fr', gap: 16, marginBottom: 16 }}>
+          <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: sentimentSlices.length > 0 ? 'minmax(0, 3fr) minmax(0, 2fr)' : 'minmax(0, 1fr)', gap: 16, marginBottom: 16 }}>
 
             {/* Funil horizontal */}
             <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>

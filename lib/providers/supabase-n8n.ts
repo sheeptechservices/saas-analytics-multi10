@@ -17,7 +17,7 @@ interface Config {
 type StageKey = 'leads' | 'contacted' | 'responses' | 'meetings' | 'proposals' | 'closures'
 
 interface FunnelRow {
-  month: string
+  month: string | Date
   total_leads: number
   contacted_count: number
   response_count: number
@@ -58,6 +58,14 @@ const STAGE_NAMES: Record<StageKey, string> = {
   meetings: 'Reuniões',
   proposals: 'Propostas',
   closures: 'Fechamentos',
+}
+
+// funnel_metrics.month é "timestamp with time zone" (pg retorna Date, meia-noite UTC do
+// dia 1 do mês). O dashboard filtra funnel_snapshots.period como string 'YYYY-MM', então
+// convertemos em UTC para casar com os rótulos mensais da origem.
+function toYearMonthUTC(v: string | Date): string {
+  const d = v instanceof Date ? v : new Date(v)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 function assertNotPrivateHost(connectionString: string): void {
@@ -180,7 +188,7 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
 
     const funnel: CanonicalFunnelStage[] = raw.funnel.flatMap(row =>
       STAGE_COL_MAP.map(({ col, key }, idx) => ({
-        period: row.month,
+        period: toYearMonthUTC(row.month),
         stageKey: key,
         stageName: STAGE_NAMES[key],
         count: Number(row[col]) || 0,
