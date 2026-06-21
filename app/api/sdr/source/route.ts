@@ -82,65 +82,74 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
-  const configEnc = encrypt(JSON.stringify({ connectionString }))
-  const now = new Date()
-  const tenantId = session.user.tenantId
+  try {
+    const configEnc = encrypt(JSON.stringify({ connectionString }))
+    const now = new Date()
+    const tenantId = session.user.tenantId
 
-  const existing = await db
-    .select()
-    .from(dataSources)
-    .where(
-      and(
-        eq(dataSources.tenantId, tenantId),
-        eq(dataSources.providerKey, PROVIDER_KEY)
+    const existing = await db
+      .select()
+      .from(dataSources)
+      .where(
+        and(
+          eq(dataSources.tenantId, tenantId),
+          eq(dataSources.providerKey, PROVIDER_KEY)
+        )
       )
-    )
-    .then(r => r[0])
+      .then(r => r[0])
 
-  let savedRow: typeof dataSources.$inferSelect
+    let savedRow: typeof dataSources.$inferSelect
 
-  if (existing) {
-    await db
-      .update(dataSources)
-      .set({ configEnc, status: 'connected', syncCursor: null, updatedAt: now })
-      .where(eq(dataSources.id, existing.id))
-    savedRow = {
-      ...existing,
-      configEnc,
-      status: 'connected',
-      syncCursor: null,
-      updatedAt: now,
+    if (existing) {
+      await db
+        .update(dataSources)
+        .set({ configEnc, status: 'connected', syncCursor: null, updatedAt: now })
+        .where(eq(dataSources.id, existing.id))
+      savedRow = {
+        ...existing,
+        configEnc,
+        status: 'connected',
+        syncCursor: null,
+        updatedAt: now,
+      }
+    } else {
+      const id = randomUUID()
+      await db.insert(dataSources).values({
+        id,
+        tenantId,
+        providerKey: PROVIDER_KEY,
+        label: 'Fonte SDR (Supabase / n8n)',
+        configEnc,
+        status: 'connected',
+        syncCursor: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      savedRow = {
+        id,
+        tenantId,
+        providerKey: PROVIDER_KEY,
+        label: 'Fonte SDR (Supabase / n8n)',
+        configEnc,
+        status: 'connected',
+        syncCursor: null,
+        lastSyncAt: null,
+        lastSyncStatus: null,
+        lastSyncError: null,
+        createdAt: now,
+        updatedAt: now,
+      }
     }
-  } else {
-    const id = randomUUID()
-    await db.insert(dataSources).values({
-      id,
-      tenantId,
-      providerKey: PROVIDER_KEY,
-      label: 'Fonte SDR (Supabase / n8n)',
-      configEnc,
-      status: 'connected',
-      syncCursor: null,
-      createdAt: now,
-      updatedAt: now,
-    })
-    savedRow = {
-      id,
-      tenantId,
-      providerKey: PROVIDER_KEY,
-      label: 'Fonte SDR (Supabase / n8n)',
-      configEnc,
-      status: 'connected',
-      syncCursor: null,
-      lastSyncAt: null,
-      lastSyncStatus: null,
-      lastSyncError: null,
-      createdAt: now,
-      updatedAt: now,
+
+    try {
+      waitUntil(runBackfill(savedRow).catch(err => console.error('[sdr backfill]', err)))
+    } catch (err) {
+      console.error('[sdr backfill schedule]', err)
     }
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[sdr source POST]', err)
+    return NextResponse.json({ ok: false, error: String((err as Error)?.message ?? err) })
   }
-
-  waitUntil(runBackfill(savedRow).catch(err => console.error('[sdr backfill]', err)))
-
-  return NextResponse.json({ ok: true })
 }
