@@ -6,6 +6,7 @@ import { initials } from '@/lib/utils'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
 import { useSidebar } from '@/stores/sidebarStore'
+import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 interface TopbarProps {
   userName: string
@@ -19,6 +20,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
   const { primaryColor, brandName: storeBrandName, logoUrl: storeLogoUrl } = useWhiteLabel()
   const { toggle } = useSidebar()
   const { name: storeUserName, photoUrl: storeUserPhoto } = useUser()
+  const isMobile = useIsMobile()
   const displayUserName = storeUserName || userName
   const [photoError, setPhotoError] = useState(false)
   useEffect(() => { setPhotoError(false) }, [storeUserPhoto])
@@ -33,7 +35,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
       gridColumn: '1 / -1',
       background: 'var(--white)',
       borderBottom: '1px solid var(--gray3)',
-      padding: '0 28px',
+      padding: isMobile ? '0 14px' : '0 28px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -70,7 +72,9 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
         )}
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>{displayName}</div>
-          <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>Analytics · Insights · IA</div>
+          {!isMobile && (
+            <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>Analytics · Insights · IA</div>
+          )}
         </div>
       </div>
 

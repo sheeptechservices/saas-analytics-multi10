@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { greeting } from '@/lib/utils'
+import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 export default function LoginPage() {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,11 +35,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '100vh' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', minHeight: '100vh' }}>
       {/* Painel esquerdo escuro */}
       <div style={{
         background: 'var(--black)',
-        display: 'flex',
+        display: isMobile ? 'none' : 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         padding: '48px',
@@ -69,9 +71,19 @@ export default function LoginPage() {
       {/* Painel direito — formulário */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '48px', background: 'var(--bg)',
+        padding: isMobile ? '32px 20px' : '48px', background: 'var(--bg)',
       }}>
         <div style={{ width: '100%', maxWidth: 380 }}>
+          {/* Marca — visível no mobile (painel esquerdo oculto) e no desktop */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
+            <div style={{
+              width: 36, height: 36, background: 'var(--primary)', borderRadius: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, fontWeight: 800, color: 'var(--primary-contrast)',
+            }}>M</div>
+            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.01em' }}>Mult10</span>
+          </div>
+
           <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em', marginBottom: 6 }}>
             {greet}.
           </div>

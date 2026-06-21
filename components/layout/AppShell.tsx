@@ -47,7 +47,7 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
 
       <Sidebar />
 
-      <main style={{ padding: isMobile ? '16px 16px' : '32px 36px', overflowY: 'auto', background: 'var(--bg)', minHeight: 0 }}>
+      <main style={{ gridColumn: 2, padding: isMobile ? '16px 16px' : '32px 36px', overflowY: 'auto', background: 'var(--bg)', minHeight: 0 }}>
         {children}
       </main>
     </div>
