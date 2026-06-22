@@ -1,13 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ExternalLink, Eye, EyeOff } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ExternalLink, Eye, EyeOff } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tom    = 'formal' | 'consultivo' | 'direto'
-type Status = 'draft' | 'active' | 'paused'
+type Tom         = 'formal' | 'consultivo' | 'direto'
+type Status      = 'draft' | 'active' | 'paused'
 type N8nDelivery = { ok: boolean; status?: number; error?: string } | null
+type AreaId      = 'campanha' | 'ia-conteudo' | 'integracoes-n8n' | 'teste-disparo' | 'avancado'
 
 interface Settings {
   tom:              Tom
@@ -20,9 +21,9 @@ interface Settings {
   remetente:        string   // E.164, ex: +5511999990000
   numToques:        number   // 1–20
   intervaloDias:    number   // 1–30, intervalo entre toques
-  n8nWebhookUrl?:   string  // returned by GET; extracted to separate state on load
-  n8nDispatchUrl?:  string  // returned by GET; extracted to separate state on load
-  n8nEnrollUrl?:    string  // returned by GET; extracted to separate state on load
+  n8nWebhookUrl?:   string
+  n8nDispatchUrl?:  string
+  n8nEnrollUrl?:    string
 }
 
 interface ApiData {
@@ -63,6 +64,9 @@ const TOM_DESC: Record<Tom, string> = {
   direto:     'Objetivo e direto ao ponto',
 }
 
+const AREAS_KEY     = 'sdr-parametros-areas'
+const AREA_DEFAULT: AreaId[] = ['campanha']
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -96,9 +100,58 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
         background: 'var(--bg)', color: 'var(--black)', outline: 'none',
         transition: 'border-color .15s',
       }}
-      onFocus={e  => (e.currentTarget.style.borderColor = 'var(--primary)')}
-      onBlur={e   => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+      onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+      onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
     />
+  )
+}
+
+function CollapsibleArea({
+  id, title, open, onToggle, children,
+}: {
+  id: AreaId; title: string; open: boolean; onToggle: () => void; children: React.ReactNode
+}) {
+  return (
+    <div style={{
+      marginBottom: 8,
+      border: '1px solid var(--gray3)',
+      borderRadius: 16,
+      overflow: 'hidden',
+    }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={`area-${id}`}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '15px 20px',
+          background: open ? 'var(--white)' : 'var(--bg)',
+          border: 'none',
+          borderBottom: open ? '1px solid var(--gray3)' : '1px solid transparent',
+          cursor: 'pointer', fontFamily: 'inherit',
+          transition: 'background .15s',
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.01em' }}>
+          {title}
+        </span>
+        <ChevronDown
+          size={16}
+          style={{
+            color: 'var(--gray2)',
+            transition: 'transform .2s ease',
+            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+            flexShrink: 0,
+          }}
+        />
+      </button>
+      {open && (
+        <div id={`area-${id}`} style={{ padding: '20px 20px 4px', background: 'var(--bg)' }}>
+          {children}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -135,6 +188,35 @@ export default function ParametrosPage() {
   const [testResults,      setTestResults]      = useState<Array<{ to: string; ok: boolean; id?: string; status?: string; error?: string }> | null>(null)
   const [testError,        setTestError]        = useState<string | null>(null)
 
+  // ── Áreas colapsáveis — persistidas em localStorage ──────────────────────────
+  const [openAreas, setOpenAreas] = useState<Set<AreaId>>(() => {
+    if (typeof window === 'undefined') return new Set(AREA_DEFAULT)
+    try {
+      const raw = localStorage.getItem(AREAS_KEY)
+      if (raw) {
+        const arr = JSON.parse(raw) as unknown
+        if (Array.isArray(arr)) return new Set(arr as AreaId[])
+      }
+    } catch {}
+    return new Set(AREA_DEFAULT)
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(AREAS_KEY, JSON.stringify(Array.from(openAreas)))
+    } catch {}
+  }, [openAreas])
+
+  function toggleArea(id: AreaId) {
+    setOpenAreas(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // ── Fetch templates YCloud ────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/ycloud/templates')
       .then(r => r.ok ? r.json() : null)
@@ -146,6 +228,7 @@ export default function ParametrosPage() {
       .catch(() => {})
   }, [])
 
+  // ── Fetch settings ────────────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
@@ -162,6 +245,8 @@ export default function ParametrosPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // ── Actions ───────────────────────────────────────────────────────────────────
+
   async function save() {
     if (!isValidE164(settings.remetente)) {
       setSaveError('Remetente inválido — use formato E.164 (ex: +5511999990000)')
@@ -175,7 +260,6 @@ export default function ParametrosPage() {
       const settingsPayload = {
         ...settings,
         n8nWebhookUrl,
-        // omit secrets when blank — server preserves the previously stored values
         ...(n8nWebhookSecret  ? { n8nWebhookSecret }  : {}),
         n8nDispatchUrl,
         ...(n8nDispatchSecret ? { n8nDispatchSecret } : {}),
@@ -214,11 +298,11 @@ export default function ParametrosPage() {
   }
 
   async function testSend() {
-    const numbers = testNumbers.split('\n').map(s => s.trim()).filter(Boolean)
+    const numbers  = testNumbers.split('\n').map(s => s.trim()).filter(Boolean)
     const variaveis = testVarsCsv.split(',').map(s => s.trim()).filter(Boolean)
     if (!testTemplateName) { setTestError('Escolha ou digite um template'); return }
     if (numbers.length === 0) { setTestError('Informe pelo menos 1 número'); return }
-    if (numbers.length > 10) { setTestError('Máximo de 10 números por teste'); return }
+    if (numbers.length > 10)  { setTestError('Máximo de 10 números por teste'); return }
     setTestSending(true)
     setTestResults(null)
     setTestError(null)
@@ -270,11 +354,11 @@ export default function ParametrosPage() {
   return (
     <div>
 
-      {/* ── Aviso write-back ────────────────────────────────────── */}
+      {/* ── Banner — sempre visível ──────────────────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: 12,
         background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.30)',
-        borderRadius: 12, padding: '14px 18px', marginBottom: 24,
+        borderRadius: 12, padding: '14px 18px', marginBottom: 16,
       }}>
         <AlertTriangle size={15} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.55 }}>
@@ -285,695 +369,732 @@ export default function ParametrosPage() {
         </div>
       </div>
 
-      {/* ── Status + Tom: 2 colunas no desktop, 1 no mobile ───────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(460px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
-
-      {/* ── Status ──────────────────────────────────────────────── */}
-      <SectionCard title="Status da campanha">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          {(['active', 'paused', 'draft'] as Status[]).map(s => {
-            const labels:  Record<Status, string> = { active: '● Ativa', paused: '⏸ Pausada', draft: '✏ Rascunho' }
-            const colors:  Record<Status, string> = { active: 'var(--green)', paused: 'var(--gray2)', draft: 'var(--primary-text)' }
-            const on = status === s
-            return (
-              <button key={s} onClick={() => setStatus(s)} style={{
-                padding: '7px 18px', borderRadius: 99, fontFamily: 'inherit',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                border:      `1.5px solid ${on ? colors[s] : 'var(--gray3)'}`,
-                background:  on ? `${colors[s]}18` : 'transparent',
-                color:       on ? colors[s] : 'var(--gray2)',
-                transition: 'all .15s',
-              }}>
-                {labels[s]}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>
-          {status === 'active'  ? 'Campanha marcada como ativa — sem disparos até a integração n8n estar conectada.'
-           : status === 'paused' ? 'Campanha pausada — sem disparos mesmo quando integrada.'
-           : 'Rascunho — configuração em elaboração.'}
-        </div>
-      </SectionCard>
-
-      {/* ── Tom e objetivo ──────────────────────────────────────── */}
-      <SectionCard title="Tom e objetivo">
-        <FieldLabel>Tom da IA</FieldLabel>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 22 }}>
-          {(['formal', 'consultivo', 'direto'] as Tom[]).map(t => {
-            const on = settings.tom === t
-            return (
-              <button key={t} onClick={() => upd('tom', t)} style={{
-                flex: 1, padding: '10px 14px', borderRadius: 10, fontFamily: 'inherit',
-                fontSize: 12, cursor: 'pointer', textAlign: 'left',
-                border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
-                background: on ? 'var(--primary-dim)' : 'transparent',
-                color:      on ? 'var(--primary-text)' : 'var(--gray)',
-                transition: 'all .15s',
-                display: 'flex', flexDirection: 'column', gap: 3,
-              }}>
-                <span style={{ fontWeight: 700 }}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </span>
-                <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>
-                  {TOM_DESC[t]}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-
-        <FieldLabel>Objetivo da campanha</FieldLabel>
-        <textarea
-          value={settings.objetivo}
-          onChange={e => upd('objetivo', e.target.value)}
-          placeholder="Ex: Qualificar leads e agendar reuniões com o closer..."
-          rows={3}
-          style={{
-            width: '100%', fontFamily: 'inherit', fontSize: 13, resize: 'vertical',
-            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-            boxSizing: 'border-box', transition: 'border-color .15s', lineHeight: 1.5,
-          }}
-          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-        />
-      </SectionCard>
-      </div>{/* /Status+Tom grid */}
-
-      {/* ── Sequência + Cadência: 2 colunas no desktop ──────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(460px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
-
-      {/* ── Sequência de disparo ────────────────────────────────── */}
-      <SectionCard title="Sequência de disparo">
-        <div style={{ marginBottom: 20 }}>
-          <FieldLabel>Número remetente (WhatsApp Business)</FieldLabel>
-          <input
-            type="tel"
-            value={settings.remetente}
-            onChange={e => {
-              upd('remetente', e.target.value)
-              if (remetenteError) setRemetenteError(null)
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e => {
-              const valid = isValidE164(e.target.value)
-              e.currentTarget.style.borderColor = valid ? 'var(--gray3)' : 'var(--red)'
-              setRemetenteError(valid ? null : 'Formato inválido — use E.164: +5511999990000')
-            }}
-            placeholder="+5511999990000"
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: `1px solid ${remetenteError ? 'var(--red)' : 'var(--gray3)'}`,
-              borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s',
-            }}
-          />
-          {remetenteError && (
-            <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginTop: 5 }}>
-              {remetenteError}
-            </div>
-          )}
-          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6, lineHeight: 1.5 }}>
-            Número WhatsApp Business usado nos disparos. Formato E.164 (ex: +5511999990000).
+      {/* ━━━ Área 1: Campanha ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <CollapsibleArea
+        id="campanha"
+        title="Campanha"
+        open={openAreas.has('campanha')}
+        onToggle={() => toggleArea('campanha')}
+      >
+        {/* Status da campanha */}
+        <SectionCard title="Status da campanha">
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            {(['active', 'paused', 'draft'] as Status[]).map(s => {
+              const labels:  Record<Status, string> = { active: '● Ativa', paused: '⏸ Pausada', draft: '✏ Rascunho' }
+              const colors:  Record<Status, string> = { active: 'var(--green)', paused: 'var(--gray2)', draft: 'var(--primary-text)' }
+              const on = status === s
+              return (
+                <button key={s} onClick={() => setStatus(s)} style={{
+                  padding: '7px 18px', borderRadius: 99, fontFamily: 'inherit',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  border:      `1.5px solid ${on ? colors[s] : 'var(--gray3)'}`,
+                  background:  on ? `${colors[s]}18` : 'transparent',
+                  color:       on ? colors[s] : 'var(--gray2)',
+                  transition: 'all .15s',
+                }}>
+                  {labels[s]}
+                </button>
+              )
+            })}
           </div>
-        </div>
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>
+            {status === 'active'  ? 'Campanha marcada como ativa — sem disparos até a integração n8n estar conectada.'
+             : status === 'paused' ? 'Campanha pausada — sem disparos mesmo quando integrada.'
+             : 'Rascunho — configuração em elaboração.'}
+          </div>
+        </SectionCard>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-          <div>
-            <FieldLabel>
-              Toques na sequência{' '}
-              <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>{settings.numToques}</span>
-            </FieldLabel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Sequência + Cadência em 2 colunas no desktop */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(400px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
+
+          {/* Sequência de disparo */}
+          <SectionCard title="Sequência de disparo">
+            <div style={{ marginBottom: 20 }}>
+              <FieldLabel>Número remetente (WhatsApp Business)</FieldLabel>
               <input
-                type="number"
-                min={1} max={20}
-                value={settings.numToques}
-                onChange={e => upd('numToques', Math.max(1, Math.min(20, Number(e.target.value))))}
-                style={{
-                  width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                  border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
-                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                  textAlign: 'center', transition: 'border-color .15s',
+                type="tel"
+                value={settings.remetente}
+                onChange={e => {
+                  upd('remetente', e.target.value)
+                  if (remetenteError) setRemetenteError(null)
                 }}
                 onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-              />
-              <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>templates</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6 }}>1–20. Define fase_final = &quot;Template {settings.numToques}&quot;.</div>
-          </div>
-
-          <div>
-            <FieldLabel>
-              Intervalo entre toques{' '}
-              <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>{settings.intervaloDias}</span>
-            </FieldLabel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <input
-                type="number"
-                min={1} max={30}
-                value={settings.intervaloDias}
-                onChange={e => upd('intervaloDias', Math.max(1, Math.min(30, Number(e.target.value))))}
-                style={{
-                  width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                  border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
-                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                  textAlign: 'center', transition: 'border-color .15s',
+                onBlur={e => {
+                  const valid = isValidE164(e.target.value)
+                  e.currentTarget.style.borderColor = valid ? 'var(--gray3)' : 'var(--red)'
+                  setRemetenteError(valid ? null : 'Formato inválido — use E.164: +5511999990000')
                 }}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-              />
-              <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>dias</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6 }}>1–30 dias entre cada toque.</div>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* ── Cadência ────────────────────────────────────────────── */}
-      <SectionCard title="Cadência e horário">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-
-          <div>
-            <FieldLabel>Intervalo entre contatos <span style={{ fontWeight: 500, color: 'var(--gray2)' }}>(legado — em horas, não usado pela campanha)</span></FieldLabel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <input
-                type="number"
-                min={1} max={168}
-                value={settings.delay}
-                onChange={e => upd('delay', Math.max(1, Math.min(168, Number(e.target.value))))}
+                placeholder="+5511999990000"
                 style={{
-                  width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                  border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                  width: '100%', fontFamily: 'inherit', fontSize: 13,
+                  border: `1px solid ${remetenteError ? 'var(--red)' : 'var(--gray3)'}`,
+                  borderRadius: 10, padding: '10px 14px',
                   background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                  textAlign: 'center', transition: 'border-color .15s',
-                  opacity: 0.5,
+                  boxSizing: 'border-box', transition: 'border-color .15s',
                 }}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
               />
-              <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>horas</span>
-            </div>
-          </div>
-
-          <div>
-            <FieldLabel>Horário ativo</FieldLabel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <TimeInput value={settings.horario.inicio} onChange={v => upd('horario', { ...settings.horario, inicio: v })} />
-              <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>até</span>
-              <TimeInput value={settings.horario.fim} onChange={v => upd('horario', { ...settings.horario, fim: v })} />
-            </div>
-          </div>
-        </div>
-
-        <FieldLabel>
-          Limite diário de contatos{' '}
-          <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>
-            {settings.limiteDiario}
-          </span>
-        </FieldLabel>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-          <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>10</span>
-          <input
-            type="range" min={10} max={1000} step={10}
-            value={settings.limiteDiario}
-            onChange={e => upd('limiteDiario', Number(e.target.value))}
-            style={{ flex: 1, accentColor: 'var(--primary)' }}
-          />
-          <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>1000</span>
-        </div>
-
-        <FieldLabel>Dias ativos</FieldLabel>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
-          {DIAS.map(({ num, label }) => {
-            const on = settings.diasAtivos.includes(num)
-            return (
-              <button key={num} onClick={() => toggleDia(num)} style={{
-                padding: '6px 14px', borderRadius: 99, fontFamily: 'inherit',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
-                background: on ? 'var(--primary-dim)' : 'transparent',
-                color:      on ? 'var(--primary-text)' : 'var(--gray2)',
-                transition: 'all .15s',
-              }}>
-                {label}
-              </button>
-            )
-          })}
-        </div>
-      </SectionCard>
-      </div>{/* /Sequência+Cadência grid */}
-
-      {/* ── Templates ───────────────────────────────────────────── */}
-      <SectionCard title="Templates de mensagem">
-        <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16, lineHeight: 1.5 }}>
-          Use{' '}
-          <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, color: 'var(--primary-text)' }}>
-            {'{{nome}}'}
-          </code>
-          {' '}e{' '}
-          <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, color: 'var(--primary-text)' }}>
-            {'{{empresa}}'}
-          </code>
-          {' '}como variáveis que o n8n substituirá em cada envio.
-        </div>
-
-        {hasTemplates && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 12 }}>
-            {settings.templates.map((tmpl, i) => (
-              <div key={i}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>
-                  Mensagem {i + 1}
+              {remetenteError && (
+                <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginTop: 5 }}>
+                  {remetenteError}
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                  <textarea
-                    value={tmpl}
-                    onChange={e => updTemplate(i, e.target.value)}
-                    rows={4}
-                    placeholder={`Template ${i + 1}...`}
+              )}
+              <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6, lineHeight: 1.5 }}>
+                Número WhatsApp Business usado nos disparos. Formato E.164 (ex: +5511999990000).
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+              <div>
+                <FieldLabel>
+                  Toques na sequência{' '}
+                  <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>{settings.numToques}</span>
+                </FieldLabel>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="number"
+                    min={1} max={20}
+                    value={settings.numToques}
+                    onChange={e => upd('numToques', Math.max(1, Math.min(20, Number(e.target.value))))}
                     style={{
-                      flex: 1, minWidth: 0, fontFamily: 'inherit', fontSize: 13,
-                      resize: 'vertical', lineHeight: 1.55,
-                      border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                      width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
+                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
                       background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                      boxSizing: 'border-box', transition: 'border-color .15s',
+                      textAlign: 'center', transition: 'border-color .15s',
                     }}
                     onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
                     onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
                   />
-                  {settings.templates.length > 1 && (
-                    <button
-                      onClick={() => upd('templates', settings.templates.filter((_, idx) => idx !== i))}
-                      title="Remover template"
-                      style={{
-                        padding: '7px 10px', borderRadius: 8, fontFamily: 'inherit',
-                        fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                        border: '1px solid var(--gray3)', background: 'transparent',
-                        color: 'var(--gray2)', transition: 'all .15s', lineHeight: 1,
-                        flexShrink: 0,
-                      }}
-                      onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--red)'; b.style.color = 'var(--red)' }}
-                      onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
-                    >
-                      ×
-                    </button>
-                  )}
+                  <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>templates</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6 }}>
+                  1–20. Define fase_final = &quot;Template {settings.numToques}&quot;.
                 </div>
               </div>
-            ))}
+
+              <div>
+                <FieldLabel>
+                  Intervalo entre toques{' '}
+                  <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>{settings.intervaloDias}</span>
+                </FieldLabel>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="number"
+                    min={1} max={30}
+                    value={settings.intervaloDias}
+                    onChange={e => upd('intervaloDias', Math.max(1, Math.min(30, Number(e.target.value))))}
+                    style={{
+                      width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
+                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                      background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                      textAlign: 'center', transition: 'border-color .15s',
+                    }}
+                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                    onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+                  />
+                  <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>dias</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6 }}>1–30 dias entre cada toque.</div>
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* Cadência e horário */}
+          <SectionCard title="Cadência e horário">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+              <div>
+                <FieldLabel>
+                  Intervalo entre contatos{' '}
+                  <span style={{ fontWeight: 500, color: 'var(--gray2)' }}>(legado — em horas, não usado pela campanha)</span>
+                </FieldLabel>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="number"
+                    min={1} max={168}
+                    value={settings.delay}
+                    onChange={e => upd('delay', Math.max(1, Math.min(168, Number(e.target.value))))}
+                    style={{
+                      width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
+                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                      background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                      textAlign: 'center', transition: 'border-color .15s', opacity: 0.5,
+                    }}
+                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                    onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+                  />
+                  <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>horas</span>
+                </div>
+              </div>
+
+              <div>
+                <FieldLabel>Horário ativo</FieldLabel>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <TimeInput value={settings.horario.inicio} onChange={v => upd('horario', { ...settings.horario, inicio: v })} />
+                  <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>até</span>
+                  <TimeInput value={settings.horario.fim} onChange={v => upd('horario', { ...settings.horario, fim: v })} />
+                </div>
+              </div>
+            </div>
+
+            <FieldLabel>
+              Limite diário de contatos{' '}
+              <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>{settings.limiteDiario}</span>
+            </FieldLabel>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>10</span>
+              <input
+                type="range" min={10} max={1000} step={10}
+                value={settings.limiteDiario}
+                onChange={e => upd('limiteDiario', Number(e.target.value))}
+                style={{ flex: 1, accentColor: 'var(--primary)' }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>1000</span>
+            </div>
+
+            <FieldLabel>Dias ativos</FieldLabel>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+              {DIAS.map(({ num, label }) => {
+                const on = settings.diasAtivos.includes(num)
+                return (
+                  <button key={num} onClick={() => toggleDia(num)} style={{
+                    padding: '6px 14px', borderRadius: 99, fontFamily: 'inherit',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
+                    background: on ? 'var(--primary-dim)' : 'transparent',
+                    color:      on ? 'var(--primary-text)' : 'var(--gray2)',
+                    transition: 'all .15s',
+                  }}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </SectionCard>
+
+        </div>{/* /Sequência+Cadência grid */}
+      </CollapsibleArea>
+
+      {/* ━━━ Área 2: IA & Conteúdo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <CollapsibleArea
+        id="ia-conteudo"
+        title="IA & Conteúdo"
+        open={openAreas.has('ia-conteudo')}
+        onToggle={() => toggleArea('ia-conteudo')}
+      >
+        {/* Tom e objetivo */}
+        <SectionCard title="Tom e objetivo">
+          <FieldLabel>Tom da IA</FieldLabel>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 22 }}>
+            {(['formal', 'consultivo', 'direto'] as Tom[]).map(t => {
+              const on = settings.tom === t
+              return (
+                <button key={t} onClick={() => upd('tom', t)} style={{
+                  flex: 1, padding: '10px 14px', borderRadius: 10, fontFamily: 'inherit',
+                  fontSize: 12, cursor: 'pointer', textAlign: 'left',
+                  border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
+                  background: on ? 'var(--primary-dim)' : 'transparent',
+                  color:      on ? 'var(--primary-text)' : 'var(--gray)',
+                  transition: 'all .15s',
+                  display: 'flex', flexDirection: 'column', gap: 3,
+                }}>
+                  <span style={{ fontWeight: 700 }}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </span>
+                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>
+                    {TOM_DESC[t]}
+                  </span>
+                </button>
+              )
+            })}
           </div>
-        )}
 
-        <button
-          onClick={() => upd('templates', [...settings.templates, ''])}
-          style={{
-            padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit',
-            fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            border: '1.5px dashed var(--gray3)', background: 'transparent',
-            color: 'var(--gray2)', transition: 'all .15s',
-          }}
-          onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--primary)'; b.style.color = 'var(--primary-text)' }}
-          onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
-        >
-          + Adicionar template
-        </button>
-      </SectionCard>
-
-      {/* ── Integração n8n ──────────────────────────────────────── */}
-      <SectionCard title="Integração n8n">
-        <FieldLabel>URL do Webhook n8n</FieldLabel>
-        <input
-          type="url"
-          value={n8nWebhookUrl}
-          onChange={e => setN8nWebhookUrl(e.target.value)}
-          placeholder="https://seu-n8n.example.com/webhook/..."
-          style={{
-            width: '100%', fontFamily: 'inherit', fontSize: 13,
-            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-          }}
-          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-        />
-
-        <FieldLabel>Segredo (opcional)</FieldLabel>
-        <div style={{ position: 'relative', marginBottom: 8 }}>
-          <input
-            type={showSecret ? 'text' : 'password'}
-            value={n8nWebhookSecret}
-            onChange={e => setN8nWebhookSecret(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="new-password"
+          <FieldLabel>Objetivo da campanha</FieldLabel>
+          <textarea
+            value={settings.objetivo}
+            onChange={e => upd('objetivo', e.target.value)}
+            placeholder="Ex: Qualificar leads e agendar reuniões com o closer..."
+            rows={3}
             style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10,
-              padding: '10px 42px 10px 14px',
+              width: '100%', fontFamily: 'inherit', fontSize: 13, resize: 'vertical',
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
               background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s',
+              boxSizing: 'border-box', transition: 'border-color .15s', lineHeight: 1.5,
             }}
             onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
           />
-          <button
-            type="button"
-            onClick={() => setShowSecret(s => !s)}
-            title={showSecret ? 'Ocultar' : 'Mostrar'}
-            style={{
-              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
-            }}
-          >
-            {showSecret ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
-          Enviado como <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 10 }}>Authorization: Bearer</code> no cabeçalho da requisição.{' '}
-          Deixe em branco para manter o segredo já salvo.
-        </div>
+        </SectionCard>
 
-        <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
+        {/* Templates de mensagem */}
+        <SectionCard title="Templates de mensagem">
+          <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16, lineHeight: 1.5 }}>
+            Use{' '}
+            <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, color: 'var(--primary-text)' }}>
+              {'{{nome}}'}
+            </code>
+            {' '}e{' '}
+            <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, color: 'var(--primary-text)' }}>
+              {'{{empresa}}'}
+            </code>
+            {' '}como variáveis que o n8n substituirá em cada envio.
+          </div>
 
-        <FieldLabel>URL de disparo (n8n)</FieldLabel>
-        <input
-          type="url"
-          value={n8nDispatchUrl}
-          onChange={e => setN8nDispatchUrl(e.target.value)}
-          placeholder="https://seu-n8n.example.com/webhook/..."
-          style={{
-            width: '100%', fontFamily: 'inherit', fontSize: 13,
-            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-          }}
-          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-        />
-
-        <FieldLabel>Segredo de disparo (opcional)</FieldLabel>
-        <div style={{ position: 'relative', marginBottom: 8 }}>
-          <input
-            type={showDispatchSecret ? 'text' : 'password'}
-            value={n8nDispatchSecret}
-            onChange={e => setN8nDispatchSecret(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="new-password"
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10,
-              padding: '10px 42px 10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s',
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-          <button
-            type="button"
-            onClick={() => setShowDispatchSecret(s => !s)}
-            title={showDispatchSecret ? 'Ocultar' : 'Mostrar'}
-            style={{
-              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
-            }}
-          >
-            {showDispatchSecret ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>
-          Deixe em branco para manter o segredo já salvo.
-        </div>
-
-        <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 16 }}>
-          Aciona um ciclo de disparo no n8n para os leads agendados (não escolhe destinatários aqui).
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const }}>
-          <button
-            onClick={dispatch}
-            disabled={dispatching || !n8nDispatchUrl}
-            style={{
-              padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-              fontSize: 13, fontWeight: 800, cursor: (dispatching || !n8nDispatchUrl) ? 'not-allowed' : 'pointer',
-              background: (dispatching || !n8nDispatchUrl) ? 'var(--gray3)' : 'var(--primary)',
-              color: (dispatching || !n8nDispatchUrl) ? 'var(--gray2)' : 'var(--primary-contrast)',
-              border: 'none', transition: 'all .18s', opacity: (dispatching || !n8nDispatchUrl) ? 0.7 : 1,
-            }}
-          >
-            {dispatching ? 'Disparando...' : 'Disparar agora'}
-          </button>
-
-          {dispatchResult !== undefined && dispatchResult.ok && (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 12, fontWeight: 700,
-              background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
-              border: '1px solid rgba(34,197,94,0.25)',
-              borderRadius: 99, padding: '5px 14px',
-            }}>
-              Disparo acionado ✓
-              {dispatchResult.status !== undefined && (
-                <span style={{ fontWeight: 500, opacity: 0.75 }}>· HTTP {dispatchResult.status}</span>
-              )}
+          {hasTemplates && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 12 }}>
+              {settings.templates.map((tmpl, i) => (
+                <div key={i}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Mensagem {i + 1}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <textarea
+                      value={tmpl}
+                      onChange={e => updTemplate(i, e.target.value)}
+                      rows={4}
+                      placeholder={`Template ${i + 1}...`}
+                      style={{
+                        flex: 1, minWidth: 0, fontFamily: 'inherit', fontSize: 13,
+                        resize: 'vertical', lineHeight: 1.55,
+                        border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                        background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                        boxSizing: 'border-box', transition: 'border-color .15s',
+                      }}
+                      onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                      onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+                    />
+                    {settings.templates.length > 1 && (
+                      <button
+                        onClick={() => upd('templates', settings.templates.filter((_, idx) => idx !== i))}
+                        title="Remover template"
+                        style={{
+                          padding: '7px 10px', borderRadius: 8, fontFamily: 'inherit',
+                          fontSize: 16, fontWeight: 700, cursor: 'pointer',
+                          border: '1px solid var(--gray3)', background: 'transparent',
+                          color: 'var(--gray2)', transition: 'all .15s', lineHeight: 1, flexShrink: 0,
+                        }}
+                        onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--red)'; b.style.color = 'var(--red)' }}
+                        onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-          {dispatchResult !== undefined && !dispatchResult.ok && (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 12, fontWeight: 700,
-              background: 'rgba(239,68,68,0.08)', color: 'var(--red)',
-              border: '1px solid rgba(239,68,68,0.25)',
-              borderRadius: 99, padding: '5px 14px',
-            }}>
-              Falha: {dispatchResult.error ?? `HTTP ${dispatchResult.status}`}
-            </div>
-          )}
-        </div>
 
-        <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
-
-        <FieldLabel>URL de enrollment (n8n)</FieldLabel>
-        <input
-          type="url"
-          value={n8nEnrollUrl}
-          onChange={e => setN8nEnrollUrl(e.target.value)}
-          placeholder="https://seu-n8n.example.com/webhook/..."
-          style={{
-            width: '100%', fontFamily: 'inherit', fontSize: 13,
-            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-          }}
-          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-        />
-
-        <FieldLabel>Segredo de enrollment (opcional)</FieldLabel>
-        <div style={{ position: 'relative', marginBottom: 8 }}>
-          <input
-            type={showEnrollSecret ? 'text' : 'password'}
-            value={n8nEnrollSecret}
-            onChange={e => setN8nEnrollSecret(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="new-password"
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10,
-              padding: '10px 42px 10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s',
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
           <button
-            type="button"
-            onClick={() => setShowEnrollSecret(s => !s)}
-            title={showEnrollSecret ? 'Ocultar' : 'Mostrar'}
+            onClick={() => upd('templates', [...settings.templates, ''])}
             style={{
-              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+              padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              border: '1.5px dashed var(--gray3)', background: 'transparent',
+              color: 'var(--gray2)', transition: 'all .15s',
             }}
+            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--primary)'; b.style.color = 'var(--primary-text)' }}
+            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
           >
-            {showEnrollSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+            + Adicionar template
           </button>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
-          Webhook acionado pela página Leads ao adicionar leads à campanha. Deixe em branco para manter o segredo já salvo.
-        </div>
-      </SectionCard>
+        </SectionCard>
+      </CollapsibleArea>
 
-      {/* ── Teste de disparo ────────────────────────────────────── */}
-      <SectionCard title="Teste de disparo (números selecionados)">
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 10,
-          background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.22)',
-          borderRadius: 10, padding: '10px 14px', marginBottom: 20,
-          fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
-        }}>
-          ⚠ Envia mensagem <strong style={{ fontWeight: 800 }}>real</strong> (com custo) diretamente via YCloud, somente para os números informados — não usa a fila de campanha.
-        </div>
-
-        <FieldLabel>Template</FieldLabel>
-        {testTemplates.length > 0 && (
-          <select
-            value={testTemplateName}
-            onChange={e => setTestTemplateName(e.target.value)}
+      {/* ━━━ Área 3: Integrações n8n ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <CollapsibleArea
+        id="integracoes-n8n"
+        title="Integrações n8n"
+        open={openAreas.has('integracoes-n8n')}
+        onToggle={() => toggleArea('integracoes-n8n')}
+      >
+        <SectionCard title="Integração n8n">
+          <FieldLabel>URL do Webhook n8n</FieldLabel>
+          <input
+            type="url"
+            value={n8nWebhookUrl}
+            onChange={e => setN8nWebhookUrl(e.target.value)}
+            placeholder="https://seu-n8n.example.com/webhook/..."
             style={{
               width: '100%', fontFamily: 'inherit', fontSize: 13,
               border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
               background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 8,
-              cursor: 'pointer',
+              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
             }}
-          >
-            <option value="">— escolha um template aprovado —</option>
-            {testTemplates.map(t => (
-              <option key={`${t.name}:${t.language}`} value={t.name}>{t.name} ({t.language})</option>
-            ))}
-          </select>
-        )}
-        <input
-          type="text"
-          value={testTemplateName}
-          onChange={e => setTestTemplateName(e.target.value)}
-          placeholder="nome_do_template (ou digite manualmente)"
-          style={{
-            width: '100%', fontFamily: 'inherit', fontSize: 13,
-            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-          }}
-          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-        />
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16, marginBottom: 20 }}>
-          <div>
-            <FieldLabel>Idioma</FieldLabel>
+          <FieldLabel>Segredo (opcional)</FieldLabel>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
             <input
-              type="text"
-              value={testLangCode}
-              onChange={e => setTestLangCode(e.target.value)}
-              placeholder="pt_BR"
+              type={showSecret ? 'text' : 'password'}
+              value={n8nWebhookSecret}
+              onChange={e => setN8nWebhookSecret(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
               style={{
                 width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                border: '1px solid var(--gray3)', borderRadius: 10,
+                padding: '10px 42px 10px 14px',
                 background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                 boxSizing: 'border-box', transition: 'border-color .15s',
               }}
               onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
               onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
             />
+            <button
+              type="button"
+              onClick={() => setShowSecret(s => !s)}
+              title={showSecret ? 'Ocultar' : 'Mostrar'}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+              }}
+            >
+              {showSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
           </div>
-          <div>
-            <FieldLabel>Variáveis (separadas por vírgula)</FieldLabel>
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
+            Enviado como{' '}
+            <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 10 }}>Authorization: Bearer</code>
+            {' '}no cabeçalho da requisição. Deixe em branco para manter o segredo já salvo.
+          </div>
+
+          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
+
+          <FieldLabel>URL de disparo (n8n)</FieldLabel>
+          <input
+            type="url"
+            value={n8nDispatchUrl}
+            onChange={e => setN8nDispatchUrl(e.target.value)}
+            placeholder="https://seu-n8n.example.com/webhook/..."
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+
+          <FieldLabel>Segredo de disparo (opcional)</FieldLabel>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
             <input
-              type="text"
-              value={testVarsCsv}
-              onChange={e => setTestVarsCsv(e.target.value)}
-              placeholder="João Silva, Empresa Ltda"
+              type={showDispatchSecret ? 'text' : 'password'}
+              value={n8nDispatchSecret}
+              onChange={e => setN8nDispatchSecret(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
               style={{
                 width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                border: '1px solid var(--gray3)', borderRadius: 10,
+                padding: '10px 42px 10px 14px',
                 background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                 boxSizing: 'border-box', transition: 'border-color .15s',
               }}
               onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
               onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
             />
-            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 5 }}>
-              Preencha conforme as variáveis do template; a maioria usa 1 (nome).
+            <button
+              type="button"
+              onClick={() => setShowDispatchSecret(s => !s)}
+              title={showDispatchSecret ? 'Ocultar' : 'Mostrar'}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+              }}
+            >
+              {showDispatchSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>
+            Deixe em branco para manter o segredo já salvo.
+          </div>
+
+          <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 16 }}>
+            Aciona um ciclo de disparo no n8n para os leads agendados (não escolhe destinatários aqui).
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const }}>
+            <button
+              onClick={dispatch}
+              disabled={dispatching || !n8nDispatchUrl}
+              style={{
+                padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                fontSize: 13, fontWeight: 800,
+                cursor: (dispatching || !n8nDispatchUrl) ? 'not-allowed' : 'pointer',
+                background: (dispatching || !n8nDispatchUrl) ? 'var(--gray3)' : 'var(--primary)',
+                color: (dispatching || !n8nDispatchUrl) ? 'var(--gray2)' : 'var(--primary-contrast)',
+                border: 'none', transition: 'all .18s',
+                opacity: (dispatching || !n8nDispatchUrl) ? 0.7 : 1,
+              }}
+            >
+              {dispatching ? 'Disparando...' : 'Disparar agora'}
+            </button>
+
+            {dispatchResult !== undefined && dispatchResult.ok && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 12, fontWeight: 700,
+                background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
+                border: '1px solid rgba(34,197,94,0.25)',
+                borderRadius: 99, padding: '5px 14px',
+              }}>
+                Disparo acionado ✓
+                {dispatchResult.status !== undefined && (
+                  <span style={{ fontWeight: 500, opacity: 0.75 }}>· HTTP {dispatchResult.status}</span>
+                )}
+              </div>
+            )}
+            {dispatchResult !== undefined && !dispatchResult.ok && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 12, fontWeight: 700,
+                background: 'rgba(239,68,68,0.08)', color: 'var(--red)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: 99, padding: '5px 14px',
+              }}>
+                Falha: {dispatchResult.error ?? `HTTP ${dispatchResult.status}`}
+              </div>
+            )}
+          </div>
+
+          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
+
+          <FieldLabel>URL de enrollment (n8n)</FieldLabel>
+          <input
+            type="url"
+            value={n8nEnrollUrl}
+            onChange={e => setN8nEnrollUrl(e.target.value)}
+            placeholder="https://seu-n8n.example.com/webhook/..."
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+
+          <FieldLabel>Segredo de enrollment (opcional)</FieldLabel>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              type={showEnrollSecret ? 'text' : 'password'}
+              value={n8nEnrollSecret}
+              onChange={e => setN8nEnrollSecret(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
+              style={{
+                width: '100%', fontFamily: 'inherit', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10,
+                padding: '10px 42px 10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', transition: 'border-color .15s',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowEnrollSecret(s => !s)}
+              title={showEnrollSecret ? 'Ocultar' : 'Mostrar'}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+              }}
+            >
+              {showEnrollSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
+            Webhook acionado pela página Leads ao adicionar leads à campanha. Deixe em branco para manter o segredo já salvo.
+          </div>
+        </SectionCard>
+      </CollapsibleArea>
+
+      {/* ━━━ Área 4: Teste de disparo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <CollapsibleArea
+        id="teste-disparo"
+        title="Teste de disparo"
+        open={openAreas.has('teste-disparo')}
+        onToggle={() => toggleArea('teste-disparo')}
+      >
+        <SectionCard title="Teste de disparo (números selecionados)">
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.22)',
+            borderRadius: 10, padding: '10px 14px', marginBottom: 20,
+            fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
+          }}>
+            ⚠ Envia mensagem <strong style={{ fontWeight: 800 }}>real</strong> (com custo) diretamente via YCloud, somente para os números informados — não usa a fila de campanha.
+          </div>
+
+          <FieldLabel>Template</FieldLabel>
+          {testTemplates.length > 0 && (
+            <select
+              value={testTemplateName}
+              onChange={e => setTestTemplateName(e.target.value)}
+              style={{
+                width: '100%', fontFamily: 'inherit', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 8,
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">— escolha um template aprovado —</option>
+              {testTemplates.map(t => (
+                <option key={`${t.name}:${t.language}`} value={t.name}>{t.name} ({t.language})</option>
+              ))}
+            </select>
+          )}
+          <input
+            type="text"
+            value={testTemplateName}
+            onChange={e => setTestTemplateName(e.target.value)}
+            placeholder="nome_do_template (ou digite manualmente)"
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16, marginBottom: 20 }}>
+            <div>
+              <FieldLabel>Idioma</FieldLabel>
+              <input
+                type="text"
+                value={testLangCode}
+                onChange={e => setTestLangCode(e.target.value)}
+                placeholder="pt_BR"
+                style={{
+                  width: '100%', fontFamily: 'inherit', fontSize: 13,
+                  border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                  boxSizing: 'border-box', transition: 'border-color .15s',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+              />
+            </div>
+            <div>
+              <FieldLabel>Variáveis (separadas por vírgula)</FieldLabel>
+              <input
+                type="text"
+                value={testVarsCsv}
+                onChange={e => setTestVarsCsv(e.target.value)}
+                placeholder="João Silva, Empresa Ltda"
+                style={{
+                  width: '100%', fontFamily: 'inherit', fontSize: 13,
+                  border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                  boxSizing: 'border-box', transition: 'border-color .15s',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+              />
+              <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 5 }}>
+                Preencha conforme as variáveis do template; a maioria usa 1 (nome).
+              </div>
             </div>
           </div>
-        </div>
 
-        <FieldLabel>Números — 1 por linha (E.164)</FieldLabel>
-        <textarea
-          value={testNumbers}
-          onChange={e => setTestNumbers(e.target.value)}
-          rows={4}
-          placeholder={'+5554999990000\n+5551988880000'}
-          style={{
-            width: '100%', fontFamily: 'monospace', fontSize: 13,
-            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-            boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6,
-            transition: 'border-color .15s', marginBottom: 4,
-          }}
-          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-        />
-        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginBottom: 18 }}>
-          Máximo de 10 números por teste.
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' as const }}>
-          <button
-            onClick={testSend}
-            disabled={testSending}
+          <FieldLabel>Números — 1 por linha (E.164)</FieldLabel>
+          <textarea
+            value={testNumbers}
+            onChange={e => setTestNumbers(e.target.value)}
+            rows={4}
+            placeholder={'+5554999990000\n+5551988880000'}
             style={{
-              padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-              fontSize: 13, fontWeight: 800, cursor: testSending ? 'not-allowed' : 'pointer',
-              background: testSending ? 'var(--gray3)' : 'var(--primary)',
-              color: testSending ? 'var(--gray2)' : 'var(--primary-contrast)',
-              border: 'none', transition: 'all .18s', opacity: testSending ? 0.7 : 1,
+              width: '100%', fontFamily: 'monospace', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6,
+              transition: 'border-color .15s', marginBottom: 4,
             }}
-          >
-            {testSending ? 'Enviando...' : 'Enviar teste'}
-          </button>
-          {testError && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
-          )}
-        </div>
-
-        {testResults && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {testResults.map((r, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-                border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-                borderRadius: 10, padding: '8px 14px',
-              }}>
-                <span style={{ fontWeight: 800, color: r.ok ? 'var(--green)' : 'var(--red)', flexShrink: 0, fontSize: 14 }}>
-                  {r.ok ? '✓' : '✗'}
-                </span>
-                <code style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--black)', flexShrink: 0 }}>{r.to}</code>
-                {r.ok
-                  ? <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>id: {r.id}</span>
-                  : <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>{r.error}</span>
-                }
-              </div>
-            ))}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginBottom: 18 }}>
+            Máximo de 10 números por teste.
           </div>
-        )}
-      </SectionCard>
 
-      {/* ── Conexão (link, não duplica a fonte) ─────────────────── */}
-      <SectionCard title="Fonte de dados">
-        <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 16 }}>
-          A conexão com o Supabase e o n8n é configurada separadamente.
-          As configurações de campanha acima serão aplicadas quando a fonte estiver conectada e a integração ativada.
-        </div>
-        <Link href="/settings/integrations/sdr-source" style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
-          background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
-          borderRadius: 99, padding: '8px 18px', textDecoration: 'none',
-        }}>
-          <ExternalLink size={13} /> Configurar fonte de dados
-        </Link>
-      </SectionCard>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' as const }}>
+            <button
+              onClick={testSend}
+              disabled={testSending}
+              style={{
+                padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                fontSize: 13, fontWeight: 800, cursor: testSending ? 'not-allowed' : 'pointer',
+                background: testSending ? 'var(--gray3)' : 'var(--primary)',
+                color: testSending ? 'var(--gray2)' : 'var(--primary-contrast)',
+                border: 'none', transition: 'all .18s', opacity: testSending ? 0.7 : 1,
+              }}
+            >
+              {testSending ? 'Enviando...' : 'Enviar teste'}
+            </button>
+            {testError && (
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
+            )}
+          </div>
 
-      {/* ── Salvar ──────────────────────────────────────────────── */}
-      <div style={{ marginTop: 8, paddingBottom: 48 }}>
+          {testResults && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {testResults.map((r, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                  border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                  borderRadius: 10, padding: '8px 14px',
+                }}>
+                  <span style={{ fontWeight: 800, color: r.ok ? 'var(--green)' : 'var(--red)', flexShrink: 0, fontSize: 14 }}>
+                    {r.ok ? '✓' : '✗'}
+                  </span>
+                  <code style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--black)', flexShrink: 0 }}>{r.to}</code>
+                  {r.ok
+                    ? <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>id: {r.id}</span>
+                    : <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>{r.error}</span>
+                  }
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </CollapsibleArea>
+
+      {/* ━━━ Área 5: Avançado ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <CollapsibleArea
+        id="avancado"
+        title="Avançado"
+        open={openAreas.has('avancado')}
+        onToggle={() => toggleArea('avancado')}
+      >
+        <SectionCard title="Fonte de dados">
+          <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 16 }}>
+            A conexão com o Supabase e o n8n é configurada separadamente.
+            As configurações de campanha acima serão aplicadas quando a fonte estiver conectada e a integração ativada.
+          </div>
+          <Link href="/settings/integrations/sdr-source" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
+            background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
+            borderRadius: 99, padding: '8px 18px', textDecoration: 'none',
+          }}>
+            <ExternalLink size={13} /> Configurar fonte de dados
+          </Link>
+        </SectionCard>
+      </CollapsibleArea>
+
+      {/* ── Salvar — sempre visível ──────────────────────────────── */}
+      <div style={{ marginTop: 16, paddingBottom: 48 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <button
             onClick={save}
