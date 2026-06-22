@@ -1,21 +1,23 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ExternalLink } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Eye, EyeOff } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tom    = 'formal' | 'consultivo' | 'direto'
 type Status = 'draft' | 'active' | 'paused'
+type N8nDelivery = { ok: boolean; status?: number; error?: string } | null
 
 interface Settings {
-  tom:          Tom
-  objetivo:     string
-  delay:        number
-  limiteDiario: number
-  horario:      { inicio: string; fim: string }
-  diasAtivos:   number[]
-  templates:    string[]
+  tom:            Tom
+  objetivo:       string
+  delay:          number
+  limiteDiario:   number
+  horario:        { inicio: string; fim: string }
+  diasAtivos:     number[]
+  templates:      string[]
+  n8nWebhookUrl?: string  // returned by GET; extracted to separate state on load
 }
 
 interface ApiData {
@@ -45,9 +47,9 @@ const DIAS = [
 ]
 
 const TOM_DESC: Record<Tom, string> = {
-  formal:      'Profissional e estruturado',
-  consultivo:  'Empático e orientado a valor',
-  direto:      'Objetivo e direto ao ponto',
+  formal:     'Profissional e estruturado',
+  consultivo: 'Empático e orientado a valor',
+  direto:     'Objetivo e direto ao ponto',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,19 +94,26 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ParametrosPage() {
-  const [settings,   setSettings]   = useState<Settings>(DEFAULTS)
-  const [status,     setStatus]     = useState<Status>('draft')
-  const [loading,    setLoading]    = useState(true)
-  const [saving,     setSaving]     = useState(false)
-  const [saved,      setSaved]      = useState(false)
-  const [saveError,  setSaveError]  = useState<string | null>(null)
+  const [settings,         setSettings]         = useState<Settings>(DEFAULTS)
+  const [status,           setStatus]           = useState<Status>('draft')
+  const [n8nWebhookUrl,    setN8nWebhookUrl]    = useState('')
+  const [n8nWebhookSecret, setN8nWebhookSecret] = useState('')
+  const [showSecret,       setShowSecret]       = useState(false)
+  const [loading,          setLoading]          = useState(true)
+  const [saving,           setSaving]           = useState(false)
+  const [saved,            setSaved]            = useState(false)
+  const [saveError,        setSaveError]        = useState<string | null>(null)
+  const [n8nDelivery,      setN8nDelivery]      = useState<N8nDelivery | undefined>(undefined)
 
   useEffect(() => {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ApiData) => {
-        setSettings({ ...DEFAULTS, ...d.settings })
+        const { n8nWebhookUrl: webhookUrl, ...coreSettings } = d.settings
+        setSettings({ ...DEFAULTS, ...coreSettings })
         setStatus(d.status)
+        setN8nWebhookUrl(webhookUrl ?? '')
+        // n8nWebhookSecret is never returned by GET — field stays empty intentionally
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -114,13 +123,22 @@ export default function ParametrosPage() {
     setSaving(true)
     setSaved(false)
     setSaveError(null)
+    setN8nDelivery(undefined)
     try {
+      const settingsPayload = {
+        ...settings,
+        n8nWebhookUrl,
+        // omit secret when blank — server preserves the previously stored value
+        ...(n8nWebhookSecret ? { n8nWebhookSecret } : {}),
+      }
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings, status }),
+        body: JSON.stringify({ settings: settingsPayload, status }),
       })
       if (!res.ok) throw new Error('Falha ao salvar')
+      const data = await res.json() as { ok: boolean; n8nDelivery: N8nDelivery }
+      setN8nDelivery(data.n8nDelivery)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (e) {
@@ -154,6 +172,7 @@ export default function ParametrosPage() {
   }
 
   const hasTemplates = settings.templates.length > 0
+  const hasWebhook   = !!n8nWebhookUrl
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -166,8 +185,10 @@ export default function ParametrosPage() {
       }}>
         <AlertTriangle size={15} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.55 }}>
-          As configurações são <strong>salvas no sistema</strong>, mas ainda não estão conectadas à execução da campanha.
-          O write-back ao n8n será ativado em fase futura.
+          {hasWebhook
+            ? <>As configurações são <strong>salvas no sistema</strong> e <strong>enviadas automaticamente ao webhook n8n</strong> configurado a cada salvamento.</>
+            : <>As configurações são <strong>salvas no sistema</strong>. Configure o webhook n8n abaixo para ativar o envio automático à campanha.</>
+          }
         </div>
       </div>
 
@@ -390,6 +411,61 @@ export default function ParametrosPage() {
         </button>
       </SectionCard>
 
+      {/* ── Integração n8n ──────────────────────────────────────── */}
+      <SectionCard title="Integração n8n">
+        <FieldLabel>URL do Webhook n8n</FieldLabel>
+        <input
+          type="url"
+          value={n8nWebhookUrl}
+          onChange={e => setN8nWebhookUrl(e.target.value)}
+          placeholder="https://seu-n8n.example.com/webhook/..."
+          style={{
+            width: '100%', fontFamily: 'inherit', fontSize: 13,
+            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+        />
+
+        <FieldLabel>Segredo (opcional)</FieldLabel>
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <input
+            type={showSecret ? 'text' : 'password'}
+            value={n8nWebhookSecret}
+            onChange={e => setN8nWebhookSecret(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10,
+              padding: '10px 42px 10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+          <button
+            type="button"
+            onClick={() => setShowSecret(s => !s)}
+            title={showSecret ? 'Ocultar' : 'Mostrar'}
+            style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+            }}
+          >
+            {showSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
+          Enviado como <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 10 }}>Authorization: Bearer</code> no cabeçalho da requisição.{' '}
+          Deixe em branco para manter o segredo já salvo.
+        </div>
+      </SectionCard>
+
       {/* ── Conexão (link, não duplica a fonte) ─────────────────── */}
       <SectionCard title="Fonte de dados">
         <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 16 }}>
@@ -407,30 +483,70 @@ export default function ParametrosPage() {
       </SectionCard>
 
       {/* ── Salvar ──────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, paddingBottom: 48 }}>
-        <button
-          onClick={save}
-          disabled={saving}
-          style={{
-            padding: '12px 28px', borderRadius: 99, fontFamily: 'inherit',
-            fontSize: 14, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer',
-            background: saving ? 'var(--gray3)' : 'var(--primary)',
-            color: saving ? 'var(--gray2)' : 'var(--primary-contrast)',
-            border: 'none', transition: 'all .18s', opacity: saving ? 0.7 : 1,
-          }}
-        >
-          {saving ? 'Salvando...' : 'Salvar alterações'}
-        </button>
+      <div style={{ marginTop: 8, paddingBottom: 48 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+          <button
+            onClick={save}
+            disabled={saving}
+            style={{
+              padding: '12px 28px', borderRadius: 99, fontFamily: 'inherit',
+              fontSize: 14, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer',
+              background: saving ? 'var(--gray3)' : 'var(--primary)',
+              color: saving ? 'var(--gray2)' : 'var(--primary-contrast)',
+              border: 'none', transition: 'all .18s', opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </button>
 
-        {saved && (
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', animation: 'ai-step 0.2s ease both' }}>
-            ✓ Salvo com sucesso
-          </span>
+          {saved && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', animation: 'ai-step 0.2s ease both' }}>
+              ✓ Salvo com sucesso
+            </span>
+          )}
+          {saveError && !saved && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
+              ✗ {saveError}
+            </span>
+          )}
+        </div>
+
+        {/* n8n delivery feedback */}
+        {n8nDelivery === null && (
+          <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>
+            Webhook n8n não configurado — settings salvas localmente.
+          </div>
         )}
-        {saveError && !saved && (
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
-            ✗ {saveError}
-          </span>
+        {n8nDelivery !== null && n8nDelivery !== undefined && n8nDelivery.ok && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 700,
+            background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
+            border: '1px solid rgba(34,197,94,0.25)',
+            borderRadius: 99, padding: '5px 14px',
+          }}>
+            ✓ Enviado ao n8n
+            {n8nDelivery.status !== undefined && (
+              <span style={{ fontWeight: 500, opacity: 0.75 }}>· HTTP {n8nDelivery.status}</span>
+            )}
+          </div>
+        )}
+        {n8nDelivery !== null && n8nDelivery !== undefined && !n8nDelivery.ok && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 700,
+            background: 'rgba(245,158,11,0.10)', color: '#b45309',
+            border: '1px solid rgba(245,158,11,0.30)',
+            borderRadius: 99, padding: '5px 14px',
+          }}>
+            ⚠ Falha ao enviar ao n8n
+            {(n8nDelivery.error ?? n8nDelivery.status) !== undefined && (
+              <span style={{ fontWeight: 500, opacity: 0.85 }}>
+                · {n8nDelivery.error ?? `HTTP ${n8nDelivery.status}`}
+              </span>
+            )}
+            <span style={{ fontWeight: 400, opacity: 0.7 }}>(settings salvas)</span>
+          </div>
         )}
       </div>
     </div>
