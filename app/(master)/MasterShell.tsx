@@ -31,7 +31,7 @@ export function MasterShell({ userName, logoutAction, children }: Props) {
         {/* Brand */}
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', marginBottom: 4 }}>
-            MULTI10
+            300 FRANCHISING
           </div>
           <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
             Admin

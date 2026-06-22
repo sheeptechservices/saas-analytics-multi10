@@ -10,7 +10,7 @@ const manrope = Manrope({
 })
 
 export const metadata: Metadata = {
-  title: 'Multi10 BI',
+  title: '300 Franchising',
   description: 'Plataforma de BI integrada ao CRM',
 }
 

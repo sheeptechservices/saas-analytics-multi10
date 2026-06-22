@@ -30,7 +30,7 @@ export default async function MasterDashboard() {
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#121316', letterSpacing: '-0.02em', marginBottom: 4 }}>
           Dashboard
         </h1>
-        <p style={{ fontSize: 13, color: '#666' }}>Visão geral da plataforma Multi10.</p>
+        <p style={{ fontSize: 13, color: '#666' }}>Visão geral da plataforma 300 Franchising.</p>
       </div>
 
       {/* Stats */}

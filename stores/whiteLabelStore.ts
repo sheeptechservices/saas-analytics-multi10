@@ -35,7 +35,7 @@ export const useWhiteLabel = create<WhiteLabelState>()(
   (set) => ({
     primaryColor: '#FFB400',
     logoUrl: null,
-    brandName: 'Multi10',
+    brandName: '300 Franchising',
     setPrimaryColor: (color) => {
       set({ primaryColor: color })
       applyPrimaryVars(color)

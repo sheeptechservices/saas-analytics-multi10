@@ -80,8 +80,8 @@ export default function LoginPage() {
               width: 36, height: 36, background: 'var(--primary)', borderRadius: 8,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, fontWeight: 800, color: 'var(--primary-contrast)',
-            }}>M</div>
-            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.01em' }}>Mult10</span>
+            }}>3</div>
+            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.01em' }}>300 Franchising</span>
           </div>
 
           <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em', marginBottom: 6 }}>

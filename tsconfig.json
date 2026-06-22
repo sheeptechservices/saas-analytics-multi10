@@ -35,7 +35,7 @@
     ".next/dev/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    "../../../../next-multi10-build/types/**/*.ts"
+    "../../../../next-300-franchising-build/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

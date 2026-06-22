@@ -204,7 +204,7 @@ export default function SettingsPage() {
     if (data?.tenant) {
       setLocalColor(data.tenant.primaryColor ?? '#FFB400')
       setLocalLogo(data.tenant.logoUrl ?? '')
-      setLocalName(data.tenant.name ?? 'Multi10')
+      setLocalName(data.tenant.name ?? '300 Franchising')
     }
   }, [data])
 
