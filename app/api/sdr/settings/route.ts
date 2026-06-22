@@ -105,8 +105,8 @@ export async function GET() {
   try { parsed = JSON.parse(row.settings) } catch {}
 
   // Omit secrets from GET response; URLs are returned for UI display
-  const { n8nWebhookSecret: _omitWS, n8nDispatchSecret: _omitDS, n8nEnrollSecret: _omitES, ...settingsForClient } = parsed
-  void _omitWS; void _omitDS; void _omitES
+  const { n8nWebhookSecret: _omitWS, n8nDispatchSecret: _omitDS, n8nEnrollSecret: _omitES, n8nImportSecret: _omitIS, ...settingsForClient } = parsed
+  void _omitWS; void _omitDS; void _omitES; void _omitIS
 
   return NextResponse.json({ configured: true, status: row.status, version: row.version, settings: settingsForClient })
 }
@@ -170,6 +170,18 @@ export async function PUT(request: Request) {
     }
   }
 
+  // Validate import URL if provided (same anti-SSRF rules)
+  if (rawSettings.n8nImportUrl !== undefined && rawSettings.n8nImportUrl !== '') {
+    try {
+      validateWebhookUrl(rawSettings.n8nImportUrl)
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'n8nImportUrl inválida' },
+        { status: 400 },
+      )
+    }
+  }
+
   // Validate remetente E.164 if provided and non-empty
   if (rawSettings.remetente !== undefined && rawSettings.remetente !== '') {
     if (typeof rawSettings.remetente !== 'string' || !E164_RE.test(rawSettings.remetente)) {
@@ -191,7 +203,7 @@ export async function PUT(request: Request) {
 
   // Preserve stored secrets when the incoming PUT omits or clears them.
   // (GET strips secrets, so the UI cannot re-send them on subsequent saves.)
-  if (existing && (!rawSettings.n8nWebhookSecret || !rawSettings.n8nDispatchSecret || !rawSettings.n8nEnrollSecret)) {
+  if (existing && (!rawSettings.n8nWebhookSecret || !rawSettings.n8nDispatchSecret || !rawSettings.n8nEnrollSecret || !rawSettings.n8nImportSecret)) {
     try {
       const stored = JSON.parse(existing.settings) as Record<string, unknown>
       if (!rawSettings.n8nWebhookSecret && typeof stored.n8nWebhookSecret === 'string' && stored.n8nWebhookSecret) {
@@ -202,6 +214,9 @@ export async function PUT(request: Request) {
       }
       if (!rawSettings.n8nEnrollSecret && typeof stored.n8nEnrollSecret === 'string' && stored.n8nEnrollSecret) {
         rawSettings.n8nEnrollSecret = stored.n8nEnrollSecret
+      }
+      if (!rawSettings.n8nImportSecret && typeof stored.n8nImportSecret === 'string' && stored.n8nImportSecret) {
+        rawSettings.n8nImportSecret = stored.n8nImportSecret
       }
     } catch { /* corrupt stored JSON — skip merge */ }
   }
@@ -250,9 +265,11 @@ export async function PUT(request: Request) {
       n8nDispatchSecret: _ds,
       n8nEnrollUrl: _eu,
       n8nEnrollSecret: _es,
+      n8nImportUrl: _iu,
+      n8nImportSecret: _is,
       ...settingsPayload
     } = rawSettings
-    void _u; void _s; void _du; void _ds; void _eu; void _es
+    void _u; void _s; void _du; void _ds; void _eu; void _es; void _iu; void _is
     const payload = {
       tenantId,
       status,
