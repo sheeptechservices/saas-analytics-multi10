@@ -24,6 +24,7 @@ interface Settings {
   n8nWebhookUrl?:   string
   n8nDispatchUrl?:  string
   n8nEnrollUrl?:    string
+  n8nImportUrl?:    string
 }
 
 interface ApiData {
@@ -171,6 +172,9 @@ export default function ParametrosPage() {
   const [n8nEnrollUrl,       setN8nEnrollUrl]       = useState('')
   const [n8nEnrollSecret,    setN8nEnrollSecret]    = useState('')
   const [showEnrollSecret,   setShowEnrollSecret]   = useState(false)
+  const [n8nImportUrl,       setN8nImportUrl]       = useState('')
+  const [n8nImportSecret,    setN8nImportSecret]    = useState('')
+  const [showImportSecret,   setShowImportSecret]   = useState(false)
   const [remetenteError,     setRemetenteError]     = useState<string | null>(null)
   const [loading,            setLoading]            = useState(true)
   const [saving,             setSaving]             = useState(false)
@@ -233,12 +237,13 @@ export default function ParametrosPage() {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ApiData) => {
-        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, ...coreSettings } = d.settings
+        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, n8nImportUrl: importUrl, ...coreSettings } = d.settings
         setSettings({ ...DEFAULTS, ...coreSettings })
         setStatus(d.status)
         setN8nWebhookUrl(webhookUrl ?? '')
         setN8nDispatchUrl(dispatchUrl ?? '')
         setN8nEnrollUrl(enrollUrl ?? '')
+        setN8nImportUrl(importUrl ?? '')
         // secrets are never returned by GET — fields stay empty intentionally
       })
       .catch(() => {})
@@ -265,6 +270,8 @@ export default function ParametrosPage() {
         ...(n8nDispatchSecret ? { n8nDispatchSecret } : {}),
         n8nEnrollUrl,
         ...(n8nEnrollSecret ? { n8nEnrollSecret } : {}),
+        n8nImportUrl,
+        ...(n8nImportSecret ? { n8nImportSecret } : {}),
       }
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
@@ -912,6 +919,59 @@ export default function ParametrosPage() {
           </div>
           <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
             Webhook acionado pela página Leads ao adicionar leads à campanha. Deixe em branco para manter o segredo já salvo.
+          </div>
+
+          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
+
+          <FieldLabel>URL de importação (n8n)</FieldLabel>
+          <input
+            type="url"
+            value={n8nImportUrl}
+            onChange={e => setN8nImportUrl(e.target.value)}
+            placeholder="https://seu-n8n.example.com/webhook/..."
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+
+          <FieldLabel>Segredo de importação (opcional)</FieldLabel>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              type={showImportSecret ? 'text' : 'password'}
+              value={n8nImportSecret}
+              onChange={e => setN8nImportSecret(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
+              style={{
+                width: '100%', fontFamily: 'inherit', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10,
+                padding: '10px 42px 10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', transition: 'border-color .15s',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowImportSecret(s => !s)}
+              title={showImportSecret ? 'Ocultar' : 'Mostrar'}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+              }}
+            >
+              {showImportSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
+            Webhook acionado ao importar leads via Excel. Deixe em branco para manter o segredo já salvo.
           </div>
         </SectionCard>
       </CollapsibleArea>

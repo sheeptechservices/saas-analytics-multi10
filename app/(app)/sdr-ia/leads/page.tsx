@@ -21,18 +21,36 @@ interface ApiResponse {
   total: number
 }
 
+interface ImportResult {
+  ok:         boolean
+  totalLinhas?: number
+  importados?:  number
+  ignorados?:   { total: number; amostra: Array<{ linha: number; motivo: string }> }
+  duplicados?:  { total: number; amostra: Array<{ linha: number; telefone: string }> }
+  n8nStatus?:   number
+  error?:       string
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LIMIT = 50
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function friendlyImportError(code: string): string {
+  if (code === 'import_url_nao_configurada')
+    return 'URL de importação n8n não configurada — acesse Parâmetros > Integrações n8n.'
+  if (code === 'fonte_sdr_nao_configurada')
+    return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
+  return code
+}
+
 function StatusBadge({ value }: { value: string | null }) {
   if (!value) return <span style={{ color: 'var(--gray3)', fontSize: 11 }}>—</span>
   const colors: Record<string, { bg: string; color: string }> = {
-    ativo:     { bg: 'rgba(34,197,94,0.10)',  color: '#15803d' },
-    inativo:   { bg: 'rgba(239,68,68,0.08)',  color: 'var(--red)' },
-    qualificado: { bg: 'rgba(37,99,235,0.10)', color: '#1d4ed8' },
+    ativo:       { bg: 'rgba(34,197,94,0.10)',  color: '#15803d' },
+    inativo:     { bg: 'rgba(239,68,68,0.08)',  color: 'var(--red)' },
+    qualificado: { bg: 'rgba(37,99,235,0.10)',  color: '#1d4ed8' },
   }
   const style = colors[value.toLowerCase()] ?? { bg: 'rgba(0,0,0,0.05)', color: 'var(--gray)' }
   return (
@@ -49,17 +67,21 @@ function StatusBadge({ value }: { value: string | null }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeadsPage() {
-  const [data,      setData]      = useState<ApiResponse | null>(null)
-  const [loading,   setLoading]   = useState(true)
-  const [error,     setError]     = useState<string | null>(null)
-  const [page,      setPage]      = useState(1)
-  const [q,         setQ]         = useState('')
-  const [debQ,      setDebQ]      = useState('')
-  const [selected,  setSelected]  = useState<Set<string>>(new Set())
-  const [enrolling, setEnrolling] = useState(false)
+  const [data,         setData]         = useState<ApiResponse | null>(null)
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState<string | null>(null)
+  const [page,         setPage]         = useState(1)
+  const [q,            setQ]            = useState('')
+  const [debQ,         setDebQ]         = useState('')
+  const [selected,     setSelected]     = useState<Set<string>>(new Set())
+  const [enrolling,    setEnrolling]    = useState(false)
   const [enrollResult, setEnrollResult] = useState<{ ok: boolean; enrolled?: number; error?: string } | null>(null)
+  const [importing,    setImporting]    = useState(false)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [fetchSeq,     setFetchSeq]     = useState(0)
 
-  const masterRef = useRef<HTMLInputElement>(null)
+  const masterRef   = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Debounce search
   useEffect(() => {
@@ -88,12 +110,12 @@ export default function LeadsPage() {
       .catch((e: unknown) => { if (!cancelled) { setError(String(e)); setLoading(false) } })
 
     return () => { cancelled = true }
-  }, [page, debQ])
+  }, [page, debQ, fetchSeq])
 
   // Keep master checkbox indeterminate state in sync
-  const pageIds  = data?.items.map(i => i.id) ?? []
-  const selCount = pageIds.filter(id => selected.has(id)).length
-  const allOnPage = pageIds.length > 0 && selCount === pageIds.length
+  const pageIds    = data?.items.map(i => i.id) ?? []
+  const selCount   = pageIds.filter(id => selected.has(id)).length
+  const allOnPage  = pageIds.length > 0 && selCount === pageIds.length
   const someOnPage = selCount > 0 && selCount < pageIds.length
 
   useEffect(() => {
@@ -142,10 +164,43 @@ export default function LeadsPage() {
     }
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''  // reset so the same file can be re-selected
+    if (!file) return
+
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/sdr/leads/import', { method: 'POST', body: fd })
+      const json = await res.json() as ImportResult & { error?: string }
+      if (!res.ok) {
+        setImportResult({ ok: false, error: json.error ?? `HTTP ${res.status}` })
+      } else {
+        setImportResult(json)
+        // Reload list — n8n inserts asynchronously, so new leads may take a moment to appear
+        setPage(1)
+        setFetchSeq(s => s + 1)
+      }
+    } catch (e) {
+      setImportResult({ ok: false, error: (e as Error).message })
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const total      = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
   const hasPrev    = page > 1
   const hasNext    = page < totalPages
+
+  // n8nFalhou: leads were sent but the webhook returned a non-2xx status.
+  // importados = 0 (nothing sent) is NOT a failure — n8nStatus stays 0 in that case.
+  const n8nFalhou = (importResult?.importados ?? 0) > 0
+    && typeof importResult?.n8nStatus === 'number'
+    && (importResult.n8nStatus < 200 || importResult.n8nStatus >= 300)
 
   return (
     <div>
@@ -164,28 +219,177 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        {/* Search */}
-        <div style={{ position: 'relative' }}>
-          <Search size={14} style={{
-            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-            color: 'var(--gray2)', pointerEvents: 'none',
-          }} />
-          <input
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="Nome, telefone ou empresa..."
+        {/* Actions + Search */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+          {/* Download template */}
+          <a
+            href="/api/sdr/leads/template"
+            download="modelo-leads.xlsx"
             style={{
-              paddingLeft: 34, paddingRight: 14, paddingTop: 9, paddingBottom: 9,
-              fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-              border: '1px solid var(--gray3)', borderRadius: 99,
-              background: 'var(--white)', color: 'var(--black)',
-              outline: 'none', transition: 'border-color .15s', minWidth: 240,
+              display: 'inline-flex', alignItems: 'center',
+              padding: '8px 16px', borderRadius: 99,
+              fontSize: 12, fontWeight: 700, textDecoration: 'none',
+              border: '1px solid var(--gray3)',
+              background: 'transparent', color: 'var(--gray)',
+              cursor: 'pointer', transition: 'all .15s', whiteSpace: 'nowrap' as const,
             }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          >
+            Baixar modelo
+          </a>
+
+          {/* Import Excel */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            style={{
+              padding: '8px 16px', borderRadius: 99, fontFamily: 'inherit',
+              fontSize: 12, fontWeight: 700, cursor: importing ? 'not-allowed' : 'pointer',
+              border: `1.5px solid ${importing ? 'var(--gray3)' : 'var(--primary)'}`,
+              background: 'transparent',
+              color: importing ? 'var(--gray2)' : 'var(--primary-text)',
+              transition: 'all .15s', whiteSpace: 'nowrap' as const,
+              opacity: importing ? 0.65 : 1,
+            }}
+          >
+            {importing ? 'Importando...' : 'Importar Excel'}
+          </button>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
           />
+
+          {/* Search */}
+          <div style={{ position: 'relative' }}>
+            <Search size={14} style={{
+              position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--gray2)', pointerEvents: 'none',
+            }} />
+            <input
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Nome, telefone ou empresa..."
+              style={{
+                paddingLeft: 34, paddingRight: 14, paddingTop: 9, paddingBottom: 9,
+                fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
+                border: '1px solid var(--gray3)', borderRadius: 99,
+                background: 'var(--white)', color: 'var(--black)',
+                outline: 'none', transition: 'border-color .15s', minWidth: 240,
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+          </div>
         </div>
       </div>
+
+      {/* ── Import result panel ─────────────────────────────────────── */}
+      {importResult && (
+        <div style={{
+          marginBottom: 16,
+          background: !importResult.ok
+            ? 'rgba(239,68,68,0.06)'
+            : n8nFalhou
+              ? 'rgba(245,158,11,0.08)'
+              : 'rgba(34,197,94,0.06)',
+          border: `1px solid ${
+            !importResult.ok
+              ? 'rgba(239,68,68,0.25)'
+              : n8nFalhou
+                ? 'rgba(245,158,11,0.35)'
+                : 'rgba(34,197,94,0.25)'
+          }`,
+          borderRadius: 12, padding: '14px 18px',
+        }}>
+          {importResult.ok ? (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8,
+                color: n8nFalhou ? '#b45309' : 'var(--green)',
+              }}>
+                {n8nFalhou
+                  ? `⚠ ${importResult.importados} lead${importResult.importados !== 1 ? 's' : ''} enviados, mas o n8n retornou HTTP ${importResult.n8nStatus} — podem não ter sido importados. Verifique o fluxo de importação no n8n.`
+                  : `✓ ${importResult.importados} lead${importResult.importados !== 1 ? 's' : ''} enviados ao n8n para importação`
+                }
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginBottom: 6 }}>
+                {importResult.importados} importados
+                {' · '}{importResult.ignorados?.total ?? 0} ignorados
+                {' · '}{importResult.duplicados?.total ?? 0} duplicados
+                {' — '}{importResult.totalLinhas} linha{importResult.totalLinhas !== 1 ? 's' : ''} no arquivo
+              </div>
+
+              {(importResult.ignorados?.total ?? 0) > 0 && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{
+                    fontSize: 12, color: 'var(--gray2)', cursor: 'pointer',
+                    fontWeight: 600, userSelect: 'none' as const,
+                  }}>
+                    Ignorados ({importResult.ignorados!.total})
+                  </summary>
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {importResult.ignorados!.amostra.map((it, i) => (
+                      <div key={i} style={{ fontSize: 11, color: 'var(--gray)', fontFamily: 'monospace' }}>
+                        Linha {it.linha}: {it.motivo}
+                      </div>
+                    ))}
+                    {importResult.ignorados!.total > importResult.ignorados!.amostra.length && (
+                      <div style={{ fontSize: 11, color: 'var(--gray2)', fontStyle: 'italic' }}>
+                        … e mais {importResult.ignorados!.total - importResult.ignorados!.amostra.length}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
+
+              {(importResult.duplicados?.total ?? 0) > 0 && (
+                <details style={{ marginTop: 6 }}>
+                  <summary style={{
+                    fontSize: 12, color: 'var(--gray2)', cursor: 'pointer',
+                    fontWeight: 600, userSelect: 'none' as const,
+                  }}>
+                    Duplicados ({importResult.duplicados!.total})
+                  </summary>
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {importResult.duplicados!.amostra.map((it, i) => (
+                      <div key={i} style={{ fontSize: 11, color: 'var(--gray)', fontFamily: 'monospace' }}>
+                        Linha {it.linha}: {it.telefone}
+                      </div>
+                    ))}
+                    {importResult.duplicados!.total > importResult.duplicados!.amostra.length && (
+                      <div style={{ fontSize: 11, color: 'var(--gray2)', fontStyle: 'italic' }}>
+                        … e mais {importResult.duplicados!.total - importResult.duplicados!.amostra.length}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
+
+              <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 10, lineHeight: 1.5 }}>
+                O n8n processa de forma assíncrona — os leads podem levar alguns instantes para aparecer na lista.
+                {' '}
+                <button
+                  onClick={() => setFetchSeq(s => s + 1)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    fontSize: 11, fontWeight: 700, color: 'var(--primary-text)',
+                    cursor: 'pointer', textDecoration: 'underline',
+                  }}
+                >
+                  Atualizar lista
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
+              ✗ {friendlyImportError(importResult.error ?? 'Erro desconhecido')}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Enroll bar ─────────────────────────────────────────────── */}
       <div style={{
@@ -296,7 +500,7 @@ export default function LeadsPage() {
                 </tr>
               ) : (data?.items ?? []).map((lead, i) => {
                 const checked = selected.has(lead.id)
-                const isLast = i === (data?.items.length ?? 0) - 1
+                const isLast  = i === (data?.items.length ?? 0) - 1
                 return (
                   <tr
                     key={lead.id}
