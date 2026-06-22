@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
         lastSyncAt: null,
         lastSyncStatus: null,
         lastSyncError: null,
+        webhookToken: null,
         createdAt: now,
         updatedAt: now,
       }

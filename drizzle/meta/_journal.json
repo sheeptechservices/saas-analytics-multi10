@@ -36,6 +36,20 @@
       "when": 1780799720873,
       "tag": "0004_complete_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1782096081228,
+      "tag": "0005_nasty_proudstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782100016821,
+      "tag": "0006_spooky_invaders",
+      "breakpoints": true
     }
   ]
 }

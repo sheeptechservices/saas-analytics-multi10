@@ -14,7 +14,8 @@ export default auth((req) => {
     pathname.startsWith('/login') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/reset-password') ||
-    pathname.startsWith('/api/auth')
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/webhooks/')
 
   // 1. Master on /login → /master
   if (isLoggedIn && isMaster && pathname === '/login') {

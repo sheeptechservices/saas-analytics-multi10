@@ -236,10 +236,12 @@ export const dataSources = sqliteTable('data_sources', {
   lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
   lastSyncStatus: text('last_sync_status'),               // 'success' | 'error' | 'running'
   lastSyncError: text('last_sync_error'),
+  webhookToken: text('webhook_token'),                      // nullable; set only for webhook-based providers
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({
   tenantProviderIdx: index('data_sources_tenant_provider_idx').on(t.tenantId, t.providerKey),
+  webhookTokenUnq: unique('data_sources_webhook_token_idx').on(t.webhookToken),
 }))
 
 // Generic numeric time-series (ad insights, KPIs, funnel counts over time, ...).
@@ -307,6 +309,27 @@ export const funnelSnapshots = sqliteTable('funnel_snapshots', {
   syncedAt: integer('synced_at', { mode: 'timestamp' }),
 }, (t) => ({
   periodIdx: index('funnel_snapshots_period_idx').on(t.tenantId, t.source, t.period),
+}))
+
+// Contact / conversation participant (WhatsApp end-user, CRM contact, etc.).
+// id is deterministic (tenant:source:externalId) so webhook upserts are idempotent.
+export const contacts = sqliteTable('contacts', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  dataSourceId: text('data_source_id').references(() => dataSources.id),
+  source: text('source').notNull(),
+  externalId: text('external_id').notNull(),  // stable id at origin (E.164 phone or provider contact id)
+  name: text('name'),
+  phone: text('phone'),
+  email: text('email'),
+  tags: text('tags').notNull().default('[]'),            // JSON string[]
+  lastInteractionAt: integer('last_interaction_at', { mode: 'timestamp' }),
+  metadata: text('metadata').notNull().default('{}'),
+  extra: text('extra').notNull().default('{}'),
+  createdAt: integer('created_at', { mode: 'timestamp' }),
+  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+}, (t) => ({
+  lookupIdx: index('contacts_lookup_idx').on(t.tenantId, t.source, t.lastInteractionAt),
 }))
 
 // Campaign / parameters config per tenant (the "Parâmetros" tab). Passive-persisted,

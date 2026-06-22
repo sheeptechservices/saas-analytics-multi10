@@ -27,3 +27,6 @@ export function listProviders(): DataSourceProvider<any, any>[] {
 
 import { supabaseN8nProvider } from './supabase-n8n'
 registerProvider(supabaseN8nProvider)
+
+import { yCloudProvider } from './ycloud'
+registerProvider(yCloudProvider)

@@ -56,12 +56,27 @@ export interface CanonicalFunnelStage {
   extra?: Record<string, unknown>
 }
 
+/** A contact / conversation participant (e.g. a WhatsApp end-user). */
+export interface CanonicalContact {
+  /** Stable id at the source — e.g. E.164 phone or the provider's contact id. */
+  externalId: string
+  name?: string
+  phone?: string
+  email?: string
+  tags?: string[]
+  /** Epoch ms of the most recent message / interaction. */
+  lastInteractionAt?: number
+  metadata?: Record<string, unknown>
+  extra?: Record<string, unknown>
+}
+
 /** What `normalize` returns for one fetched page. Any subset may be present. */
 export interface CanonicalBatch {
   metrics?: CanonicalMetric[]
   events?: CanonicalEvent[]
   conversations?: CanonicalConversation[]
   funnel?: CanonicalFunnelStage[]
+  contacts?: CanonicalContact[]
 }
 
 // ─── Sync plumbing ───────────────────────────────────────────────────────────────
