@@ -128,6 +128,12 @@ const TABLE_COLS: DataTableColumn[] = [
     ),
   },
   { key: 'msgs', label: 'Mensagens', sortable: true },
+  {
+    key: 'lastContact',
+    label: 'Última interação',
+    sortable: true,
+    format: (v) => timeAgo(v as number | null),
+  },
 ]
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
@@ -216,6 +222,7 @@ export default function SdrIaDashboardPage() {
   const tableRows = (data?.recent ?? []).map(r => ({
     sessionLabel: r.sessionId,
     msgs:         r.msgs,
+    lastContact:  r.lastContact ?? 0,
   }))
 
   const hasData = (data?.funnel.length ?? 0) > 0 || (data?.recent.length ?? 0) > 0
@@ -357,7 +364,7 @@ export default function SdrIaDashboardPage() {
               <DataTable
                 columns={TABLE_COLS}
                 rows={tableRows}
-                defaultSortKey="msgs"
+                defaultSortKey="lastContact"
                 defaultSortDir="desc"
                 emptyMessage="Nenhuma sessão encontrada no período"
               />

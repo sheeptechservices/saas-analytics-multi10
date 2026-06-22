@@ -41,6 +41,7 @@ interface ChatRow {
   id: number
   session_id: string
   message: { type: 'human' | 'ai'; content: string }
+  created_at: string | Date | null
 }
 
 interface SupabaseN8nRaw {
@@ -219,8 +220,9 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
       sessionId: row.session_id,
       role: row.message?.type === 'ai' ? 'ai' : 'human',
       content: row.message?.content ?? '',
-      // n8n_chat_histories não tem coluna de timestamp; guardamos o id sequencial
-      // do chat como proxy de recência para ordenar as "sessões recentes".
+      // created_at (timestamptz na origem) é a recência real da conversa.
+      // O chatId (id sequencial) fica como rede de segurança caso falte created_at.
+      occurredAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
       metadata: { chatId: typeof row.id === 'number' ? row.id : Number(row.id) || 0 },
     }))
 
