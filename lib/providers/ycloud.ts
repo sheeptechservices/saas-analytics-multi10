@@ -4,7 +4,6 @@ import type {
   SyncContext,
   CanonicalBatch,
   CanonicalContact,
-  CanonicalConversation,
   CanonicalEvent,
 } from './types'
 
@@ -271,8 +270,10 @@ function parseMs(iso: string | undefined): number | undefined {
  * Maps a raw YCloud webhook event payload to a CanonicalBatch.
  *
  * Handled event types:
- *   whatsapp.inbound_message.received → CanonicalConversation (role: 'human')
- *                                     + CanonicalContact (externalId = msg.from = E.164 phone)
+ *   whatsapp.inbound_message.received → CanonicalContact only (externalId = msg.from = E.164 phone)
+ *                                       Conversation is NOT emitted — n8n_chat_histories is the
+ *                                       source of truth for conversations (supabase-n8n provider).
+ *                                       Emitting it here caused duplicate conversation rows.
  *   whatsapp.message.updated          → CanonicalEvent (eventType: whatsapp_status_*)
  *
  * The CanonicalContact emitted on each inbound message ensures the contacts table
@@ -296,31 +297,13 @@ export function normalizeWebhookEvent(
       const msg = e.whatsappInboundMessage
       if (!msg?.id || !msg.from) return {}
 
-      // For non-text messages (image, audio, video, …) there is no text.body;
-      // use a bracketed type placeholder so content is never stored empty.
-      const content = msg.text?.body ?? (msg.type ? `[${msg.type}]` : '[unknown]')
-
       const occurredAt = parseMs(msg.sendTime) ?? parseMs(env.createTime)
-
-      const conversation: CanonicalConversation = {
-        sourceId:  msg.id,
-        sessionId: msg.from,          // customer E.164 phone — stable session key
-        role:      'human',
-        content,
-        occurredAt,
-        metadata: {
-          wamid:        msg.wamid,
-          from:         msg.from,
-          to:           msg.to,
-          messageType:  msg.type,
-          customerName: msg.customerProfile?.name,
-          replyToWamid: msg.context?.id,
-        },
-      }
 
       // Upsert a contact so the contacts table stays up-to-date with every inbound message.
       // externalId = msg.from (E.164) = phoneNumber from REST — guaranteed same row, no duplicates.
       // The upsertBatch MAX logic ensures occurredAt only advances, never regresses.
+      // Conversation is intentionally NOT emitted here — n8n writes to n8n_chat_histories,
+      // which the supabase-n8n provider reads as the canonical conversation source.
       const contact: CanonicalContact = {
         externalId: msg.from,
         name:       msg.customerProfile?.name,
@@ -331,7 +314,7 @@ export function normalizeWebhookEvent(
         },
       }
 
-      return { conversations: [conversation], contacts: [contact] }
+      return { contacts: [contact] }
     }
 
     case 'whatsapp.message.updated': {
