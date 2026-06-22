@@ -20,11 +20,20 @@ export const MODULES: ModuleDef[] = [
   { key: 'integration.meta-ads',   label: 'Meta Ads',          type: 'integration',   path: '/settings/integrations/meta-ads' },
   { key: 'integration.tiktok-ads', label: 'TikTok Ads',        type: 'integration',   path: '/settings/integrations/tiktok-ads' },
   { key: 'integration.ai',         label: 'IA / Assistente',   type: 'integration',   path: '/settings/integrations/ai' },
+  { key: 'integration.ycloud-whatsapp', label: 'YCloud (WhatsApp)', type: 'integration', path: '/settings/integrations/ycloud' },
 ]
 
 export const ALL_MODULE_KEYS: string[] = MODULES.map(m => m.key)
 
+// Extra path → module-key mappings for sub-routes that don't have their own
+// MODULES entry (avoids duplicate keys in ALL_MODULE_KEYS / backfill scripts).
+const PATH_MODULE_OVERRIDES: Record<string, string> = {
+  '/sdr-ia/contatos':  'integration.ycloud-whatsapp',
+  '/sdr-ia/conversas': 'integration.ycloud-whatsapp',
+}
+
 export function moduleKeyForPath(pathname: string): string | null {
+  if (PATH_MODULE_OVERRIDES[pathname]) return PATH_MODULE_OVERRIDES[pathname]
   const sorted = [...MODULES].sort((a, b) => b.path.length - a.path.length)
   for (const m of sorted) {
     if (pathname === m.path || pathname.startsWith(m.path + '/')) return m.key
@@ -36,6 +45,16 @@ export const ADS_PROVIDER_MODULE: Record<string, string> = {
   google_ads: 'integration.google-ads',
   meta_ads:   'integration.meta-ads',
   tiktok_ads: 'integration.tiktok-ads',
+}
+
+/** Maps a data_source.providerKey to the tenant module key that gates it. */
+export const PROVIDER_MODULE: Record<string, string> = {
+  'supabase-n8n':    'integration.sdr-source',
+  'ycloud-whatsapp': 'integration.ycloud-whatsapp',
+}
+
+export function getModuleKeyForProvider(providerKey: string): string | null {
+  return PROVIDER_MODULE[providerKey] ?? null
 }
 
 export function firstAllowedPath(modules: string[]): string {

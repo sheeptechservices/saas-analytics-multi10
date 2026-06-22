@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { dataSources, tenantModules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { runSync } from '@/lib/sync/runner'
+import { getModuleKeyForProvider } from '@/lib/modules'
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -32,7 +33,8 @@ export async function GET(request: Request) {
   }> = []
 
   for (const ds of sources) {
-    if (!enabled.has(`${ds.tenantId}:integration.sdr-source`)) {
+    const moduleKey = getModuleKeyForProvider(ds.providerKey)
+    if (!moduleKey || !enabled.has(`${ds.tenantId}:${moduleKey}`)) {
       results.push({
         dataSourceId: ds.id,
         tenantId: ds.tenantId,

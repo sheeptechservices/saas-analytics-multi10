@@ -9,6 +9,9 @@ import { DonutChart } from '@/components/widgets/DonutChart'
 import type { DonutSlice } from '@/components/widgets/DonutChart'
 import { DataTable } from '@/components/widgets/DataTable'
 import type { DataTableColumn } from '@/components/widgets/DataTable'
+import { BarChart } from '@/components/widgets/BarChart'
+import type { BarChartItem } from '@/components/widgets/BarChart'
+import { useModules } from '@/components/ModulesProvider'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,13 +24,25 @@ const PERIOD_LABELS: Record<Period, string> = {
   '365d': 'Este ano',
 }
 
+interface WaTotals { sent: number; delivered: number; read: number; failed: number; inbound: number }
+interface WaRates  { entrega: number; leitura: number }
+interface WaDay    { date: string; sent: number; delivered: number; read: number; failed: number; inbound: number }
+interface WaBlock  { totals: WaTotals; rates: WaRates; daily: WaDay[] }
+
 interface SdrBiData {
   period: string
   kpis: { contatos: number; taxaResposta: number; reunioes: number; conversao: number }
   funnel: { stageKey: string; stageName: string; count: number; order: number }[]
   sentiment: { id: string; label: string; color: string; count: number }[]
-  recent: { sessionId: string; lastContact: number | null; msgs: number }[]
+  recent: { sessionId: string; source: string; lastContact: number | null; msgs: number }[]
+  whatsapp?: WaBlock
   lastSyncAt: number | null
+}
+
+const WA_ZERO: WaBlock = {
+  totals: { sent: 0, delivered: 0, read: 0, failed: 0, inbound: 0 },
+  rates:  { entrega: 0, leitura: 0 },
+  daily:  [],
 }
 
 // ─── Stage colors ─────────────────────────────────────────────────────────────
@@ -54,6 +69,12 @@ function timeAgo(ms: number | null): string {
   if (hrs < 24) return `${hrs}h`
   const days = Math.floor(hrs / 24)
   return `${days}d`
+}
+
+// Format "YYYY-MM-DD" → "DD/MM" for bar chart labels
+function fmtDay(date: string): string {
+  const parts = date.split('-')
+  return `${parts[2]}/${parts[1]}`
 }
 
 // ─── Local components ─────────────────────────────────────────────────────────
@@ -114,9 +135,31 @@ function PeriodFilter({ value, onChange }: { value: Period; onChange: (p: Period
   )
 }
 
+function SourceBadge({ source }: { source: string }) {
+  const isWa = source === 'ycloud-whatsapp'
+  return (
+    <span style={{
+      display: 'inline-block',
+      fontSize: 10, fontWeight: 700,
+      padding: '2px 8px', borderRadius: 100,
+      background: isWa ? 'rgba(37,211,102,0.10)' : 'rgba(37,99,235,0.08)',
+      color:      isWa ? '#15803d'              : '#1d4ed8',
+      border: `1px solid ${isWa ? 'rgba(37,211,102,0.25)' : 'rgba(37,99,235,0.20)'}`,
+    }}>
+      {isWa ? 'WhatsApp' : 'SDR'}
+    </span>
+  )
+}
+
 // ─── Table columns ────────────────────────────────────────────────────────────
 
 const TABLE_COLS: DataTableColumn[] = [
+  {
+    key: 'source',
+    label: 'Origem',
+    sortable: false,
+    format: (v) => <SourceBadge source={v as string} />,
+  },
   {
     key: 'sessionLabel',
     label: 'Sessão',
@@ -162,6 +205,19 @@ function EmptyState() {
   )
 }
 
+// ─── WhatsApp section header ──────────────────────────────────────────────────
+
+function WaSectionHeader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, marginTop: 8 }}>
+      <div style={{ width: 3, height: 18, borderRadius: 2, background: '#25D366' }} />
+      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        WhatsApp (YCloud)
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SdrIaDashboardPage() {
@@ -169,6 +225,9 @@ export default function SdrIaDashboardPage() {
   const [data, setData]       = useState<SdrBiData | null>(null)
   const [loading, setLoading] = useState(true)
   const [ready, setReady]     = useState(false)
+
+  const modules   = useModules()
+  const hasYCloud = modules.includes('integration.ycloud-whatsapp')
 
   // Funnel visibility
   const [visibleStageIds, setVisibleStageIds] = useState<Set<string>>(new Set())
@@ -218,12 +277,21 @@ export default function SdrIaDashboardPage() {
     id: s.id, label: s.label, color: s.color, count: s.count,
   }))
 
-  // Derived table rows
+  // Derived table rows — source field comes from the API
   const tableRows = (data?.recent ?? []).map(r => ({
+    source:       r.source,
     sessionLabel: r.sessionId,
     msgs:         r.msgs,
     lastContact:  r.lastContact ?? 0,
   }))
+
+  // WhatsApp derived data — fallback to zeros so section never crashes
+  const wa: WaBlock = data?.whatsapp ?? WA_ZERO
+
+  // Daily chart capped at last 30 data points for bar readability
+  const waDailyChart = wa.daily.slice(-30)
+  const waDailyInbound: BarChartItem[] = waDailyChart.map(d => ({ label: fmtDay(d.date), count: d.inbound }))
+  const waDailySent:    BarChartItem[] = waDailyChart.map(d => ({ label: fmtDay(d.date), count: d.sent    }))
 
   const hasData = (data?.funnel.length ?? 0) > 0 || (data?.recent.length ?? 0) > 0
 
@@ -267,7 +335,7 @@ export default function SdrIaDashboardPage() {
 
       {!loading && hasData && (
         <>
-          {/* ── KPI Cards ──────────────────────────────────────────── */}
+          {/* ── KPI Cards (SDR) ────────────────────────────────────── */}
           <div className="animate-slide-up delay-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
             <KpiCard
               label="Contatos realizados"
@@ -352,9 +420,69 @@ export default function SdrIaDashboardPage() {
             )}
           </div>
 
+          {/* ── WhatsApp (YCloud) section — conditional on module ──── */}
+          {hasYCloud && (
+            <div className="animate-slide-up delay-4">
+              <WaSectionHeader />
+
+              {/* 4 volume cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 14 }}>
+                <KpiCard label="Recebidas"  value={wa.totals.inbound}   accent="#0891B2" sub="mensagens inbound" />
+                <KpiCard label="Enviadas"   value={wa.totals.sent}      accent="#64748B" sub="mensagens outbound" />
+                <KpiCard label="Entregues"  value={wa.totals.delivered} accent="#2563EB" />
+                <KpiCard label="Lidas"      value={wa.totals.read}      accent="#1E8A3E" />
+              </div>
+
+              {/* 3 rate / failure cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14, marginBottom: 20 }}>
+                <KpiCard
+                  label="Taxa de entrega"
+                  value={Math.round(wa.rates.entrega * 100)}
+                  format={v => `${v}%`}
+                  accent="#2563EB"
+                  sub={`${wa.totals.delivered.toLocaleString('pt-BR')} de ${wa.totals.sent.toLocaleString('pt-BR')} enviadas`}
+                />
+                <KpiCard
+                  label="Taxa de leitura"
+                  value={Math.round(wa.rates.leitura * 100)}
+                  format={v => `${v}%`}
+                  accent="#1E8A3E"
+                  sub={`${wa.totals.read.toLocaleString('pt-BR')} de ${wa.totals.delivered.toLocaleString('pt-BR')} entregues`}
+                />
+                <KpiCard label="Falhas"   value={wa.totals.failed}    accent="#D93025" sub="mensagens não entregues" />
+              </div>
+
+              {/* Daily charts — only when there are data points */}
+              {waDailyChart.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
+                  <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
+                    <SectionTitle>Recebidas por dia</SectionTitle>
+                    <BarChart data={waDailyInbound} ready={ready} unit="mensagem" />
+                  </div>
+                  <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
+                    <SectionTitle>Enviadas por dia</SectionTitle>
+                    <BarChart data={waDailySent} ready={ready} unit="mensagem" />
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state for when module is enabled but no data yet */}
+              {waDailyChart.length === 0 && wa.totals.inbound === 0 && wa.totals.sent === 0 && (
+                <div style={{
+                  padding: '20px 24px', marginBottom: 20,
+                  background: 'var(--bg)', border: '1px solid var(--gray3)',
+                  borderRadius: 16, textAlign: 'center',
+                  fontSize: 13, color: 'var(--gray2)', fontWeight: 500,
+                }}>
+                  Nenhuma mensagem WhatsApp no período. Os dados aparecem aqui assim que o primeiro webhook for recebido ou o backfill concluir.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Tabela de sessões recentes ─────────────────────────── */}
           {tableRows.length > 0 && (
-            <div className="animate-slide-up delay-4" style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', overflow: 'hidden' }}>
+            <div className="animate-slide-up delay-5" style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
                 <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   Sessões recentes — {tableRows.length} conversas

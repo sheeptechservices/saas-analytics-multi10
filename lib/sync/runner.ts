@@ -7,6 +7,7 @@ import {
   events,
   conversations,
   funnelSnapshots,
+  contacts,
 } from '@/lib/db/schema'
 import { decrypt } from '@/lib/crypto'
 import { getProvider } from '@/lib/providers/registry'
@@ -19,6 +20,7 @@ interface UpsertCounts {
   events: number
   conversations: number
   funnel: number
+  contacts: number
 }
 
 const CHUNK_SIZE = 150
@@ -34,14 +36,14 @@ function hashDims(dims: Record<string, unknown> | undefined): string {
   return createHash('sha256').update(JSON.stringify(dims)).digest('hex').slice(0, 16)
 }
 
-async function upsertBatch(
+export async function upsertBatch(
   batch: CanonicalBatch,
   tenantId: string,
   dataSourceId: string,
   source: string
 ): Promise<UpsertCounts> {
   const now = new Date()
-  const counts: UpsertCounts = { metrics: 0, events: 0, conversations: 0, funnel: 0 }
+  const counts: UpsertCounts = { metrics: 0, events: 0, conversations: 0, funnel: 0, contacts: 0 }
 
   if (batch.metrics?.length) {
     const rows = batch.metrics.map(m => ({
@@ -158,6 +160,48 @@ async function upsertBatch(
     counts.funnel = rows.length
   }
 
+  if (batch.contacts?.length) {
+    const rows = batch.contacts.map(c => ({
+      id: `${tenantId}:${source}:${c.externalId}`,
+      tenantId,
+      dataSourceId,
+      source,
+      externalId:         c.externalId,
+      name:               c.name ?? null,
+      phone:              c.phone ?? null,
+      email:              c.email ?? null,
+      tags:               JSON.stringify(c.tags ?? []),
+      lastInteractionAt:  c.lastInteractionAt != null ? new Date(c.lastInteractionAt) : null,
+      metadata:           JSON.stringify(c.metadata ?? {}),
+      extra:              JSON.stringify(c.extra ?? {}),
+      createdAt:          now,
+      syncedAt:           now,
+    }))
+    for (const chk of chunk(rows, CHUNK_SIZE)) {
+      await db.insert(contacts).values(chk).onConflictDoUpdate({
+        target: contacts.id,
+        set: {
+          // name/phone/email: preserve existing non-null/non-empty value when new value is absent.
+          // NULLIF(x, '') converts '' to NULL so COALESCE falls back to the stored value.
+          name:              sql`COALESCE(NULLIF(excluded.name, ''), contacts.name)`,
+          phone:             sql`COALESCE(NULLIF(excluded.phone, ''), contacts.phone)`,
+          email:             sql`COALESCE(NULLIF(excluded.email, ''), contacts.email)`,
+          // tags/metadata/extra: always take the latest payload.
+          tags:              sql`excluded.tags`,
+          metadata:          sql`excluded.metadata`,
+          extra:             sql`excluded.extra`,
+          // lastInteractionAt: keep the highest timestamp seen so far.
+          // COALESCE(…, 0) lets MAX work with NULLs; NULLIF(…, 0) converts the
+          // "both were NULL → 0" edge case back to NULL instead of storing epoch 0.
+          lastInteractionAt: sql`NULLIF(MAX(COALESCE(excluded.last_interaction_at, 0), COALESCE(contacts.last_interaction_at, 0)), 0)`,
+          // createdAt: intentionally omitted — preserved from the original INSERT.
+          syncedAt:          sql`excluded.synced_at`,
+        },
+      })
+    }
+    counts.contacts = rows.length
+  }
+
   return counts
 }
 
@@ -166,7 +210,7 @@ export async function runSync(dataSource: DataSource): Promise<{
   counts: UpsertCounts
   error?: string
 }> {
-  const counts: UpsertCounts = { metrics: 0, events: 0, conversations: 0, funnel: 0 }
+  const counts: UpsertCounts = { metrics: 0, events: 0, conversations: 0, funnel: 0, contacts: 0 }
 
   const provider = getProvider(dataSource.providerKey)
   if (!provider) {
@@ -214,6 +258,7 @@ export async function runSync(dataSource: DataSource): Promise<{
       counts.events += pageCounts.events
       counts.conversations += pageCounts.conversations
       counts.funnel += pageCounts.funnel
+      counts.contacts += pageCounts.contacts
 
       await db.update(dataSources)
         .set({ syncCursor: JSON.stringify(fetchPage.nextCursor) })
