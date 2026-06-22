@@ -16,7 +16,12 @@ const DEFAULT_SETTINGS = {
   horario: { inicio: '08:00', fim: '18:00' },
   diasAtivos: [1, 2, 3, 4, 5],
   templates: [''],
+  remetente: '',
+  numToques: 10,
+  intervaloDias: 3,
 }
+
+const E164_RE = /^\+[1-9]\d{6,14}$/
 
 type N8nDeliveryResult = { ok: boolean; status?: number; error?: string }
 
@@ -99,9 +104,9 @@ export async function GET() {
   let parsed: Record<string, unknown> = {}
   try { parsed = JSON.parse(row.settings) } catch {}
 
-  // Omit n8nWebhookSecret from GET response; n8nWebhookUrl is returned for UI display
-  const { n8nWebhookSecret: _omit, ...settingsForClient } = parsed
-  void _omit
+  // Omit secrets from GET response; URLs are returned for UI display
+  const { n8nWebhookSecret: _omitWS, n8nDispatchSecret: _omitDS, ...settingsForClient } = parsed
+  void _omitWS; void _omitDS
 
   return NextResponse.json({ configured: true, status: row.status, version: row.version, settings: settingsForClient })
 }
@@ -141,6 +146,28 @@ export async function PUT(request: Request) {
     }
   }
 
+  // Validate dispatch URL if provided (same anti-SSRF rules)
+  if (rawSettings.n8nDispatchUrl !== undefined && rawSettings.n8nDispatchUrl !== '') {
+    try {
+      validateWebhookUrl(rawSettings.n8nDispatchUrl)
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'n8nDispatchUrl inválida' },
+        { status: 400 },
+      )
+    }
+  }
+
+  // Validate remetente E.164 if provided and non-empty
+  if (rawSettings.remetente !== undefined && rawSettings.remetente !== '') {
+    if (typeof rawSettings.remetente !== 'string' || !E164_RE.test(rawSettings.remetente)) {
+      return NextResponse.json(
+        { error: 'remetente inválido: use formato E.164 (ex: +5511999990000)' },
+        { status: 400 },
+      )
+    }
+  }
+
   const status = body.status as ValidStatus
   const now = new Date()
 
@@ -150,13 +177,16 @@ export async function PUT(request: Request) {
     .where(and(eq(campaignSettings.tenantId, tenantId), eq(campaignSettings.source, SOURCE)))
     .limit(1)
 
-  // Preserve the stored n8nWebhookSecret when the incoming PUT omits or clears it.
-  // (GET strips the secret, so the UI cannot re-send it on subsequent saves.)
-  if (existing && !rawSettings.n8nWebhookSecret) {
+  // Preserve stored secrets when the incoming PUT omits or clears them.
+  // (GET strips secrets, so the UI cannot re-send them on subsequent saves.)
+  if (existing && (!rawSettings.n8nWebhookSecret || !rawSettings.n8nDispatchSecret)) {
     try {
       const stored = JSON.parse(existing.settings) as Record<string, unknown>
-      if (typeof stored.n8nWebhookSecret === 'string' && stored.n8nWebhookSecret) {
+      if (!rawSettings.n8nWebhookSecret && typeof stored.n8nWebhookSecret === 'string' && stored.n8nWebhookSecret) {
         rawSettings.n8nWebhookSecret = stored.n8nWebhookSecret
+      }
+      if (!rawSettings.n8nDispatchSecret && typeof stored.n8nDispatchSecret === 'string' && stored.n8nDispatchSecret) {
+        rawSettings.n8nDispatchSecret = stored.n8nDispatchSecret
       }
     } catch { /* corrupt stored JSON — skip merge */ }
   }
@@ -197,9 +227,15 @@ export async function PUT(request: Request) {
       : undefined
 
   if (webhookUrl) {
-    // Strip webhook config from the payload sent to n8n
-    const { n8nWebhookUrl: _u, n8nWebhookSecret: _s, ...settingsPayload } = rawSettings
-    void _u; void _s
+    // Strip n8n integration config (URLs + secrets) from the payload sent to n8n
+    const {
+      n8nWebhookUrl: _u,
+      n8nWebhookSecret: _s,
+      n8nDispatchUrl: _du,
+      n8nDispatchSecret: _ds,
+      ...settingsPayload
+    } = rawSettings
+    void _u; void _s; void _du; void _ds
     const payload = {
       tenantId,
       status,

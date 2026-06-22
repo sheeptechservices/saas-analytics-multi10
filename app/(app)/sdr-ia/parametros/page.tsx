@@ -10,14 +10,18 @@ type Status = 'draft' | 'active' | 'paused'
 type N8nDelivery = { ok: boolean; status?: number; error?: string } | null
 
 interface Settings {
-  tom:            Tom
-  objetivo:       string
-  delay:          number
-  limiteDiario:   number
-  horario:        { inicio: string; fim: string }
-  diasAtivos:     number[]
-  templates:      string[]
-  n8nWebhookUrl?: string  // returned by GET; extracted to separate state on load
+  tom:              Tom
+  objetivo:         string
+  delay:            number   // legado — em horas; não usado pela campanha n8n
+  limiteDiario:     number
+  horario:          { inicio: string; fim: string }
+  diasAtivos:       number[]
+  templates:        string[]
+  remetente:        string   // E.164, ex: +5511999990000
+  numToques:        number   // 1–20
+  intervaloDias:    number   // 1–30, intervalo entre toques
+  n8nWebhookUrl?:   string  // returned by GET; extracted to separate state on load
+  n8nDispatchUrl?:  string  // returned by GET; extracted to separate state on load
 }
 
 interface ApiData {
@@ -30,14 +34,20 @@ interface ApiData {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULTS: Settings = {
-  tom:          'consultivo',
-  objetivo:     '',
-  delay:        24,
-  limiteDiario: 100,
-  horario:      { inicio: '08:00', fim: '18:00' },
-  diasAtivos:   [1, 2, 3, 4, 5],
-  templates:    [''],
+  tom:           'consultivo',
+  objetivo:      '',
+  delay:         24,
+  limiteDiario:  100,
+  horario:       { inicio: '08:00', fim: '18:00' },
+  diasAtivos:    [1, 2, 3, 4, 5],
+  templates:     [''],
+  remetente:     '',
+  numToques:     10,
+  intervaloDias: 3,
 }
+
+const E164_RE = /^\+[1-9]\d{6,14}$/
+function isValidE164(v: string) { return v === '' || E164_RE.test(v) }
 
 const DIAS = [
   { num: 1, label: 'Seg' }, { num: 2, label: 'Ter' },
@@ -94,32 +104,43 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ParametrosPage() {
-  const [settings,         setSettings]         = useState<Settings>(DEFAULTS)
-  const [status,           setStatus]           = useState<Status>('draft')
-  const [n8nWebhookUrl,    setN8nWebhookUrl]    = useState('')
-  const [n8nWebhookSecret, setN8nWebhookSecret] = useState('')
-  const [showSecret,       setShowSecret]       = useState(false)
-  const [loading,          setLoading]          = useState(true)
-  const [saving,           setSaving]           = useState(false)
-  const [saved,            setSaved]            = useState(false)
-  const [saveError,        setSaveError]        = useState<string | null>(null)
-  const [n8nDelivery,      setN8nDelivery]      = useState<N8nDelivery | undefined>(undefined)
+  const [settings,           setSettings]           = useState<Settings>(DEFAULTS)
+  const [status,             setStatus]             = useState<Status>('draft')
+  const [n8nWebhookUrl,      setN8nWebhookUrl]      = useState('')
+  const [n8nWebhookSecret,   setN8nWebhookSecret]   = useState('')
+  const [showSecret,         setShowSecret]         = useState(false)
+  const [n8nDispatchUrl,     setN8nDispatchUrl]     = useState('')
+  const [n8nDispatchSecret,  setN8nDispatchSecret]  = useState('')
+  const [showDispatchSecret, setShowDispatchSecret] = useState(false)
+  const [dispatching,        setDispatching]        = useState(false)
+  const [dispatchResult,     setDispatchResult]     = useState<{ ok: boolean; status?: number; error?: string } | undefined>(undefined)
+  const [remetenteError,     setRemetenteError]     = useState<string | null>(null)
+  const [loading,            setLoading]            = useState(true)
+  const [saving,             setSaving]             = useState(false)
+  const [saved,              setSaved]              = useState(false)
+  const [saveError,          setSaveError]          = useState<string | null>(null)
+  const [n8nDelivery,        setN8nDelivery]        = useState<N8nDelivery | undefined>(undefined)
 
   useEffect(() => {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ApiData) => {
-        const { n8nWebhookUrl: webhookUrl, ...coreSettings } = d.settings
+        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, ...coreSettings } = d.settings
         setSettings({ ...DEFAULTS, ...coreSettings })
         setStatus(d.status)
         setN8nWebhookUrl(webhookUrl ?? '')
-        // n8nWebhookSecret is never returned by GET — field stays empty intentionally
+        setN8nDispatchUrl(dispatchUrl ?? '')
+        // secrets are never returned by GET — fields stay empty intentionally
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
   async function save() {
+    if (!isValidE164(settings.remetente)) {
+      setSaveError('Remetente inválido — use formato E.164 (ex: +5511999990000)')
+      return
+    }
     setSaving(true)
     setSaved(false)
     setSaveError(null)
@@ -128,8 +149,10 @@ export default function ParametrosPage() {
       const settingsPayload = {
         ...settings,
         n8nWebhookUrl,
-        // omit secret when blank — server preserves the previously stored value
-        ...(n8nWebhookSecret ? { n8nWebhookSecret } : {}),
+        // omit secrets when blank — server preserves the previously stored values
+        ...(n8nWebhookSecret  ? { n8nWebhookSecret }  : {}),
+        n8nDispatchUrl,
+        ...(n8nDispatchSecret ? { n8nDispatchSecret } : {}),
       }
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
@@ -145,6 +168,20 @@ export default function ParametrosPage() {
       setSaveError((e as Error).message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function dispatch() {
+    setDispatching(true)
+    setDispatchResult(undefined)
+    try {
+      const res = await fetch('/api/sdr/dispatch', { method: 'POST' })
+      const data = await res.json() as { ok: boolean; status?: number; error?: string }
+      setDispatchResult(data)
+    } catch (e) {
+      setDispatchResult({ ok: false, error: (e as Error).message })
+    } finally {
+      setDispatching(false)
     }
   }
 
@@ -264,12 +301,101 @@ export default function ParametrosPage() {
         />
       </SectionCard>
 
+      {/* ── Sequência de disparo ────────────────────────────────── */}
+      <SectionCard title="Sequência de disparo">
+        <div style={{ marginBottom: 20 }}>
+          <FieldLabel>Número remetente (WhatsApp Business)</FieldLabel>
+          <input
+            type="tel"
+            value={settings.remetente}
+            onChange={e => {
+              upd('remetente', e.target.value)
+              if (remetenteError) setRemetenteError(null)
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e => {
+              const valid = isValidE164(e.target.value)
+              e.currentTarget.style.borderColor = valid ? 'var(--gray3)' : 'var(--red)'
+              setRemetenteError(valid ? null : 'Formato inválido — use E.164: +5511999990000')
+            }}
+            placeholder="+5511999990000"
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: `1px solid ${remetenteError ? 'var(--red)' : 'var(--gray3)'}`,
+              borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s',
+            }}
+          />
+          {remetenteError && (
+            <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginTop: 5 }}>
+              {remetenteError}
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6, lineHeight: 1.5 }}>
+            Número WhatsApp Business usado nos disparos. Formato E.164 (ex: +5511999990000).
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          <div>
+            <FieldLabel>
+              Toques na sequência{' '}
+              <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>{settings.numToques}</span>
+            </FieldLabel>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                type="number"
+                min={1} max={20}
+                value={settings.numToques}
+                onChange={e => upd('numToques', Math.max(1, Math.min(20, Number(e.target.value))))}
+                style={{
+                  width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
+                  border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                  textAlign: 'center', transition: 'border-color .15s',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+              />
+              <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>templates</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6 }}>1–20. Define fase_final = &quot;Template {settings.numToques}&quot;.</div>
+          </div>
+
+          <div>
+            <FieldLabel>
+              Intervalo entre toques{' '}
+              <span style={{ color: 'var(--primary-text)', fontWeight: 900 }}>{settings.intervaloDias}</span>
+            </FieldLabel>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                type="number"
+                min={1} max={30}
+                value={settings.intervaloDias}
+                onChange={e => upd('intervaloDias', Math.max(1, Math.min(30, Number(e.target.value))))}
+                style={{
+                  width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
+                  border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                  textAlign: 'center', transition: 'border-color .15s',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+              />
+              <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>dias</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 6 }}>1–30 dias entre cada toque.</div>
+          </div>
+        </div>
+      </SectionCard>
+
       {/* ── Cadência ────────────────────────────────────────────── */}
       <SectionCard title="Cadência e horário">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
 
           <div>
-            <FieldLabel>Intervalo entre contatos</FieldLabel>
+            <FieldLabel>Intervalo entre contatos <span style={{ fontWeight: 500, color: 'var(--gray2)' }}>(legado — em horas, não usado pela campanha)</span></FieldLabel>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input
                 type="number"
@@ -281,6 +407,7 @@ export default function ParametrosPage() {
                   border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
                   background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                   textAlign: 'center', transition: 'border-color .15s',
+                  opacity: 0.5,
                 }}
                 onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
                 onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
@@ -463,6 +590,105 @@ export default function ParametrosPage() {
         <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
           Enviado como <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 10 }}>Authorization: Bearer</code> no cabeçalho da requisição.{' '}
           Deixe em branco para manter o segredo já salvo.
+        </div>
+
+        <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
+
+        <FieldLabel>URL de disparo (n8n)</FieldLabel>
+        <input
+          type="url"
+          value={n8nDispatchUrl}
+          onChange={e => setN8nDispatchUrl(e.target.value)}
+          placeholder="https://seu-n8n.example.com/webhook/..."
+          style={{
+            width: '100%', fontFamily: 'inherit', fontSize: 13,
+            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+        />
+
+        <FieldLabel>Segredo de disparo (opcional)</FieldLabel>
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <input
+            type={showDispatchSecret ? 'text' : 'password'}
+            value={n8nDispatchSecret}
+            onChange={e => setN8nDispatchSecret(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10,
+              padding: '10px 42px 10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+          <button
+            type="button"
+            onClick={() => setShowDispatchSecret(s => !s)}
+            title={showDispatchSecret ? 'Ocultar' : 'Mostrar'}
+            style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+            }}
+          >
+            {showDispatchSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>
+          Deixe em branco para manter o segredo já salvo.
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 16 }}>
+          Aciona um ciclo de disparo no n8n para os leads agendados (não escolhe destinatários aqui).
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const }}>
+          <button
+            onClick={dispatch}
+            disabled={dispatching || !n8nDispatchUrl}
+            style={{
+              padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+              fontSize: 13, fontWeight: 800, cursor: (dispatching || !n8nDispatchUrl) ? 'not-allowed' : 'pointer',
+              background: (dispatching || !n8nDispatchUrl) ? 'var(--gray3)' : 'var(--primary)',
+              color: (dispatching || !n8nDispatchUrl) ? 'var(--gray2)' : 'var(--primary-contrast)',
+              border: 'none', transition: 'all .18s', opacity: (dispatching || !n8nDispatchUrl) ? 0.7 : 1,
+            }}
+          >
+            {dispatching ? 'Disparando...' : 'Disparar agora'}
+          </button>
+
+          {dispatchResult !== undefined && dispatchResult.ok && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 12, fontWeight: 700,
+              background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
+              border: '1px solid rgba(34,197,94,0.25)',
+              borderRadius: 99, padding: '5px 14px',
+            }}>
+              Disparo acionado ✓
+              {dispatchResult.status !== undefined && (
+                <span style={{ fontWeight: 500, opacity: 0.75 }}>· HTTP {dispatchResult.status}</span>
+              )}
+            </div>
+          )}
+          {dispatchResult !== undefined && !dispatchResult.ok && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 12, fontWeight: 700,
+              background: 'rgba(239,68,68,0.08)', color: 'var(--red)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 99, padding: '5px 14px',
+            }}>
+              Falha: {dispatchResult.error ?? `HTTP ${dispatchResult.status}`}
+            </div>
+          )}
         </div>
       </SectionCard>
 
