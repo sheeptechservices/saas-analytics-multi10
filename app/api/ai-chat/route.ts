@@ -8,7 +8,7 @@ import { decrypt } from '@/lib/crypto'
 import { randomUUID } from 'crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 
-const SYSTEM_PROMPT = `Você é o assistente de BI da plataforma Multi10 — uma plataforma de funil de vendas com integração ao Kommo CRM.
+const SYSTEM_PROMPT = `Você é o assistente de BI da plataforma 300 Franchising — uma plataforma de funil de vendas com integração ao Kommo CRM.
 
 Você pode ajudar com:
 - **Análise de dados**: interpretar métricas do pipeline (leads, conversão, ticket médio, etapas do funil)

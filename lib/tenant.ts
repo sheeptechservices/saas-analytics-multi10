@@ -6,7 +6,7 @@ import { tenants } from '@/lib/db/schema'
 export type TenantBranding = { primaryColor: string; logoUrl: string | null; brandName: string }
 
 export const getTenantBranding = cache(async (tenantId: string): Promise<TenantBranding> => {
-  const fallback: TenantBranding = { primaryColor: '#FFB400', logoUrl: null, brandName: 'Multi10' }
+  const fallback: TenantBranding = { primaryColor: '#FFB400', logoUrl: null, brandName: '300 Franchising' }
   if (!tenantId) return fallback
   const t = await db
     .select({ name: tenants.name, primaryColor: tenants.primaryColor, logoUrl: tenants.logoUrl })
