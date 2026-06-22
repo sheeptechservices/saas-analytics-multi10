@@ -105,8 +105,8 @@ export async function GET() {
   try { parsed = JSON.parse(row.settings) } catch {}
 
   // Omit secrets from GET response; URLs are returned for UI display
-  const { n8nWebhookSecret: _omitWS, n8nDispatchSecret: _omitDS, ...settingsForClient } = parsed
-  void _omitWS; void _omitDS
+  const { n8nWebhookSecret: _omitWS, n8nDispatchSecret: _omitDS, n8nEnrollSecret: _omitES, ...settingsForClient } = parsed
+  void _omitWS; void _omitDS; void _omitES
 
   return NextResponse.json({ configured: true, status: row.status, version: row.version, settings: settingsForClient })
 }
@@ -158,6 +158,18 @@ export async function PUT(request: Request) {
     }
   }
 
+  // Validate enrollment URL if provided (same anti-SSRF rules)
+  if (rawSettings.n8nEnrollUrl !== undefined && rawSettings.n8nEnrollUrl !== '') {
+    try {
+      validateWebhookUrl(rawSettings.n8nEnrollUrl)
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'n8nEnrollUrl inválida' },
+        { status: 400 },
+      )
+    }
+  }
+
   // Validate remetente E.164 if provided and non-empty
   if (rawSettings.remetente !== undefined && rawSettings.remetente !== '') {
     if (typeof rawSettings.remetente !== 'string' || !E164_RE.test(rawSettings.remetente)) {
@@ -179,7 +191,7 @@ export async function PUT(request: Request) {
 
   // Preserve stored secrets when the incoming PUT omits or clears them.
   // (GET strips secrets, so the UI cannot re-send them on subsequent saves.)
-  if (existing && (!rawSettings.n8nWebhookSecret || !rawSettings.n8nDispatchSecret)) {
+  if (existing && (!rawSettings.n8nWebhookSecret || !rawSettings.n8nDispatchSecret || !rawSettings.n8nEnrollSecret)) {
     try {
       const stored = JSON.parse(existing.settings) as Record<string, unknown>
       if (!rawSettings.n8nWebhookSecret && typeof stored.n8nWebhookSecret === 'string' && stored.n8nWebhookSecret) {
@@ -187,6 +199,9 @@ export async function PUT(request: Request) {
       }
       if (!rawSettings.n8nDispatchSecret && typeof stored.n8nDispatchSecret === 'string' && stored.n8nDispatchSecret) {
         rawSettings.n8nDispatchSecret = stored.n8nDispatchSecret
+      }
+      if (!rawSettings.n8nEnrollSecret && typeof stored.n8nEnrollSecret === 'string' && stored.n8nEnrollSecret) {
+        rawSettings.n8nEnrollSecret = stored.n8nEnrollSecret
       }
     } catch { /* corrupt stored JSON — skip merge */ }
   }
@@ -233,9 +248,11 @@ export async function PUT(request: Request) {
       n8nWebhookSecret: _s,
       n8nDispatchUrl: _du,
       n8nDispatchSecret: _ds,
+      n8nEnrollUrl: _eu,
+      n8nEnrollSecret: _es,
       ...settingsPayload
     } = rawSettings
-    void _u; void _s; void _du; void _ds
+    void _u; void _s; void _du; void _ds; void _eu; void _es
     const payload = {
       tenantId,
       status,
