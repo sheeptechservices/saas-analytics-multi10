@@ -268,7 +268,7 @@ export default function ParametrosPage() {
   const hasWebhook   = !!n8nWebhookUrl
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div>
 
       {/* ── Aviso write-back ────────────────────────────────────── */}
       <div style={{
@@ -284,6 +284,9 @@ export default function ParametrosPage() {
           }
         </div>
       </div>
+
+      {/* ── Status + Tom: 2 colunas no desktop, 1 no mobile ───────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(460px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
 
       {/* ── Status ──────────────────────────────────────────────── */}
       <SectionCard title="Status da campanha">
@@ -356,6 +359,10 @@ export default function ParametrosPage() {
           onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
         />
       </SectionCard>
+      </div>{/* /Status+Tom grid */}
+
+      {/* ── Sequência + Cadência: 2 colunas no desktop ──────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(460px, 100%), 1fr))', gap: 16, alignItems: 'start' }}>
 
       {/* ── Sequência de disparo ────────────────────────────────── */}
       <SectionCard title="Sequência de disparo">
@@ -518,6 +525,7 @@ export default function ParametrosPage() {
           })}
         </div>
       </SectionCard>
+      </div>{/* /Sequência+Cadência grid */}
 
       {/* ── Templates ───────────────────────────────────────────── */}
       <SectionCard title="Templates de mensagem">
