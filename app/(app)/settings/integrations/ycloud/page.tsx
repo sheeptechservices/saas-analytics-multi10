@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
+import { Loader2, CheckCircle2, XCircle, Copy, Eye, EyeOff } from 'lucide-react'
 
 interface SourceData {
   configured: boolean
@@ -12,60 +13,6 @@ interface SourceData {
   webhookUrl?: string | null
 }
 
-function EyeIcon({ open }: { open: boolean }) {
-  if (open) {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-        <line x1="1" y1="1" x2="23" y2="23" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
-
-function SpinIcon() {
-  return (
-    <svg
-      width="14" height="14" viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" strokeWidth="2"
-      style={{ animation: 'spin 1s linear infinite' }}
-    >
-      <path d="M1 4v5h5M15 12v-5h-5" />
-      <path d="M13.4 7A6 6 0 1 0 12 12.3" />
-    </svg>
-  )
-}
-
-function CopyIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  )
-}
-
-function CheckSmIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="var(--green)" strokeWidth="2">
-      <path d="M2 6l3 3 5-5" />
-    </svg>
-  )
-}
-
-function XSmIcon({ color = '#b02619' }: { color?: string }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth="2">
-      <path d="M2 2l8 8M10 2L2 10" />
-    </svg>
-  )
-}
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -182,7 +129,7 @@ function SecretField({
             border: 'none', cursor: 'pointer', color: 'var(--gray2)', padding: 2,
           }}
         >
-          <EyeIcon open={show} />
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
     </div>
@@ -366,7 +313,7 @@ export default function YCloudPage() {
             display: 'flex', alignItems: 'center', gap: 8,
             fontSize: 13, fontWeight: 700, color: '#145c2a', marginBottom: 14,
           }}>
-            <CheckSmIcon />
+            <CheckCircle2 size={14} color="var(--green)" />
             Integração salva com sucesso!
           </div>
 
@@ -458,9 +405,9 @@ export default function YCloudPage() {
             color: testResult.valid ? '#145c2a' : '#b02619',
           }}>
             {testResult.valid ? (
-              <><CheckSmIcon />API Key válida — conexão bem-sucedida</>
+              <><CheckCircle2 size={14} color="var(--green)" />API Key válida — conexão bem-sucedida</>
             ) : (
-              <><XSmIcon />{testResult.error ?? 'Falha na conexão'}</>
+              <><XCircle size={14} color="#b02619" />{testResult.error ?? 'Falha na conexão'}</>
             )}
           </div>
         )}
@@ -473,7 +420,7 @@ export default function YCloudPage() {
             background: 'rgba(217,48,37,0.06)', border: '1px solid rgba(217,48,37,0.2)',
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            <XSmIcon />{saveError}
+            <XCircle size={14} color="#b02619" />{saveError}
           </div>
         )}
 
@@ -491,7 +438,7 @@ export default function YCloudPage() {
               display: 'flex', alignItems: 'center', gap: 7,
             }}
           >
-            {testing && <SpinIcon />}
+            {testing && <Loader2 size={14} className="animate-spin" />}
             {testing ? 'Testando…' : 'Testar conexão'}
           </button>
 
@@ -507,18 +454,12 @@ export default function YCloudPage() {
               display: 'flex', alignItems: 'center', gap: 7,
             }}
           >
-            {saving && <SpinIcon />}
+            {saving && <Loader2 size={14} className="animate-spin" />}
             {saving ? 'Salvando…' : 'Salvar e conectar'}
           </button>
         </div>
       </div>
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg) }
-          to   { transform: rotate(360deg) }
-        }
-      `}</style>
     </div>
   )
 }
@@ -554,7 +495,7 @@ function WebhookUrlBox({ url, copied, onCopy }: { url: string; copied: boolean; 
           transition: 'all .15s',
         }}
       >
-        {copied ? <CheckSmIcon /> : <CopyIcon />}
+        {copied ? <CheckCircle2 size={14} color="var(--green)" /> : <Copy size={14} />}
         {copied ? 'Copiado!' : 'Copiar'}
       </button>
     </div>

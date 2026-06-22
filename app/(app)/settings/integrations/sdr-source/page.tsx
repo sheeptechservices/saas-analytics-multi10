@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
+import { Loader2, CheckCircle2, XCircle, Eye, EyeOff } from 'lucide-react'
 
 interface SourceData {
   configured: boolean
@@ -23,35 +24,6 @@ function timeAgo(ms: number): string {
   return `há ${days} dia${days > 1 ? 's' : ''}`
 }
 
-function EyeIcon({ open }: { open: boolean }) {
-  if (open) {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-        <line x1="1" y1="1" x2="23" y2="23" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
-
-function SpinIcon() {
-  return (
-    <svg
-      width="14" height="14" viewBox="0 0 16 16" fill="none"
-      stroke="currentColor" strokeWidth="2"
-      style={{ animation: 'spin 1s linear infinite' }}
-    >
-      <path d="M1 4v5h5M15 12v-5h-5" />
-      <path d="M13.4 7A6 6 0 1 0 12 12.3" />
-    </svg>
-  )
-}
 
 function SyncStatus({ data }: { data: SourceData }) {
   const s = data.lastSyncStatus
@@ -68,7 +40,7 @@ function SyncStatus({ data }: { data: SourceData }) {
   if (s === 'running') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--primary-text)' }}>
-        <SpinIcon />
+        <Loader2 size={14} className="animate-spin" />
         Sincronizando dados…
       </div>
     )
@@ -77,9 +49,7 @@ function SyncStatus({ data }: { data: SourceData }) {
   if (s === 'success') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>
-        <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="var(--green)" strokeWidth="2">
-          <path d="M2 6l3 3 5-5" />
-        </svg>
+        <CheckCircle2 size={14} color="var(--green)" />
         Última sincronização {data.lastSyncAt ? timeAgo(data.lastSyncAt) : '—'}
       </div>
     )
@@ -87,9 +57,7 @@ function SyncStatus({ data }: { data: SourceData }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
-      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="var(--red)" strokeWidth="2" style={{ marginTop: 1, flexShrink: 0 }}>
-        <path d="M2 2l8 8M10 2L2 10" />
-      </svg>
+      <XCircle size={14} color="var(--red)" style={{ marginTop: 1, flexShrink: 0 }} />
       <span>Erro na sincronização{data.lastSyncError ? `: ${data.lastSyncError}` : ''}</span>
     </div>
   )
@@ -232,9 +200,7 @@ export default function SdrSourcePage() {
               fontSize: 13, fontWeight: 600, color: '#145c2a',
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
-              <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="var(--green)" strokeWidth="2">
-                <path d="M2 6l3 3 5-5" />
-              </svg>
+              <CheckCircle2 size={14} color="var(--green)" />
               Fonte salva — backfill iniciado em segundo plano
             </div>
           )}
@@ -308,7 +274,7 @@ export default function SdrSourcePage() {
                 border: 'none', cursor: 'pointer', color: 'var(--gray2)', padding: 2,
               }}
             >
-              <EyeIcon open={showConn} />
+              {showConn ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
           <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>
@@ -328,16 +294,12 @@ export default function SdrSourcePage() {
           }}>
             {testResult.valid ? (
               <>
-                <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="var(--green)" strokeWidth="2">
-                  <path d="M2 6l3 3 5-5" />
-                </svg>
+                <CheckCircle2 size={14} color="var(--green)" />
                 Conexão bem-sucedida — banco acessível
               </>
             ) : (
               <>
-                <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="#b02619" strokeWidth="2">
-                  <path d="M2 2l8 8M10 2L2 10" />
-                </svg>
+                <XCircle size={14} color="#b02619" />
                 {testResult.error ?? 'Falha na conexão'}
               </>
             )}
@@ -352,9 +314,7 @@ export default function SdrSourcePage() {
             background: 'rgba(217,48,37,0.06)', border: '1px solid rgba(217,48,37,0.2)',
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="#b02619" strokeWidth="2">
-              <path d="M2 2l8 8M10 2L2 10" />
-            </svg>
+            <XCircle size={14} color="#b02619" />
             {saveError}
           </div>
         )}
@@ -373,7 +333,7 @@ export default function SdrSourcePage() {
               display: 'flex', alignItems: 'center', gap: 7,
             }}
           >
-            {testing && <SpinIcon />}
+            {testing && <Loader2 size={14} className="animate-spin" />}
             {testing ? 'Testando…' : 'Testar conexão'}
           </button>
 
@@ -389,18 +349,12 @@ export default function SdrSourcePage() {
               display: 'flex', alignItems: 'center', gap: 7,
             }}
           >
-            {saving && <SpinIcon />}
+            {saving && <Loader2 size={14} className="animate-spin" />}
             {saving ? 'Salvando…' : 'Salvar e conectar'}
           </button>
         </div>
       </div>
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg) }
-          to   { transform: rotate(360deg) }
-        }
-      `}</style>
     </div>
   )
 }
