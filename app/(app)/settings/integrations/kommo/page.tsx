@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { RefreshCw, TriangleAlert, Lock } from 'lucide-react'
+import { RefreshCw, TriangleAlert, Lock, Clock, Rocket, Trash2, Users, CheckCircle2, XCircle, Check } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 type Step = 1 | 2 | 3
 type IntegrationStatus = 'disconnected' | 'configured' | 'connected' | 'expired'
@@ -141,14 +142,14 @@ function ConfirmModal({ pipelineName, onConfirm, onCancel }: {
 
 // ─── SyncProgressCard ──────────────────────────────────────────────────────────
 
-const STAGE_META: Record<SyncStage, { icon: string; label: string; color: string }> = {
-  idle:     { icon: '⏳', label: 'Aguardando...', color: 'var(--gray2)' },
-  starting: { icon: '🚀', label: 'Iniciando sincronização...', color: 'var(--primary-text)' },
-  cleaning: { icon: '🗑️', label: 'Limpando dados anteriores...', color: '#d97706' },
-  pipeline: { icon: '🔄', label: 'Sincronizando funil e etapas...', color: 'var(--primary-text)' },
-  leads:    { icon: '👥', label: 'Importando leads...', color: 'var(--primary-text)' },
-  done:     { icon: '✅', label: 'Concluído!', color: 'var(--green)' },
-  error:    { icon: '❌', label: 'Erro na sincronização', color: 'var(--red)' },
+const STAGE_META: Record<SyncStage, { Icon: LucideIcon; label: string; color: string; spin?: boolean }> = {
+  idle:     { Icon: Clock,        label: 'Aguardando...',                    color: 'var(--gray2)' },
+  starting: { Icon: Rocket,       label: 'Iniciando sincronização...',       color: 'var(--primary-text)' },
+  cleaning: { Icon: Trash2,       label: 'Limpando dados anteriores...',     color: '#d97706' },
+  pipeline: { Icon: RefreshCw,    label: 'Sincronizando funil e etapas...', color: 'var(--primary-text)', spin: true },
+  leads:    { Icon: Users,        label: 'Importando leads...',              color: 'var(--primary-text)' },
+  done:     { Icon: CheckCircle2, label: 'Concluído!',                       color: 'var(--green)' },
+  error:    { Icon: XCircle,      label: 'Erro na sincronização',            color: 'var(--red)' },
 }
 
 function SyncProgressCard({ progress }: { progress: SyncProgress }) {
@@ -170,7 +171,7 @@ function SyncProgressCard({ progress }: { progress: SyncProgress }) {
     }}>
       {/* Stage row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <span style={{ fontSize: 18, lineHeight: 1 }}>{meta.icon}</span>
+        <meta.Icon size={18} color={meta.color} className={meta.spin ? 'animate-spin' : undefined} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: meta.color }}>{meta.label}</div>
           {progress.message && progress.stage !== 'done' && progress.stage !== 'error' && (
@@ -701,7 +702,7 @@ export default function IntegrationPage() {
               {/* Notice when pipeline not saved or has unsaved change */}
               {(hasUnsavedChange || (!hasSavedPipeline && selectedPipelineId)) && !loadingPipelines && (
                 <div style={{ marginTop: 8, fontSize: 11, color: '#d97706', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  ⚠️ {hasUnsavedChange ? 'Funil alterado — salve antes de sincronizar' : 'Salve a seleção do funil antes de sincronizar'}
+                  <TriangleAlert size={11} color="#d97706" /> {hasUnsavedChange ? 'Funil alterado — salve antes de sincronizar' : 'Salve a seleção do funil antes de sincronizar'}
                 </div>
               )}
 
@@ -748,9 +749,7 @@ export default function IntegrationPage() {
               {/* Read-only notice */}
               {!syncing && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--green)" strokeWidth="1.5">
-                    <rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/>
-                  </svg>
+                  <Lock size={12} color="var(--green)" />
                   Somente leitura — nenhum dado alterado no Kommo
                 </div>
               )}
@@ -772,7 +771,7 @@ export default function IntegrationPage() {
             ].map(([t, d]) => (
               <div key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
                 <div style={{ width: 20, height: 20, borderRadius: 100, background: 'rgba(30,138,62,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--green)" strokeWidth="2"><path d="M2 6l3 3 5-5"/></svg>
+                  <Check size={10} color="var(--green)" />
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{t}</div>
