@@ -27,17 +27,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ valid: false, error: 'Provider não encontrado' })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let cfg: any
+  // O teste de conexão valida apenas a API key (chama o YCloud /balance).
+  // fromPhone NÃO é necessário aqui — só é exigido ao salvar (parseConfig),
+  // então não passamos pelo parseConfig estrito para não bloquear o teste.
   try {
-    cfg = provider.parseConfig({ apiKey, webhookSecret })
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ valid: false, error: msg })
-  }
-
-  try {
-    const result = await provider.testConnection(cfg)
+    const result = await provider.testConnection({ apiKey, webhookSecret, fromPhone: '' })
     return NextResponse.json({ valid: result.ok, error: result.message })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
