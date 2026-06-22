@@ -19,7 +19,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { events, conversations, funnelSnapshots, dataSources } from '@/lib/db/schema'
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 
 const DAY = 86_400_000
@@ -92,7 +92,9 @@ export async function GET(request: Request) {
     ))
     .groupBy(events.sentiment)
 
-  // ── Conversations: recent sessions across both SDR and WhatsApp sources ───
+  // ── Conversations: recent sessions from supabase-n8n (source of truth for n8n threads) ─
+  //    ycloud-whatsapp is excluded — inbound messages from YCloud no longer write conversation
+  //    rows; n8n_chat_histories (synced via supabase-n8n) is the canonical conversation store.
   //    occurredAt is mode:'timestamp' → Drizzle returns Date; .getTime() = epoch ms
   const convRows = await db
     .select({
@@ -103,7 +105,7 @@ export async function GET(request: Request) {
     .from(conversations)
     .where(and(
       eq(conversations.tenantId, tenantId),
-      inArray(conversations.source, ['supabase-n8n', 'ycloud-whatsapp']),
+      eq(conversations.source, 'supabase-n8n'),
       gte(conversations.occurredAt, periodStart),
     ))
     .orderBy(desc(conversations.occurredAt))
