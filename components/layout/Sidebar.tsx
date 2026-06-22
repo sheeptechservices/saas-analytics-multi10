@@ -33,7 +33,7 @@ const navItems: NavGroup[] = [
         icon: <BarChart3 size={16} />,
       },
       {
-        href: '/sdr-ia/dashboard', label: 'SDR IA',
+        href: '/sdr-ia/parametros', label: 'SDR IA',
         icon: <Sparkles size={16} />,
         activePrefix: '/sdr-ia',
       },
@@ -63,7 +63,7 @@ export function Sidebar() {
     if (href === '/settings')      return true
     if (href === '/dashboard')     return modules.some(k => k.startsWith('dashboard.'))
     if (href === '/pipeline')      return modules.includes('pipeline')
-    if (href === '/sdr-ia/dashboard') return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
+    if (href === '/sdr-ia/parametros') return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
     return true
   }
 

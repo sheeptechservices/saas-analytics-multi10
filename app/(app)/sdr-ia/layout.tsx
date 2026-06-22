@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation'
 import { useModules } from '@/components/ModulesProvider'
 
 const TABS = [
-  { href: '/sdr-ia/dashboard',  label: 'Dashboard',  moduleKey: 'sdr.dashboard'               },
   { href: '/sdr-ia/parametros', label: 'Parâmetros', moduleKey: 'sdr.parametros'              },
   { href: '/sdr-ia/leads',      label: 'Leads',      moduleKey: 'sdr.parametros'              },
   { href: '/sdr-ia/contatos',   label: 'Contatos',   moduleKey: 'integration.ycloud-whatsapp' },
