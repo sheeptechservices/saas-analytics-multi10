@@ -22,6 +22,7 @@ interface Settings {
   intervaloDias:    number   // 1–30, intervalo entre toques
   n8nWebhookUrl?:   string  // returned by GET; extracted to separate state on load
   n8nDispatchUrl?:  string  // returned by GET; extracted to separate state on load
+  n8nEnrollUrl?:    string  // returned by GET; extracted to separate state on load
 }
 
 interface ApiData {
@@ -114,6 +115,9 @@ export default function ParametrosPage() {
   const [showDispatchSecret, setShowDispatchSecret] = useState(false)
   const [dispatching,        setDispatching]        = useState(false)
   const [dispatchResult,     setDispatchResult]     = useState<{ ok: boolean; status?: number; error?: string } | undefined>(undefined)
+  const [n8nEnrollUrl,       setN8nEnrollUrl]       = useState('')
+  const [n8nEnrollSecret,    setN8nEnrollSecret]    = useState('')
+  const [showEnrollSecret,   setShowEnrollSecret]   = useState(false)
   const [remetenteError,     setRemetenteError]     = useState<string | null>(null)
   const [loading,            setLoading]            = useState(true)
   const [saving,             setSaving]             = useState(false)
@@ -146,11 +150,12 @@ export default function ParametrosPage() {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ApiData) => {
-        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, ...coreSettings } = d.settings
+        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, ...coreSettings } = d.settings
         setSettings({ ...DEFAULTS, ...coreSettings })
         setStatus(d.status)
         setN8nWebhookUrl(webhookUrl ?? '')
         setN8nDispatchUrl(dispatchUrl ?? '')
+        setN8nEnrollUrl(enrollUrl ?? '')
         // secrets are never returned by GET — fields stay empty intentionally
       })
       .catch(() => {})
@@ -174,6 +179,8 @@ export default function ParametrosPage() {
         ...(n8nWebhookSecret  ? { n8nWebhookSecret }  : {}),
         n8nDispatchUrl,
         ...(n8nDispatchSecret ? { n8nDispatchSecret } : {}),
+        n8nEnrollUrl,
+        ...(n8nEnrollSecret ? { n8nEnrollSecret } : {}),
       }
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
@@ -738,6 +745,59 @@ export default function ParametrosPage() {
               Falha: {dispatchResult.error ?? `HTTP ${dispatchResult.status}`}
             </div>
           )}
+        </div>
+
+        <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
+
+        <FieldLabel>URL de enrollment (n8n)</FieldLabel>
+        <input
+          type="url"
+          value={n8nEnrollUrl}
+          onChange={e => setN8nEnrollUrl(e.target.value)}
+          placeholder="https://seu-n8n.example.com/webhook/..."
+          style={{
+            width: '100%', fontFamily: 'inherit', fontSize: 13,
+            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+        />
+
+        <FieldLabel>Segredo de enrollment (opcional)</FieldLabel>
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <input
+            type={showEnrollSecret ? 'text' : 'password'}
+            value={n8nEnrollSecret}
+            onChange={e => setN8nEnrollSecret(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10,
+              padding: '10px 42px 10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+          <button
+            type="button"
+            onClick={() => setShowEnrollSecret(s => !s)}
+            title={showEnrollSecret ? 'Ocultar' : 'Mostrar'}
+            style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+            }}
+          >
+            {showEnrollSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
+          Webhook acionado pela página Leads ao adicionar leads à campanha. Deixe em branco para manter o segredo já salvo.
         </div>
       </SectionCard>
 

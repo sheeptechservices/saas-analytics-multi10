@@ -30,6 +30,7 @@ export const ALL_MODULE_KEYS: string[] = MODULES.map(m => m.key)
 const PATH_MODULE_OVERRIDES: Record<string, string> = {
   '/sdr-ia/contatos':  'integration.ycloud-whatsapp',
   '/sdr-ia/conversas': 'integration.ycloud-whatsapp',
+  '/sdr-ia/leads':     'sdr.parametros',
 }
 
 export function moduleKeyForPath(pathname: string): string | null {
