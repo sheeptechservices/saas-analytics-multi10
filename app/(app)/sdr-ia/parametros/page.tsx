@@ -121,6 +121,27 @@ export default function ParametrosPage() {
   const [saveError,          setSaveError]          = useState<string | null>(null)
   const [n8nDelivery,        setN8nDelivery]        = useState<N8nDelivery | undefined>(undefined)
 
+  // ── Teste de disparo ─────────────────────────────────────────────────────────
+  const [testTemplates,    setTestTemplates]    = useState<Array<{ name: string; language: string }>>([])
+  const [testTemplateName, setTestTemplateName] = useState('')
+  const [testLangCode,     setTestLangCode]     = useState('pt_BR')
+  const [testVarsCsv,      setTestVarsCsv]      = useState('')
+  const [testNumbers,      setTestNumbers]      = useState('')
+  const [testSending,      setTestSending]      = useState(false)
+  const [testResults,      setTestResults]      = useState<Array<{ to: string; ok: boolean; id?: string; status?: string; error?: string }> | null>(null)
+  const [testError,        setTestError]        = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/ycloud/templates')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { templates?: Array<{ name: string; language: string; status: string }> } | null) => {
+        if (d?.templates) {
+          setTestTemplates(d.templates.filter(t => t.status === 'approved'))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
@@ -182,6 +203,34 @@ export default function ParametrosPage() {
       setDispatchResult({ ok: false, error: (e as Error).message })
     } finally {
       setDispatching(false)
+    }
+  }
+
+  async function testSend() {
+    const numbers = testNumbers.split('\n').map(s => s.trim()).filter(Boolean)
+    const variaveis = testVarsCsv.split(',').map(s => s.trim()).filter(Boolean)
+    if (!testTemplateName) { setTestError('Escolha ou digite um template'); return }
+    if (numbers.length === 0) { setTestError('Informe pelo menos 1 número'); return }
+    if (numbers.length > 10) { setTestError('Máximo de 10 números por teste'); return }
+    setTestSending(true)
+    setTestResults(null)
+    setTestError(null)
+    try {
+      const res = await fetch('/api/ycloud/test-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numbers, templateName: testTemplateName, languageCode: testLangCode || 'pt_BR', variaveis }),
+      })
+      const data = await res.json() as { results?: Array<{ to: string; ok: boolean; id?: string; status?: string; error?: string }>; error?: string }
+      if (!res.ok || !data.results) {
+        setTestError(data.error ?? 'Erro ao enviar')
+      } else {
+        setTestResults(data.results)
+      }
+    } catch (e) {
+      setTestError((e as Error).message)
+    } finally {
+      setTestSending(false)
     }
   }
 
@@ -690,6 +739,153 @@ export default function ParametrosPage() {
             </div>
           )}
         </div>
+      </SectionCard>
+
+      {/* ── Teste de disparo ────────────────────────────────────── */}
+      <SectionCard title="Teste de disparo (números selecionados)">
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.22)',
+          borderRadius: 10, padding: '10px 14px', marginBottom: 20,
+          fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
+        }}>
+          ⚠ Envia mensagem <strong style={{ fontWeight: 800 }}>real</strong> (com custo) diretamente via YCloud, somente para os números informados — não usa a fila de campanha.
+        </div>
+
+        <FieldLabel>Template</FieldLabel>
+        {testTemplates.length > 0 && (
+          <select
+            value={testTemplateName}
+            onChange={e => setTestTemplateName(e.target.value)}
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 8,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">— escolha um template aprovado —</option>
+            {testTemplates.map(t => (
+              <option key={`${t.name}:${t.language}`} value={t.name}>{t.name} ({t.language})</option>
+            ))}
+          </select>
+        )}
+        <input
+          type="text"
+          value={testTemplateName}
+          onChange={e => setTestTemplateName(e.target.value)}
+          placeholder="nome_do_template (ou digite manualmente)"
+          style={{
+            width: '100%', fontFamily: 'inherit', fontSize: 13,
+            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+            boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+        />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16, marginBottom: 20 }}>
+          <div>
+            <FieldLabel>Idioma</FieldLabel>
+            <input
+              type="text"
+              value={testLangCode}
+              onChange={e => setTestLangCode(e.target.value)}
+              placeholder="pt_BR"
+              style={{
+                width: '100%', fontFamily: 'inherit', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', transition: 'border-color .15s',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+          </div>
+          <div>
+            <FieldLabel>Variáveis (separadas por vírgula)</FieldLabel>
+            <input
+              type="text"
+              value={testVarsCsv}
+              onChange={e => setTestVarsCsv(e.target.value)}
+              placeholder="João Silva, Empresa Ltda"
+              style={{
+                width: '100%', fontFamily: 'inherit', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', transition: 'border-color .15s',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 5 }}>
+              Preencha conforme as variáveis do template; a maioria usa 1 (nome).
+            </div>
+          </div>
+        </div>
+
+        <FieldLabel>Números — 1 por linha (E.164)</FieldLabel>
+        <textarea
+          value={testNumbers}
+          onChange={e => setTestNumbers(e.target.value)}
+          rows={4}
+          placeholder={'+5554999990000\n+5551988880000'}
+          style={{
+            width: '100%', fontFamily: 'monospace', fontSize: 13,
+            border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+            background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+            boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6,
+            transition: 'border-color .15s', marginBottom: 4,
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+        />
+        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginBottom: 18 }}>
+          Máximo de 10 números por teste.
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' as const }}>
+          <button
+            onClick={testSend}
+            disabled={testSending}
+            style={{
+              padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+              fontSize: 13, fontWeight: 800, cursor: testSending ? 'not-allowed' : 'pointer',
+              background: testSending ? 'var(--gray3)' : 'var(--primary)',
+              color: testSending ? 'var(--gray2)' : 'var(--primary-contrast)',
+              border: 'none', transition: 'all .18s', opacity: testSending ? 0.7 : 1,
+            }}
+          >
+            {testSending ? 'Enviando...' : 'Enviar teste'}
+          </button>
+          {testError && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
+          )}
+        </div>
+
+        {testResults && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {testResults.map((r, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                borderRadius: 10, padding: '8px 14px',
+              }}>
+                <span style={{ fontWeight: 800, color: r.ok ? 'var(--green)' : 'var(--red)', flexShrink: 0, fontSize: 14 }}>
+                  {r.ok ? '✓' : '✗'}
+                </span>
+                <code style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--black)', flexShrink: 0 }}>{r.to}</code>
+                {r.ok
+                  ? <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>id: {r.id}</span>
+                  : <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>{r.error}</span>
+                }
+              </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       {/* ── Conexão (link, não duplica a fonte) ─────────────────── */}
