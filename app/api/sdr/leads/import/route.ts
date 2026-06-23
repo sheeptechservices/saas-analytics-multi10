@@ -263,13 +263,22 @@ export async function POST(request: Request) {
   }
 
   // Partition candidatos into novos (new) vs supabase-duplicates
+  type UpdateEntry = { id: string; name: string; company: string; source: string; status: string }
   const novos: LeadEntry[] = []
+  const updates: UpdateEntry[] = []
   const existingLeadIdSet = new Set<string>()  // ids dos leads JÁ cadastrados que casaram na dedup
+  const updatedIdSet = new Set<string>()        // dedup ids within updates
   for (const c of candidatos) {
     if (existingKeys.has(c.key)) {
       duplicados.push({ linha: c.linha, telefone: c.phone })
       const existingId = existingIdByKey.get(c.key)
-      if (existingId) existingLeadIdSet.add(existingId)
+      if (existingId) {
+        existingLeadIdSet.add(existingId)
+        if (!updatedIdSet.has(existingId)) {
+          updatedIdSet.add(existingId)
+          updates.push({ id: existingId, name: c.name, company: c.company, source: c.source, status: c.status })
+        }
+      }
     } else {
       novos.push({ name: c.name, phone: c.phone, company: c.company, source: c.source, status: c.status })
     }
@@ -279,14 +288,14 @@ export async function POST(request: Request) {
   let n8nStatus = 0
   let leadIds:   string[] = []
 
-  if (novos.length > 0) {
+  if (novos.length > 0 || updates.length > 0) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (importSecret) headers['Authorization'] = `Bearer ${importSecret}`
     try {
       const res = await fetch(importUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ tenantId, leads: novos }),
+        body: JSON.stringify({ tenantId, leads: novos, updates }),
         signal: AbortSignal.timeout(15_000),
       })
       n8nStatus = res.status
@@ -312,6 +321,7 @@ export async function POST(request: Request) {
     ok: true,
     totalLinhas: rawRows.length,
     importados:  novos.length,
+    atualizados: updates.length,
     ignorados: {
       total:   ignorados.length,
       amostra: ignorados.slice(0, AMOSTRA_MAX),
