@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
+import { useCountUp } from '@/components/widgets/KpiCard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,7 @@ export default function LeadsPage() {
   const [importing,    setImporting]    = useState(false)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [fetchSeq,     setFetchSeq]     = useState(0)
+  const [showBar,      setShowBar]      = useState(false)
 
   const [showCampaignModal,    setShowCampaignModal]    = useState(false)
   const [campaignEnrolling,    setCampaignEnrolling]    = useState(false)
@@ -361,6 +363,13 @@ export default function LeadsPage() {
   const hasPrev    = page > 1
   const hasNext    = page < totalPages
 
+  // Fade the progress bar in on import start, fade out after import ends
+  useEffect(() => {
+    if (importing) { setShowBar(true); return }
+    const t = setTimeout(() => setShowBar(false), 400)
+    return () => clearTimeout(t)
+  }, [importing])
+
   // n8nFalhou: leads were sent but the webhook returned a non-2xx status.
   // importados = 0 (nothing sent) is NOT a failure — n8nStatus stays 0 in that case.
   const n8nFalhou = (importResult?.importados ?? 0) > 0
@@ -374,6 +383,10 @@ export default function LeadsPage() {
     ...(importResult?.leadIds ?? []),
     ...(importResult?.existingLeadIds ?? []),
   ]).size
+
+  const importadosCount = useCountUp(importResult?.importados ?? 0, 800)
+  const ignoradosCount  = useCountUp(importResult?.ignorados?.total ?? 0, 600)
+  const duplicadosCount = useCountUp(importResult?.duplicados?.total ?? 0, 600)
 
   return (
     <div>
@@ -446,11 +459,27 @@ export default function LeadsPage() {
         </div>
       </div>
 
+      {/* ── Import progress bar ─────────────────────────────────────── */}
+      {showBar && (
+        <div
+          className="shimmer-bar"
+          style={{
+            height: 3, borderRadius: 2,
+            background: 'var(--primary)',
+            marginBottom: 12,
+            opacity: importing ? 1 : 0,
+            transition: 'opacity 0.4s ease',
+          }}
+        />
+      )}
+
       {/* ── Import result panel ─────────────────────────────────────── */}
       {importResult && (
-        <div style={{
-          marginBottom: 16,
-          background: !importResult.ok
+        <div
+          className="animate-slide-up"
+          style={{
+            marginBottom: 16,
+            background: !importResult.ok
             ? 'rgba(239,68,68,0.06)'
             : n8nFalhou
               ? 'rgba(245,158,11,0.08)'
@@ -470,14 +499,14 @@ export default function LeadsPage() {
                 color: n8nFalhou ? '#b45309' : 'var(--green)',
               }}>
                 {n8nFalhou
-                  ? `⚠ ${importResult.importados} lead${importResult.importados !== 1 ? 's' : ''} enviados, mas o n8n retornou HTTP ${importResult.n8nStatus} — podem não ter sido importados. Verifique o fluxo de importação no n8n.`
-                  : `✓ ${importResult.importados} lead${importResult.importados !== 1 ? 's' : ''} enviados ao n8n para importação`
+                  ? <>⚠ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{importResult.importados !== 1 ? 's' : ''} enviados, mas o n8n retornou HTTP {importResult.n8nStatus} — podem não ter sido importados. Verifique o fluxo de importação no n8n.</>
+                  : <>✓ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{importResult.importados !== 1 ? 's' : ''} enviados ao n8n para importação</>
                 }
               </div>
               <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginBottom: 6 }}>
-                {importResult.importados} importados
-                {' · '}{importResult.ignorados?.total ?? 0} ignorados
-                {' · '}{importResult.duplicados?.total ?? 0} duplicados
+                <span className="animate-count-pop tabular-nums">{importadosCount}</span> importados
+                {' · '}<span className="animate-count-pop tabular-nums">{ignoradosCount}</span> ignorados
+                {' · '}<span className="animate-count-pop tabular-nums">{duplicadosCount}</span> duplicados
                 {' — '}{importResult.totalLinhas} linha{importResult.totalLinhas !== 1 ? 's' : ''} no arquivo
               </div>
 
