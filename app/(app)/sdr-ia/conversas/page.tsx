@@ -311,6 +311,7 @@ export default function ConversasPage() {
   const prevMsgCountRef         = useRef(0)
   const scrollToBottomOnLoadRef = useRef(false)
   const lidasRef                = useRef<Record<string, number>>({})
+  const didMountSyncRef         = useRef(false)
 
   // ── Fetch session list ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -382,6 +383,13 @@ export default function ConversasPage() {
     lidasRef.current = stored
     setLidas(stored)
   }, [])
+
+  // Auto-sync once on mount so conversations are fresh when the page opens
+  useEffect(() => {
+    if (didMountSyncRef.current) return
+    didMountSyncRef.current = true
+    void syncNow()
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounce search input — avoids filtering on every keystroke
   useEffect(() => {
