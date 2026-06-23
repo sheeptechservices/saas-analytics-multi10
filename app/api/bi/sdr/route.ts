@@ -113,7 +113,7 @@ export async function GET(request: Request) {
 
   // ── Data source for lastSyncAt ────────────────────────────────────────────
   const [ds] = await db
-    .select({ lastSyncAt: dataSources.lastSyncAt })
+    .select({ lastSyncAt: dataSources.lastSyncAt, status: dataSources.status })
     .from(dataSources)
     .where(and(
       eq(dataSources.tenantId, tenantId),
@@ -302,6 +302,8 @@ export async function GET(request: Request) {
     ? ds.lastSyncAt.getTime()
     : typeof ds?.lastSyncAt === 'number' ? ds.lastSyncAt : null
 
+  const sourceConfigured = ds?.status === 'connected'
+
   return NextResponse.json({
     period,
     kpis: { contatos: contactedCount, taxaResposta, reunioes: meetingsCount, conversao },
@@ -313,6 +315,7 @@ export async function GET(request: Request) {
     })),
     sentiment,
     recent: recentWithName,
+    sourceConfigured,
     whatsapp: {
       totals: waTotals,
       rates:  waRates,
