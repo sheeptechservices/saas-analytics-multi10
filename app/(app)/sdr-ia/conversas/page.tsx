@@ -224,9 +224,16 @@ export default function ConversasPage() {
   const [sending,     setSending]     = useState(false)
   const [sendError,   setSendError]   = useState<string | null>(null)
 
-  const bottomRef  = useRef<HTMLDivElement>(null)
+  const bottomRef     = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   // Stale-fetch guard: ensures a slow earlier fetch can't overwrite a later thread
-  const fetchIdRef = useRef(0)
+  const fetchIdRef    = useRef(0)
+  // Refs mirroring state so the polling interval (empty deps) always sees fresh values
+  const activeIdRef   = useRef<string | null>(null)
+  const sessPageRef   = useRef(1)
+  // Auto-scroll helpers: count tracks message growth; flag requests a guaranteed scroll
+  const prevMsgCountRef         = useRef(0)
+  const scrollToBottomOnLoadRef = useRef(false)
 
   // ── Fetch session list ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -242,9 +249,28 @@ export default function ConversasPage() {
       .finally(() => setSessLoading(false))
   }, [sessPage])
 
-  // ── Auto-scroll to bottom whenever thread (or its messages) changes ─────────
+  // ── Smart auto-scroll ───────────────────────────────────────────────────────
+  // When a conversation is opened/switched, loadThread() sets scrollToBottomOnLoadRef
+  // so we scroll unconditionally on the first render. For subsequent updates (poll,
+  // optimistic sends) we only scroll if new messages arrived AND the user is near bottom.
   useEffect(() => {
-    if (thread) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!thread) return
+    const newCount = thread.messages.length
+
+    if (scrollToBottomOnLoadRef.current) {
+      scrollToBottomOnLoadRef.current = false
+      prevMsgCountRef.current = newCount
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
+
+    const prevCount = prevMsgCountRef.current
+    prevMsgCountRef.current = newCount
+    if (newCount > prevCount) {
+      const el = scrollAreaRef.current
+      const nearBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120
+      if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [thread])
 
   // ── Lazy-load templates when window is closed ───────────────────────────────
@@ -261,10 +287,53 @@ export default function ConversasPage() {
     }
   }, [thread, tplLoaded, tplLoading])
 
+  // Keep refs in sync with state so the polling interval (empty deps) reads fresh values
+  useEffect(() => { activeIdRef.current = activeId }, [activeId])
+  useEffect(() => { sessPageRef.current = sessPage }, [sessPage])
+
+  // ── Background polling every 15 s ───────────────────────────────────────────
+  // Silently refreshes the session list and the open thread without touching loading state.
+  // Pauses while the tab is hidden; catches up immediately on return.
+  useEffect(() => {
+    function pollOnce() {
+      if (document.hidden) return
+
+      // Refresh session list — no setSessLoading, so no spinner
+      fetch(`/api/ycloud/conversations?page=${sessPageRef.current}&limit=${SESSION_LIMIT}`)
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then((d: { items: SessionItem[]; total: number }) => {
+          setSessions(d.items)
+          setSessTotal(d.total)
+        })
+        .catch(() => {})
+
+      // Refresh active thread — guard against stale response with captured id check
+      const currentId = activeIdRef.current
+      if (currentId) {
+        fetch(`/api/ycloud/conversations/${encodeURIComponent(currentId)}`)
+          .then(r => r.ok ? r.json() : Promise.reject(r.status))
+          .then((d: Thread) => { if (activeIdRef.current === currentId) setThread(d) })
+          .catch(() => {})
+      }
+    }
+
+    const timerId = setInterval(pollOnce, 15_000)
+
+    function onVisibilityChange() { if (!document.hidden) pollOnce() }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      clearInterval(timerId)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [])  // intentionally empty — reads live state through refs
+
   // ── Open a session ──────────────────────────────────────────────────────────
   function loadThread(sessionId: string) {
     const fetchId = ++fetchIdRef.current
     setActiveId(sessionId)
+    activeIdRef.current         = sessionId  // sync immediately (no state-update lag for poll guard)
+    scrollToBottomOnLoadRef.current = true   // guarantee scroll when thread arrives
     setThread(null)
     setThreadLoading(true)
     setSendError(null)
@@ -505,7 +574,7 @@ export default function ConversasPage() {
           </div>
 
           {/* messages area */}
-          <div style={{
+          <div ref={scrollAreaRef} style={{
             flex: 1, overflowY: 'auto', padding: '14px 18px',
             display: 'flex', flexDirection: 'column', gap: 8,
           }}>
