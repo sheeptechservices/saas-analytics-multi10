@@ -178,8 +178,9 @@ export function DataTable({
               key={i}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               style={{
-                background: 'var(--white)', border: '1px solid var(--gray3)',
+                background: 'var(--white)', border: '1px solid #ECECE9',
                 borderRadius: 12, padding: 14, marginBottom: 10,
+                boxShadow: 'var(--shadow-md)',
                 cursor: onRowClick ? 'pointer' : 'default',
               }}
             >

@@ -78,7 +78,7 @@ export function KpiCard({
       onMouseLeave={() => setHov(false)}
       style={{
         background: 'var(--white)',
-        border: '1px solid var(--gray3)',
+        border: '1px solid #ECECE9',
         borderLeft: `4px solid ${accent}`,
         borderRadius: 12,
         padding: '18px 20px',
@@ -87,7 +87,7 @@ export function KpiCard({
         transform: hov ? 'translateY(-4px) scale(1.01)' : 'translateY(0) scale(1)',
         boxShadow: hov
           ? `0 10px 28px rgba(0,0,0,0.10), inset 0 0 0 1px ${accent}30`
-          : 'var(--shadow)',
+          : 'var(--shadow-md)',
         display: 'flex', flexDirection: 'column',
       }}
     >

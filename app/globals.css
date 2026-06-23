@@ -19,7 +19,10 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-pill: 100px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow: 0 1px 2px rgba(17,24,39,.05), 0 4px 12px rgba(17,24,39,.05);
+  --shadow-sm: 0 1px 2px rgba(17,24,39,.05);
+  --shadow-md: 0 1px 2px rgba(17,24,39,.05), 0 8px 20px rgba(17,24,39,.07);
+  --shadow-lg: 0 4px 12px rgba(17,24,39,.06), 0 16px 40px rgba(17,24,39,.10);
   --transition: .2s ease;
 }
 
