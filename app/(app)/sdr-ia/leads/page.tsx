@@ -27,6 +27,7 @@ interface ImportResult {
   importados?:  number
   ignorados?:   { total: number; amostra: Array<{ linha: number; motivo: string }> }
   duplicados?:  { total: number; amostra: Array<{ linha: number; telefone: string }> }
+  suspeitos?:   { total: number; amostra: Array<{ linha: number; telefone: string }> }
   n8nStatus?:   number
   leadIds?:        string[]
   existingLeadIds?: string[]
@@ -536,6 +537,37 @@ export default function LeadsPage() {
                     )}
                   </div>
                 </details>
+              )}
+
+              {(importResult.suspeitos?.total ?? 0) > 0 && (
+                <div style={{
+                  marginTop: 10, padding: '10px 14px', borderRadius: 10,
+                  background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                    ⚠ {importResult.suspeitos!.total} número{importResult.suspeitos!.total !== 1 ? 's' : ''} podem estar sem o 9 (possível celular incompleto) — confira na planilha. O WhatsApp pode recusar (erro de não-entrega).
+                  </div>
+                  <details>
+                    <summary style={{
+                      fontSize: 12, color: '#92400e', cursor: 'pointer',
+                      fontWeight: 600, userSelect: 'none' as const,
+                    }}>
+                      Suspeitos ({importResult.suspeitos!.total})
+                    </summary>
+                    <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {importResult.suspeitos!.amostra.map((it, i) => (
+                        <div key={i} style={{ fontSize: 11, color: '#78350f', fontFamily: 'monospace' }}>
+                          Linha {it.linha}: {it.telefone}
+                        </div>
+                      ))}
+                      {importResult.suspeitos!.total > importResult.suspeitos!.amostra.length && (
+                        <div style={{ fontSize: 11, color: '#92400e', fontStyle: 'italic' }}>
+                          … e mais {importResult.suspeitos!.total - importResult.suspeitos!.amostra.length}
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                </div>
               )}
 
               <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 10, lineHeight: 1.5 }}>
