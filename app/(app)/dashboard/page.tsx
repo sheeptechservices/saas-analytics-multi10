@@ -215,7 +215,7 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '72px 32px', gap: 16, textAlign: 'center',
+      minHeight: '60vh', padding: '0 32px', gap: 16, textAlign: 'center',
     }}>
       <BarChart3 size={40} color="var(--gray2)" opacity={0.45} />
       {configured ? (
