@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { CSSProperties } from 'react'
 import { timeAgo } from '@/lib/format'
 
@@ -54,6 +54,28 @@ function buildComponents(values: string[]): object[] {
   return [{ type: 'body', parameters: values.map(text => ({ type: 'text', text })) }]
 }
 
+// Returns YYYY-MM-DD in America/Sao_Paulo — used as a stable day key for grouping
+function dayKey(ts: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(ts))
+}
+
+// Returns a human-readable pt-BR label for a YYYY-MM-DD key (in Sao Paulo local day)
+function dayLabel(key: string): string {
+  const toKey = (d: Date) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d)
+  const nowKey = toKey(new Date())
+  if (key === nowKey) return 'Hoje'
+  // Build yesterday's key from noon BRT today to avoid DST edge cases
+  const [ny, nm, nd] = nowKey.split('-').map(Number)
+  const noonTodayUTC = new Date(Date.UTC(ny, nm - 1, nd, 15, 0, 0)) // 15:00 UTC = 12:00 BRT
+  const yestKey = toKey(new Date(noonTodayUTC.getTime() - 24 * 3_600_000))
+  if (key === yestKey) return 'Ontem'
+  const [y, m, d] = key.split('-').map(Number)
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo',
+  }).format(new Date(Date.UTC(y, m - 1, d, 15, 0, 0)))
+}
+
 function pagerStyle(enabled: boolean): CSSProperties {
   return {
     fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
@@ -94,6 +116,23 @@ function Bubble({ msg }: { msg: Message }) {
           {timeAgo(msg.occurredAt)}
         </div>
       </div>
+    </div>
+  )
+}
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      margin: '6px 0',
+    }}>
+      <span style={{
+        fontSize: 11, fontWeight: 600, color: 'var(--gray2)',
+        background: 'rgba(0,0,0,0.05)', padding: '3px 12px', borderRadius: 99,
+        letterSpacing: '0.02em', userSelect: 'none',
+      }}>
+        {label}
+      </span>
     </div>
   )
 }
@@ -595,7 +634,19 @@ export default function ConversasPage() {
                 Nenhuma mensagem nesta conversa
               </p>
             )}
-            {thread?.messages.map(m => <Bubble key={m.id} msg={m} />)}
+            {thread && (() => {
+              const nodes: ReactNode[] = []
+              let prevKey: string | null = null
+              for (const m of thread.messages) {
+                const key = m.occurredAt != null ? dayKey(m.occurredAt) : null
+                if (key && key !== prevKey) {
+                  nodes.push(<DateSeparator key={`sep:${key}`} label={dayLabel(key)} />)
+                  prevKey = key
+                }
+                nodes.push(<Bubble key={m.id} msg={m} />)
+              }
+              return nodes
+            })()}
             <div ref={bottomRef} />
           </div>
 
