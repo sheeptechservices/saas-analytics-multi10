@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ChevronDown, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { SkeletonForm, SkeletonBlock } from '@/components/Skeleton'
+import { Button } from '@/components/ui/Button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -838,21 +839,13 @@ export default function ParametrosPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const }}>
-            <button
+            <Button
+              variant="primary"
               onClick={dispatch}
               disabled={dispatching || !n8nDispatchUrl}
-              style={{
-                padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                fontSize: 13, fontWeight: 800,
-                cursor: (dispatching || !n8nDispatchUrl) ? 'not-allowed' : 'pointer',
-                background: (dispatching || !n8nDispatchUrl) ? 'var(--gray3)' : 'var(--primary)',
-                color: (dispatching || !n8nDispatchUrl) ? 'var(--gray2)' : 'var(--primary-contrast)',
-                border: 'none', transition: 'all .18s',
-                opacity: (dispatching || !n8nDispatchUrl) ? 0.7 : 1,
-              }}
             >
               {dispatching ? 'Disparando...' : 'Disparar agora'}
-            </button>
+            </Button>
 
             {dispatchResult !== undefined && dispatchResult.ok && (
               <div style={{
@@ -1154,19 +1147,13 @@ export default function ParametrosPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' as const }}>
-            <button
+            <Button
+              variant="primary"
               onClick={testSend}
               disabled={testSending}
-              style={{
-                padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                fontSize: 13, fontWeight: 800, cursor: testSending ? 'not-allowed' : 'pointer',
-                background: testSending ? 'var(--gray3)' : 'var(--primary)',
-                color: testSending ? 'var(--gray2)' : 'var(--primary-contrast)',
-                border: 'none', transition: 'all .18s', opacity: testSending ? 0.7 : 1,
-              }}
             >
               {testSending ? 'Enviando...' : 'Enviar teste'}
-            </button>
+            </Button>
             {testError && (
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
             )}
@@ -1222,19 +1209,14 @@ export default function ParametrosPage() {
       {/* ── Salvar — sempre visível ──────────────────────────────── */}
       <div style={{ marginTop: 16, paddingBottom: 48 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-          <button
+          <Button
+            variant="primary"
+            size="lg"
             onClick={save}
             disabled={saving}
-            style={{
-              padding: '12px 28px', borderRadius: 99, fontFamily: 'inherit',
-              fontSize: 14, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer',
-              background: saving ? 'var(--gray3)' : 'var(--primary)',
-              color: saving ? 'var(--gray2)' : 'var(--primary-contrast)',
-              border: 'none', transition: 'all .18s', opacity: saving ? 0.7 : 1,
-            }}
           >
             {saving ? 'Salvando...' : 'Salvar alterações'}
-          </button>
+          </Button>
 
           {saved && (
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', animation: 'ai-step 0.2s ease both' }}>

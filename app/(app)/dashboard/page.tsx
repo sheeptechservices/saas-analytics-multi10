@@ -14,6 +14,7 @@ import { BarChart } from '@/components/widgets/BarChart'
 import type { BarChartItem } from '@/components/widgets/BarChart'
 import { useModules } from '@/components/ModulesProvider'
 import { SkeletonKpiCards, SkeletonBlock } from '@/components/Skeleton'
+import { Button } from '@/components/ui/Button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -227,22 +228,9 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
           {syncError && (
             <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600 }}>{syncError}</div>
           )}
-          <button
-            onClick={() => { void handleSync() }}
-            disabled={syncing}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 13, fontWeight: 700,
-              color: syncing ? 'var(--gray2)' : 'var(--primary-text)',
-              background: syncing ? 'var(--gray3)' : 'var(--primary-dim)',
-              border: `1px solid ${syncing ? 'var(--gray3)' : 'var(--primary-mid)'}`,
-              borderRadius: 99, padding: '8px 18px',
-              cursor: syncing ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit', transition: 'all .15s',
-            }}
-          >
+          <Button variant="primary" disabled={syncing} onClick={() => { void handleSync() }}>
             {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
-          </button>
+          </Button>
         </>
       ) : (
         <>
@@ -252,10 +240,15 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
           </div>
           <Link href="/settings/integrations/sdr-source" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
-            background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
-            borderRadius: 99, padding: '8px 18px', textDecoration: 'none',
-            transition: 'background .15s',
+            fontSize: 13, fontWeight: 600,
+            color: 'var(--ink-2)',
+            background: 'var(--white)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 16px',
+            textDecoration: 'none',
+            transition: 'background 0.2s ease',
+            fontFamily: 'inherit',
           }}>
             <Settings size={14} /> Configurar integração
           </Link>

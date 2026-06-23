@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/Skeleton'
+import { Button } from '@/components/ui/Button'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -410,21 +411,14 @@ export default function LeadsPage() {
           </a>
 
           {/* Import Excel */}
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            style={{
-              padding: '8px 16px', borderRadius: 99, fontFamily: 'inherit',
-              fontSize: 12, fontWeight: 700, cursor: importing ? 'not-allowed' : 'pointer',
-              border: `1.5px solid ${importing ? 'var(--gray3)' : 'var(--primary)'}`,
-              background: 'transparent',
-              color: importing ? 'var(--gray2)' : 'var(--primary-text)',
-              transition: 'all .15s', whiteSpace: 'nowrap' as const,
-              opacity: importing ? 0.65 : 1,
-            }}
           >
             {importing ? 'Importando...' : 'Importar Excel'}
-          </button>
+          </Button>
 
           {/* Hidden file input */}
           <input
@@ -599,21 +593,13 @@ export default function LeadsPage() {
         display: 'flex', alignItems: 'center', gap: 14,
         marginBottom: 16, flexWrap: 'wrap' as const,
       }}>
-        <button
+        <Button
+          variant="primary"
           onClick={enroll}
           disabled={enrolling || selected.size === 0}
-          style={{
-            padding: '9px 22px', borderRadius: 99, fontFamily: 'inherit',
-            fontSize: 13, fontWeight: 800,
-            cursor: (enrolling || selected.size === 0) ? 'not-allowed' : 'pointer',
-            background: (enrolling || selected.size === 0) ? 'var(--gray3)' : 'var(--primary)',
-            color: (enrolling || selected.size === 0) ? 'var(--gray2)' : 'var(--primary-contrast)',
-            border: 'none', transition: 'all .18s',
-            opacity: (enrolling || selected.size === 0) ? 0.65 : 1,
-          }}
         >
           {enrolling ? 'Adicionando...' : `Adicionar à campanha${selected.size > 0 ? ` (${selected.size})` : ''}`}
-        </button>
+        </Button>
 
         {enrollResult?.ok && (
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>
@@ -854,50 +840,31 @@ export default function LeadsPage() {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={closeCampaignModal}
                     disabled={campaignEnrolling}
-                    style={{
-                      padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
-                      fontSize: 13, fontWeight: 700,
-                      border: '1px solid var(--gray3)', background: 'transparent',
-                      color: 'var(--gray)', cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
-                      opacity: campaignEnrolling ? 0.5 : 1,
-                    }}
                   >
                     {campaignEnrollResult ? 'Fechar' : 'Só manter na lista'}
-                  </button>
+                  </Button>
 
                   {!campaignEnrollResult && (
                     <>
-                      <button
+                      <Button
+                        variant="secondary"
                         onClick={openBlast}
                         disabled={campaignEnrolling}
-                        style={{
-                          padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
-                          fontSize: 13, fontWeight: 700,
-                          border: '1px solid var(--primary)', background: 'transparent',
-                          color: 'var(--primary)', cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
-                          opacity: campaignEnrolling ? 0.6 : 1,
-                        }}
                       >
                         Disparar mensagens agora
-                      </button>
+                      </Button>
                       {novosCount > 0 && (
-                        <button
+                        <Button
+                          variant="primary"
                           onClick={enrollImported}
                           disabled={campaignEnrolling}
-                          style={{
-                            padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                            fontSize: 13, fontWeight: 800, border: 'none',
-                            background: campaignEnrolling ? 'var(--gray3)' : 'var(--primary)',
-                            color: campaignEnrolling ? 'var(--gray2)' : 'var(--white)',
-                            cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
-                            opacity: campaignEnrolling ? 0.7 : 1,
-                          }}
                         >
                           Adicionar à campanha
-                        </button>
+                        </Button>
                       )}
                     </>
                   )}
@@ -1080,70 +1047,44 @@ export default function LeadsPage() {
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   {blastPendingConfirm && !blastResult ? (
                     <>
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={() => setBlastPendingConfirm(false)}
                         disabled={blasting}
-                        style={{
-                          padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
-                          fontSize: 13, fontWeight: 700,
-                          border: '1px solid var(--gray3)', background: 'transparent',
-                          color: 'var(--gray)', cursor: blasting ? 'not-allowed' : 'pointer',
-                          opacity: blasting ? 0.5 : 1,
-                        }}
                       >
                         Cancelar
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="primary"
                         onClick={runBlast}
                         disabled={blasting}
-                        style={{
-                          padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                          fontSize: 13, fontWeight: 800, border: 'none',
-                          background: blasting ? 'var(--gray3)' : 'var(--primary)',
-                          color: blasting ? 'var(--gray2)' : 'var(--white)',
-                          cursor: blasting ? 'not-allowed' : 'pointer',
-                          opacity: blasting ? 0.7 : 1,
-                        }}
                       >
                         Confirmar disparo
-                      </button>
+                      </Button>
                     </>
                   ) : (
                     <>
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={() => {
                           if (blastResult) { closeCampaignModal() }
                           else { setBlastMode(false); setBlastPendingConfirm(false) }
                         }}
                         disabled={blasting}
-                        style={{
-                          padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
-                          fontSize: 13, fontWeight: 700,
-                          border: '1px solid var(--gray3)', background: 'transparent',
-                          color: 'var(--gray)', cursor: blasting ? 'not-allowed' : 'pointer',
-                          opacity: blasting ? 0.5 : 1,
-                        }}
                       >
                         {blastResult ? 'Fechar' : 'Voltar'}
-                      </button>
+                      </Button>
                       {!blastResult && (
-                        <button
+                        <Button
+                          variant="primary"
                           onClick={() => {
                             if ((importResult?.semNome ?? 0) > 0) { setBlastPendingConfirm(true) }
                             else { void runBlast() }
                           }}
                           disabled={blasting || !selectedTemplate}
-                          style={{
-                            padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                            fontSize: 13, fontWeight: 800, border: 'none',
-                            background: (blasting || !selectedTemplate) ? 'var(--gray3)' : 'var(--primary)',
-                            color: (blasting || !selectedTemplate) ? 'var(--gray2)' : 'var(--white)',
-                            cursor: (blasting || !selectedTemplate) ? 'not-allowed' : 'pointer',
-                            opacity: (blasting || !selectedTemplate) ? 0.7 : 1,
-                          }}
                         >
                           Disparar
-                        </button>
+                        </Button>
                       )}
                     </>
                   )}
