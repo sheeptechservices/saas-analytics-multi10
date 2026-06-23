@@ -179,6 +179,12 @@ body {
 .animate-count-pop { animation: count-pop .35s ease-out both; }
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-bar::after { animation: none; }
+  .animate-slide-up  { animation: none; opacity: 1; transform: none; }
+  .animate-count-pop { animation: none; opacity: 1; transform: none; }
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar       { width: 6px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
