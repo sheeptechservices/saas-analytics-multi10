@@ -18,8 +18,8 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
-import { events, conversations, funnelSnapshots, dataSources } from '@/lib/db/schema'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { events, conversations, contacts, funnelSnapshots, dataSources } from '@/lib/db/schema'
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 
 const DAY = 86_400_000
@@ -222,6 +222,34 @@ export async function GET(request: Request) {
     .slice(0, 50)
     .map(({ source, sessionId, lastContact, msgs }) => ({ sessionId, source, lastContact, msgs }))
 
+  // ── Name lookup: match recent sessionIds against contacts ─────────────────
+  // supabase-n8n sessionIds are plain digits (no '+'); YCloud contacts store
+  // externalId as E.164 (with '+'). Query both forms and resolve via fallback.
+  const recentIds = recent.map(r => r.sessionId)
+  const allContactIds = Array.from(new Set([
+    ...recentIds,
+    ...recentIds.map(id => id.startsWith('+') ? id : '+' + id),
+  ]))
+
+  const contactRows = allContactIds.length > 0
+    ? await db
+        .select({ externalId: contacts.externalId, name: contacts.name })
+        .from(contacts)
+        .where(and(
+          eq(contacts.tenantId, tenantId),
+          inArray(contacts.externalId, allContactIds),
+        ))
+    : []
+
+  const contactNameMap = new Map(contactRows.map(c => [c.externalId, c.name]))
+
+  const recentWithName = recent.map(r => ({
+    ...r,
+    name: contactNameMap.get(r.sessionId)
+      ?? contactNameMap.get('+' + r.sessionId)
+      ?? null,
+  }))
+
   // ── WhatsApp metrics ──────────────────────────────────────────────────────
   //
   //  Totals: exact SQL aggregates (no row limit — always correct).
@@ -284,7 +312,7 @@ export async function GET(request: Request) {
       order:     Number(r.order),
     })),
     sentiment,
-    recent,
+    recent: recentWithName,
     whatsapp: {
       totals: waTotals,
       rates:  waRates,
