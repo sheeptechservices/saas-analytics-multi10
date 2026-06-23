@@ -97,6 +97,7 @@ export function KpiCard({
       <div style={{
         fontSize: display.length > 14 ? 20 : display.length > 10 ? 23 : 26,
         fontWeight: 800, color: 'var(--ink)', lineHeight: 1,
+        fontVariantNumeric: 'tabular-nums',
         transition: 'font-size 0.2s ease',
         letterSpacing: '-0.02em',
         wordBreak: 'break-all',

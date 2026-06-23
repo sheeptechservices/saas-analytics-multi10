@@ -53,7 +53,7 @@ html { font-size: 15px; }
 body {
   font-family: 'Manrope', sans-serif;
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.5;
   color: var(--black);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -77,13 +77,12 @@ body {
   to   { transform: translateX(0); }
 }
 @keyframes panelUp {
-  0%   { opacity: 0; transform: translateY(24px) scale(0.94); }
-  70%  { transform: translateY(-4px) scale(1.01); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 @keyframes breathe-ring {
   0%, 100% { transform: scale(1);    opacity: 0.55; }
-  50%       { transform: scale(1.55); opacity: 0; }
+  50%       { transform: scale(1.15); opacity: 0; }
 }
 @keyframes spin {
   from { transform: rotate(0deg); }
@@ -136,8 +135,7 @@ body {
   50%       { opacity: 0.4; transform: scale(0.75); }
 }
 @keyframes count-pop {
-  0%   { opacity: 0; transform: scale(0.82); }
-  65%  { transform: scale(1.04); }
+  0%   { opacity: 0; transform: scale(0.90); }
   100% { opacity: 1; transform: scale(1); }
 }
 @keyframes podiumRise {
@@ -146,7 +144,7 @@ body {
 }
 @keyframes floatBubble {
   0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.5; }
-  50%       { transform: translateY(-9px) rotate(8deg); opacity: 0.9; }
+  50%       { transform: translateY(-4px) rotate(3deg); opacity: 0.9; }
 }
 @keyframes barSweep {
   0%   { transform: translateX(-200%); }
@@ -154,7 +152,7 @@ body {
 }
 @keyframes ringPulse {
   0%, 100% { transform: scale(1);    opacity: 0.7; }
-  50%       { transform: scale(1.65); opacity: 0; }
+  50%       { transform: scale(1.20); opacity: 0; }
 }
 @keyframes rowExpand {
   from { opacity: 0; transform: translateY(-4px); }
@@ -178,7 +176,8 @@ body {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
-.animate-count-pop { animation: count-pop .45s cubic-bezier(.34,1.56,.64,1) both; }
+.animate-count-pop { animation: count-pop .35s ease-out both; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar       { width: 6px; height: 4px; }
