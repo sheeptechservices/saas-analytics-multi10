@@ -43,6 +43,18 @@ function toE164(phone: string | null, phoneAdjusted: string | null): string | nu
   return E164_RE.test(e164) ? e164 : null
 }
 
+// Ensure BR mobile numbers have the 9th digit (DDD(2) + 9 + 8 digits = 11 national digits).
+// Old leads may be stored without it (10 national digits). Landlines (1st digit 2-5) are
+// left untouched. Non-BR numbers are returned as-is.
+function ensureBr9(e164: string): string {
+  if (!e164.startsWith('+55')) return e164
+  const national = e164.slice(3) // remove '+55'
+  if (national.length !== 10) return e164
+  const firstDigit = national[2] // 1st digit after DDD
+  if (firstDigit < '6') return e164 // landline (2-5) or already impossible — skip
+  return '+55' + national.slice(0, 2) + '9' + national.slice(2)
+}
+
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -145,7 +157,7 @@ export async function POST(request: Request) {
 
     recipients = []
     for (const r of leadsRes.rows) {
-      const phone = toE164(r.phone, r.phone_adjusted)
+      const phone = ensureBr9(toE164(r.phone, r.phone_adjusted) ?? '')
       if (!phone) continue  // sem telefone válido → skip
       const first_name = (r.name ?? '').trim().split(/\s+/)[0] ?? ''
       recipients.push({ phone, first_name })
