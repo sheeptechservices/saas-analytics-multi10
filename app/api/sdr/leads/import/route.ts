@@ -82,6 +82,10 @@ function phoneKey(raw: string): string | null {
   return national.length >= 10 ? national : null
 }
 
+function firstWord(s: unknown): string {
+  return String(s ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -186,11 +190,6 @@ export async function POST(request: Request) {
     const source  = row.source  || 'import'
     const status  = row.status  || 'novo'
 
-    if (!name) {
-      ignorados.push({ linha, motivo: 'nome ausente' })
-      continue
-    }
-
     // E.164 required for the n8n payload
     const normalized = normalizePhone(phone)
     if (!normalized) {
@@ -218,8 +217,7 @@ export async function POST(request: Request) {
   // ── Dedup against Supabase (SOMENTE SELECT — nunca escreve) ──────────────────
   // Uses phoneKey on both columns to match across heterogeneous formats:
   // DB phone may be raw/masked; phone_adjusted is digits-only without '+'.
-  const existingKeys    = new Set<string>()
-  const existingIdByKey = new Map<string, string>()  // phoneKey → id do lead já cadastrado (1ª ocorrência vence)
+  const existingByKey = new Map<string, { id: string; name: string | null }>()  // phoneKey → { id, name } (1ª ocorrência vence)
 
   if (candidatos.length > 0) {
     const dsRow = await db
@@ -241,16 +239,17 @@ export async function POST(request: Request) {
 
           // Fetch broadly — exact-string match is unreliable across formats;
           // phoneKey normalizes both sides in the app. SELECT only — never writes.
-          const res = await pgClient.query<{ id: string; phone: string | null; phone_adjusted: string | null }>(
-            `SELECT id, phone, phone_adjusted
+          const res = await pgClient.query<{ id: string; name: string | null; phone: string | null; phone_adjusted: string | null }>(
+            `SELECT id, name, phone, phone_adjusted
                FROM leads
               WHERE phone IS NOT NULL OR phone_adjusted IS NOT NULL`,
           )
           for (const r of res.rows) {
             const k1 = phoneKey(r.phone ?? '')
             const k2 = phoneKey(r.phone_adjusted ?? '')
-            if (k1) { existingKeys.add(k1); if (!existingIdByKey.has(k1)) existingIdByKey.set(k1, r.id) }
-            if (k2) { existingKeys.add(k2); if (!existingIdByKey.has(k2)) existingIdByKey.set(k2, r.id) }
+            const entry = { id: r.id, name: r.name }
+            if (k1 && !existingByKey.has(k1)) existingByKey.set(k1, entry)
+            if (k2 && !existingByKey.has(k2)) existingByKey.set(k2, entry)
           }
         }
       } catch (err) {
@@ -268,19 +267,25 @@ export async function POST(request: Request) {
   const updates: UpdateEntry[] = []
   const existingLeadIdSet = new Set<string>()  // ids dos leads JÁ cadastrados que casaram na dedup
   const updatedIdSet = new Set<string>()        // dedup ids within updates
+  const names: Record<string, string> = {}      // leadId → 1º nome do Excel (só duplicados com nome não-vazio)
+  let semNome = 0                               // destinatários que ficarão sem nome em lugar nenhum
   for (const c of candidatos) {
-    if (existingKeys.has(c.key)) {
+    if (existingByKey.has(c.key)) {
       duplicados.push({ linha: c.linha, telefone: c.phone })
-      const existingId = existingIdByKey.get(c.key)
-      if (existingId) {
-        existingLeadIdSet.add(existingId)
-        if (!updatedIdSet.has(existingId)) {
-          updatedIdSet.add(existingId)
-          updates.push({ id: existingId, name: c.name, company: c.company, source: c.source, status: c.status })
-        }
+      const existing = existingByKey.get(c.key)!
+      existingLeadIdSet.add(existing.id)
+      if (!updatedIdSet.has(existing.id)) {
+        updatedIdSet.add(existing.id)
+        updates.push({ id: existing.id, name: c.name, company: c.company, source: c.source, status: c.status })
       }
+      if (c.name.trim()) {
+        names[existing.id] = firstWord(c.name)
+      }
+      const dbName = (existing.name ?? '').trim()
+      if (!dbName && !c.name.trim()) semNome++
     } else {
       novos.push({ name: c.name, phone: c.phone, company: c.company, source: c.source, status: c.status })
+      if (!c.name.trim()) semNome++
     }
   }
 
@@ -333,5 +338,7 @@ export async function POST(request: Request) {
     n8nStatus,
     leadIds,
     existingLeadIds: Array.from(existingLeadIdSet),
+    names,
+    semNome,
   })
 }
