@@ -30,6 +30,8 @@ interface ImportResult {
   n8nStatus?:   number
   leadIds?:        string[]
   existingLeadIds?: string[]
+  names?:          Record<string, string>
+  semNome?:        number
   error?:          string
 }
 
@@ -104,7 +106,8 @@ export default function LeadsPage() {
   const [blastTplLoading,  setBlastTplLoading]  = useState(false)
   const [blastTplError,    setBlastTplError]    = useState<string | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('')
-  const [blasting,         setBlasting]         = useState(false)
+  const [blasting,             setBlasting]             = useState(false)
+  const [blastPendingConfirm,  setBlastPendingConfirm]  = useState(false)
   const [blastResult,      setBlastResult]      = useState<{
     ok: boolean; started?: number; totalSolicitado?: number; skipped?: number; error?: string
   } | null>(null)
@@ -242,6 +245,7 @@ export default function LeadsPage() {
     setBlastMode(false)
     setBlastResult(null)
     setSelectedTemplate('')
+    setBlastPendingConfirm(false)
   }
 
   async function openBlast() {
@@ -276,7 +280,7 @@ export default function LeadsPage() {
       const res = await fetch('/api/sdr/leads/blast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds: ids, template: selectedTemplate }),
+        body: JSON.stringify({ leadIds: ids, template: selectedTemplate, names: importResult?.names ?? {} }),
       })
       const data = await res.json() as { ok: boolean; started?: number; totalSolicitado?: number; skipped?: number; error?: string }
       if (res.ok && data.ok) {
@@ -870,7 +874,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {blastTemplates && !blastResult && (
+                {blastTemplates && !blastResult && !blastPendingConfirm && (
                   <div style={{ marginBottom: 18 }}>
                     <select
                       value={selectedTemplate}
@@ -901,6 +905,22 @@ export default function LeadsPage() {
                   </div>
                 )}
 
+                {blastPendingConfirm && !blastResult && (
+                  <div style={{
+                    marginBottom: 18, padding: '12px 16px', borderRadius: 10,
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)',
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                      Confirmar disparo
+                    </div>
+                    <div style={{ fontSize: 13, color: '#78350f', lineHeight: 1.6 }}>
+                      {(importResult?.semNome ?? 0)} contato{(importResult?.semNome ?? 0) !== 1 ? 's' : ''} sem nome serão
+                      enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.
+                      Deseja continuar?
+                    </div>
+                  </div>
+                )}
+
                 {blasting && (
                   <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 18 }}>Disparando...</div>
                 )}
@@ -925,34 +945,74 @@ export default function LeadsPage() {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => { if (blastResult) { closeCampaignModal() } else { setBlastMode(false) } }}
-                    disabled={blasting}
-                    style={{
-                      padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
-                      fontSize: 13, fontWeight: 700,
-                      border: '1px solid var(--gray3)', background: 'transparent',
-                      color: 'var(--gray)', cursor: blasting ? 'not-allowed' : 'pointer',
-                      opacity: blasting ? 0.5 : 1,
-                    }}
-                  >
-                    {blastResult ? 'Fechar' : 'Voltar'}
-                  </button>
-                  {!blastResult && (
-                    <button
-                      onClick={runBlast}
-                      disabled={blasting || !selectedTemplate}
-                      style={{
-                        padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                        fontSize: 13, fontWeight: 800, border: 'none',
-                        background: (blasting || !selectedTemplate) ? 'var(--gray3)' : 'var(--primary)',
-                        color: (blasting || !selectedTemplate) ? 'var(--gray2)' : 'var(--white)',
-                        cursor: (blasting || !selectedTemplate) ? 'not-allowed' : 'pointer',
-                        opacity: (blasting || !selectedTemplate) ? 0.7 : 1,
-                      }}
-                    >
-                      Disparar
-                    </button>
+                  {blastPendingConfirm && !blastResult ? (
+                    <>
+                      <button
+                        onClick={() => setBlastPendingConfirm(false)}
+                        disabled={blasting}
+                        style={{
+                          padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
+                          fontSize: 13, fontWeight: 700,
+                          border: '1px solid var(--gray3)', background: 'transparent',
+                          color: 'var(--gray)', cursor: blasting ? 'not-allowed' : 'pointer',
+                          opacity: blasting ? 0.5 : 1,
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={runBlast}
+                        disabled={blasting}
+                        style={{
+                          padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                          fontSize: 13, fontWeight: 800, border: 'none',
+                          background: blasting ? 'var(--gray3)' : 'var(--primary)',
+                          color: blasting ? 'var(--gray2)' : 'var(--white)',
+                          cursor: blasting ? 'not-allowed' : 'pointer',
+                          opacity: blasting ? 0.7 : 1,
+                        }}
+                      >
+                        Confirmar disparo
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (blastResult) { closeCampaignModal() }
+                          else { setBlastMode(false); setBlastPendingConfirm(false) }
+                        }}
+                        disabled={blasting}
+                        style={{
+                          padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
+                          fontSize: 13, fontWeight: 700,
+                          border: '1px solid var(--gray3)', background: 'transparent',
+                          color: 'var(--gray)', cursor: blasting ? 'not-allowed' : 'pointer',
+                          opacity: blasting ? 0.5 : 1,
+                        }}
+                      >
+                        {blastResult ? 'Fechar' : 'Voltar'}
+                      </button>
+                      {!blastResult && (
+                        <button
+                          onClick={() => {
+                            if ((importResult?.semNome ?? 0) > 0) { setBlastPendingConfirm(true) }
+                            else { void runBlast() }
+                          }}
+                          disabled={blasting || !selectedTemplate}
+                          style={{
+                            padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                            fontSize: 13, fontWeight: 800, border: 'none',
+                            background: (blasting || !selectedTemplate) ? 'var(--gray3)' : 'var(--primary)',
+                            color: (blasting || !selectedTemplate) ? 'var(--gray2)' : 'var(--white)',
+                            cursor: (blasting || !selectedTemplate) ? 'not-allowed' : 'pointer',
+                            opacity: (blasting || !selectedTemplate) ? 0.7 : 1,
+                          }}
+                        >
+                          Disparar
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </>

@@ -20,9 +20,10 @@ import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { Client } from 'pg'
 
-const PROVIDER_KEY = 'supabase-n8n'
-const SOURCE       = 'sdr-n8n'
-const MAX_LEADS    = 1000
+const PROVIDER_KEY      = 'supabase-n8n'
+const SOURCE            = 'sdr-n8n'
+const MAX_LEADS         = 1000
+const DEFAULT_FIRST_NAME = 'tudo bem'
 const UUID_RE      = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const E164_RE      = /^\+[1-9]\d{6,14}$/
 
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
   if (denied) return denied
 
-  let body: { leadIds?: unknown; template?: unknown }
+  let body: { leadIds?: unknown; template?: unknown; names?: unknown }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
@@ -85,6 +86,11 @@ export async function POST(request: Request) {
   if (leadIds.length === 0) {
     return NextResponse.json({ error: 'nenhum leadId válido (UUID esperado)' }, { status: 400 })
   }
+
+  const names: Record<string, string> =
+    body.names !== null && typeof body.names === 'object' && !Array.isArray(body.names)
+      ? (body.names as Record<string, string>)
+      : {}
 
   // ── Load n8nBlastUrl + secret from campaign settings ──────────────────────────
   const [csRow] = await db
@@ -159,7 +165,8 @@ export async function POST(request: Request) {
     for (const r of leadsRes.rows) {
       const phone = ensureBr9(toE164(r.phone, r.phone_adjusted) ?? '')
       if (!phone) continue  // sem telefone válido → skip
-      const first_name = (r.name ?? '').trim().split(/\s+/)[0] ?? ''
+      const dbFirst = String(r.name ?? '').trim().split(/\s+/)[0] ?? ''
+      const first_name = dbFirst || names[r.id] || DEFAULT_FIRST_NAME
       recipients.push({ phone, first_name })
     }
   } catch (err) {
