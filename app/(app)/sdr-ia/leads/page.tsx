@@ -106,20 +106,42 @@ export default function LeadsPage() {
   const [blastTplLoading,  setBlastTplLoading]  = useState(false)
   const [blastTplError,    setBlastTplError]    = useState<string | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('')
+  const [templateOpen,     setTemplateOpen]     = useState(false)
+  const [templateSearch,   setTemplateSearch]   = useState('')
   const [blasting,             setBlasting]             = useState(false)
   const [blastPendingConfirm,  setBlastPendingConfirm]  = useState(false)
   const [blastResult,      setBlastResult]      = useState<{
     ok: boolean; started?: number; totalSolicitado?: number; skipped?: number; error?: string
   } | null>(null)
 
-  const masterRef   = useRef<HTMLInputElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const masterRef           = useRef<HTMLInputElement>(null)
+  const fileInputRef        = useRef<HTMLInputElement>(null)
+  const templateDropdownRef = useRef<HTMLDivElement>(null)
 
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebQ(q), 350)
     return () => clearTimeout(t)
   }, [q])
+
+  // Close template dropdown on click-outside or Escape
+  useEffect(() => {
+    if (!templateOpen) return
+    function handleDown(e: MouseEvent) {
+      if (templateDropdownRef.current && !templateDropdownRef.current.contains(e.target as Node)) {
+        setTemplateOpen(false)
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setTemplateOpen(false)
+    }
+    document.addEventListener('mousedown', handleDown)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleDown)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [templateOpen])
 
   // Reset page on search change
   useEffect(() => { setPage(1) }, [debQ])
@@ -877,21 +899,99 @@ export default function LeadsPage() {
                 )}
 
                 {blastTemplates && !blastResult && !blastPendingConfirm && (
-                  <div style={{ marginBottom: 18 }}>
-                    <select
-                      value={selectedTemplate}
-                      onChange={e => setSelectedTemplate(e.target.value)}
+                  <div ref={templateDropdownRef} style={{ marginBottom: 18, position: 'relative' }}>
+                    {/* Trigger */}
+                    <button
+                      onClick={() => { if (!blasting) setTemplateOpen(o => !o) }}
                       disabled={blasting}
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit',
-                        fontSize: 13, border: '1px solid var(--gray3)', background: 'var(--white)', color: 'var(--black)',
+                        fontSize: 13, border: '1px solid var(--gray3)', background: 'var(--white)',
+                        color: selectedTemplate ? 'var(--black)' : 'var(--gray2)',
+                        cursor: blasting ? 'not-allowed' : 'pointer',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        textAlign: 'left',
                       }}
                     >
-                      <option value="">Escolha um template…</option>
-                      {blastTemplates.map(t => (
-                        <option key={t.nome_template} value={t.nome_template}>{t.nome_template}</option>
-                      ))}
-                    </select>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {selectedTemplate || 'Escolha um template…'}
+                      </span>
+                      <span style={{ flexShrink: 0, marginLeft: 8, fontSize: 11, opacity: 0.6 }}>▾</span>
+                    </button>
+
+                    {/* Dropdown panel */}
+                    {templateOpen && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+                        zIndex: 2000,
+                        background: 'var(--white)', border: '1px solid var(--gray3)',
+                        borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+                        maxHeight: 260, overflowY: 'auto',
+                      }}>
+                        <div style={{
+                          padding: '8px 10px', borderBottom: '1px solid var(--gray3)',
+                          position: 'sticky', top: 0, background: 'var(--white)',
+                        }}>
+                          <input
+                            autoFocus
+                            value={templateSearch}
+                            onChange={e => setTemplateSearch(e.target.value)}
+                            placeholder="Buscar template…"
+                            style={{
+                              width: '100%', boxSizing: 'border-box',
+                              fontFamily: 'inherit', fontSize: 12,
+                              padding: '6px 10px', border: '1px solid var(--gray3)',
+                              borderRadius: 8, background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                            }}
+                          />
+                        </div>
+                        {(() => {
+                          const filtered = blastTemplates.filter(t =>
+                            t.nome_template.toLowerCase().includes(templateSearch.toLowerCase())
+                          )
+                          if (filtered.length === 0) {
+                            return (
+                              <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--gray2)' }}>
+                                Nenhum template encontrado
+                              </div>
+                            )
+                          }
+                          return filtered.map(t => (
+                            <button
+                              key={t.nome_template}
+                              onClick={() => {
+                                setSelectedTemplate(t.nome_template)
+                                setTemplateOpen(false)
+                                setTemplateSearch('')
+                              }}
+                              style={{
+                                width: '100%', textAlign: 'left', padding: '10px 14px',
+                                background: t.nome_template === selectedTemplate ? 'rgba(0,0,0,0.04)' : 'transparent',
+                                border: 'none', borderBottom: '1px solid var(--gray3)',
+                                cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                            >
+                              <div style={{
+                                fontSize: 13, color: 'var(--black)',
+                                fontWeight: t.nome_template === selectedTemplate ? 700 : 400,
+                              }}>
+                                {t.nome_template}
+                              </div>
+                              {t.preview && (
+                                <div style={{
+                                  fontSize: 11, color: 'var(--gray2)', marginTop: 2,
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                }}>
+                                  {t.preview.length > 60 ? t.preview.slice(0, 60) + '…' : t.preview}
+                                </div>
+                              )}
+                            </button>
+                          ))
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Preview do template selecionado */}
                     {(() => {
                       const tpl = blastTemplates.find(t => t.nome_template === selectedTemplate)
                       return tpl?.preview ? (
