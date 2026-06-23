@@ -1,12 +1,10 @@
 // GET /api/sdr/templates
 //
-// Lista os templates aprovados (meta_templates_whatsapp) no Supabase para o modal
-// de disparo escolher. Connection string obtida do data_source do tenant
-// (providerKey='supabase-n8n'), decifrada em runtime — nunca exposta ao cliente.
+// Lista os templates do YCloud enviáveis pelo fluxo n8n de blast:
+// aprovados + idioma pt_BR + exatamente 1 variável no BODY + 0 variáveis fora do BODY.
 //
-// SOMENTE LEITURA: apenas SELECT. Nunca escreve no Supabase.
-//
-// Response: { items: { nome_template: string, preview: string, fase_envio: string|null }[] }
+// Response: { items: { nome_template: string, preview: string, fase_envio: null }[] }
+// Shape mantido igual ao consumido pelo modal de disparo — sem mudança na UI.
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
@@ -15,15 +13,29 @@ import { dataSources } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
-import { Client } from 'pg'
+import { yCloudProvider, listWhatsappTemplates } from '@/lib/providers/ycloud'
 
-const PROVIDER_KEY = 'supabase-n8n'
+const PROVIDER_KEY = 'ycloud-whatsapp'
 
-interface TemplateRow {
-  nome_template:     string
-  mensagem_template: string | null
-  fase_envio:        string | null
-  rank_disparo:      number | null
+/** Counts {{...}} variables in a string. */
+function countVars(t: unknown): number {
+  return (String(t ?? '').match(/\{\{\s*[\w.]+\s*\}\}/g) ?? []).length
+}
+
+interface TemplateComponent {
+  type?:    unknown
+  text?:    unknown
+  buttons?: Array<{ text?: unknown; url?: unknown }>
+}
+
+function componentVars(comp: TemplateComponent): number {
+  let n = countVars(comp.text)
+  if (Array.isArray(comp.buttons)) {
+    for (const btn of comp.buttons) {
+      n += countVars(btn.text) + countVars(btn.url)
+    }
+  }
+  return n
 }
 
 export async function GET() {
@@ -34,7 +46,6 @@ export async function GET() {
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
   if (denied) return denied
 
-  // Load Supabase connection string from the tenant's data source
   const row = await db
     .select()
     .from(dataSources)
@@ -45,14 +56,12 @@ export async function GET() {
     .then(r => r[0])
 
   if (!row?.configEnc) {
-    return NextResponse.json({ error: 'fonte_sdr_nao_configurada' }, { status: 400 })
+    return NextResponse.json({ error: 'ycloud_nao_configurado' }, { status: 400 })
   }
 
-  let connectionString: string
+  let cfg: ReturnType<typeof yCloudProvider.parseConfig>
   try {
-    const cfg = JSON.parse(decrypt(row.configEnc)) as { connectionString?: string }
-    if (!cfg.connectionString) throw new Error('connectionString ausente')
-    connectionString = cfg.connectionString
+    cfg = yCloudProvider.parseConfig(JSON.parse(decrypt(row.configEnc)))
   } catch (err) {
     return NextResponse.json(
       { error: 'config_invalid', message: (err as Error).message },
@@ -60,33 +69,40 @@ export async function GET() {
     )
   }
 
-  const client = new Client({ connectionString })
+  let templates: Awaited<ReturnType<typeof listWhatsappTemplates>>
   try {
-    await client.connect()
-
-    // SELECT only — never writes
-    const res = await client.query<TemplateRow>(
-      `SELECT nome_template, mensagem_template, fase_envio, rank_disparo
-         FROM meta_templates_whatsapp
-        WHERE nome_template IS NOT NULL
-          AND COALESCE(mensagem_template, '') <> ''
-        ORDER BY rank_disparo NULLS LAST, nome_template`,
-    )
-
-    const items = res.rows.map(r => ({
-      nome_template: r.nome_template,
-      preview:       r.mensagem_template ?? '',
-      fase_envio:    r.fase_envio,
-    }))
-
-    return NextResponse.json({ items })
+    templates = await listWhatsappTemplates(cfg)
   } catch (err) {
-    console.error('[sdr templates GET]', err)
     return NextResponse.json(
-      { error: 'db_error', message: (err as Error).message },
+      { error: 'ycloud_error', message: (err as Error).message },
       { status: 502 },
     )
-  } finally {
-    await client.end().catch(() => {})
   }
+
+  const items = templates
+    .filter(t => {
+      if (String(t.status).toLowerCase() !== 'approved') return false
+      if (t.language !== 'pt_BR') return false
+
+      const comps = (t.components ?? []) as TemplateComponent[]
+      const bodyComps   = comps.filter(c => String(c.type ?? '').toUpperCase() === 'BODY')
+      const otherComps  = comps.filter(c => String(c.type ?? '').toUpperCase() !== 'BODY')
+
+      const bodyVars  = bodyComps.reduce((s, c) => s + componentVars(c), 0)
+      const otherVars = otherComps.reduce((s, c) => s + componentVars(c), 0)
+
+      return bodyVars === 1 && otherVars === 0
+    })
+    .map(t => {
+      const comps = (t.components ?? []) as TemplateComponent[]
+      const body  = comps.find(c => String(c.type ?? '').toUpperCase() === 'BODY')
+      return {
+        nome_template: t.name,
+        preview:       String(body?.text ?? ''),
+        fase_envio:    null,
+      }
+    })
+    .sort((a, b) => a.nome_template.localeCompare(b.nome_template))
+
+  return NextResponse.json({ items })
 }
