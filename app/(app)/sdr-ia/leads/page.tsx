@@ -28,6 +28,7 @@ interface ImportResult {
   ignorados?:   { total: number; amostra: Array<{ linha: number; motivo: string }> }
   duplicados?:  { total: number; amostra: Array<{ linha: number; telefone: string }> }
   n8nStatus?:   number
+  leadIds?:     string[]
   error?:       string
 }
 
@@ -79,6 +80,12 @@ export default function LeadsPage() {
   const [importing,    setImporting]    = useState(false)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [fetchSeq,     setFetchSeq]     = useState(0)
+
+  const [showCampaignModal,    setShowCampaignModal]    = useState(false)
+  const [campaignEnrolling,    setCampaignEnrolling]    = useState(false)
+  const [campaignEnrollResult, setCampaignEnrollResult] = useState<{
+    ok: boolean; enrolled?: number; partialError?: string; error?: string
+  } | null>(null)
 
   const masterRef   = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -164,6 +171,49 @@ export default function LeadsPage() {
     }
   }
 
+  const ENROLL_BATCH = 100
+
+  async function enrollImported() {
+    const ids = importResult?.leadIds ?? []
+    if (ids.length === 0) return
+
+    setCampaignEnrolling(true)
+    setCampaignEnrollResult(null)
+
+    let totalEnrolled = 0
+    let lastError: string | null = null
+
+    for (let i = 0; i < ids.length; i += ENROLL_BATCH) {
+      const batch = ids.slice(i, i + ENROLL_BATCH)
+      try {
+        const res = await fetch('/api/sdr/enroll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leadIds: batch }),
+        })
+        const body = await res.json() as { ok: boolean; enrolled?: number; error?: string }
+        if (res.ok && body.ok) {
+          totalEnrolled += body.enrolled ?? batch.length
+        } else {
+          lastError = body.error ?? `HTTP ${res.status}`
+        }
+      } catch (e) {
+        lastError = (e as Error).message
+      }
+    }
+
+    if (lastError && totalEnrolled === 0) {
+      setCampaignEnrollResult({ ok: false, error: lastError })
+    } else {
+      setCampaignEnrollResult({
+        ok:           true,
+        enrolled:     totalEnrolled,
+        partialError: lastError ?? undefined,
+      })
+    }
+    setCampaignEnrolling(false)
+  }
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''  // reset so the same file can be re-selected
@@ -180,9 +230,14 @@ export default function LeadsPage() {
         setImportResult({ ok: false, error: json.error ?? `HTTP ${res.status}` })
       } else {
         setImportResult(json)
-        // Reload list — n8n inserts asynchronously, so new leads may take a moment to appear
         setPage(1)
         setFetchSeq(s => s + 1)
+        // Open campaign modal when n8n returned IDs for the new leads
+        if ((json.leadIds?.length ?? 0) > 0) {
+          setCampaignEnrolling(false)
+          setCampaignEnrollResult(null)
+          setShowCampaignModal(true)
+        }
       }
     } catch (e) {
       setImportResult({ ok: false, error: (e as Error).message })
@@ -577,6 +632,110 @@ export default function LeadsPage() {
           >
             Próxima →
           </button>
+        </div>
+      )}
+
+      {/* ── Campaign enroll modal ─────────────────────────────────── */}
+      {showCampaignModal && (
+        <div
+          onClick={campaignEnrolling ? undefined : () => {
+            setShowCampaignModal(false)
+            setCampaignEnrollResult(null)
+          }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--white)', borderRadius: 20, padding: '28px 32px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.18)',
+              maxWidth: 440, width: '100%',
+            }}
+          >
+            {/* Title */}
+            <div style={{
+              fontSize: 18, fontWeight: 800, color: 'var(--black)',
+              letterSpacing: '-0.01em', marginBottom: 10,
+            }}>
+              {importResult?.importados} lead{importResult?.importados !== 1 ? 's' : ''} importados — adicionar à campanha?
+            </div>
+
+            {/* Description */}
+            <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.65, marginBottom: 24 }}>
+              Clicar em <strong>Adicionar à campanha agora</strong> coloca esses leads na fila
+              de disparo SDR (Template 1). Você também pode fazer isso depois selecionando-os
+              manualmente na lista.
+            </div>
+
+            {/* Loading */}
+            {campaignEnrolling && (
+              <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 20 }}>
+                Adicionando...
+              </div>
+            )}
+
+            {/* Result */}
+            {campaignEnrollResult && (
+              <div style={{
+                marginBottom: 20, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                background: campaignEnrollResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                border: `1px solid ${campaignEnrollResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                color: campaignEnrollResult.ok ? '#15803d' : 'var(--red)',
+              }}>
+                {campaignEnrollResult.ok
+                  ? `✓ ${campaignEnrollResult.enrolled} lead${campaignEnrollResult.enrolled !== 1 ? 's' : ''} adicionados à campanha`
+                  : `Erro ao adicionar: ${campaignEnrollResult.error}`
+                }
+                {campaignEnrollResult.partialError && (
+                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 6, fontWeight: 500 }}>
+                    Alguns lotes falharam: {campaignEnrollResult.partialError}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => {
+                  setShowCampaignModal(false)
+                  setCampaignEnrollResult(null)
+                }}
+                disabled={campaignEnrolling}
+                style={{
+                  padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
+                  fontSize: 13, fontWeight: 700,
+                  border: '1px solid var(--gray3)', background: 'transparent',
+                  color: 'var(--gray)', cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
+                  opacity: campaignEnrolling ? 0.5 : 1,
+                }}
+              >
+                {campaignEnrollResult ? 'Fechar' : 'Só manter na lista'}
+              </button>
+
+              {!campaignEnrollResult && (
+                <button
+                  onClick={enrollImported}
+                  disabled={campaignEnrolling}
+                  style={{
+                    padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                    fontSize: 13, fontWeight: 800, border: 'none',
+                    background: campaignEnrolling ? 'var(--gray3)' : 'var(--primary)',
+                    color: campaignEnrolling ? 'var(--gray2)' : 'var(--white)',
+                    cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
+                    opacity: campaignEnrolling ? 0.7 : 1,
+                  }}
+                >
+                  Adicionar à campanha agora
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

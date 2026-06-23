@@ -1,9 +1,10 @@
 // GET /api/sdr/leads/template
 //
-// Devolve um arquivo .xlsx (modelo) com as colunas PREENCHÍVEIS da tabela `leads`
-// como cabeçalho — pronto para o usuário preencher e importar.
-// Colunas de sistema (id, created_at, phone_adjusted, ativo, dealid, ...) são omitidas.
+// Devolve um .xlsx estilizado (cabeçalho vermelho, texto branco negrito,
+// grade de bordas em 100 linhas) com as colunas PREENCHÍVEIS da tabela `leads`.
+// Colunas de sistema (id, created_at, phone_adjusted, …) são omitidas.
 //
+// Geração: exceljs (suporta estilos). Leitura de importação usa xlsx — não alterar.
 // SOMENTE LEITURA: usa apenas SELECT em information_schema. Nunca escreve.
 
 import { auth } from '@/auth'
@@ -13,12 +14,27 @@ import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { Client } from 'pg'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 const PROVIDER_KEY = 'supabase-n8n'
+const DATA_ROWS    = 100
 
 // Only user-fillable columns — system columns (id, created_at, phone_adjusted, …) are excluded.
 const FILLABLE_COLUMNS = ['name', 'phone', 'company', 'source', 'status']
+
+const COLUMN_WIDTHS: Record<string, number> = {
+  name:    28,
+  phone:   20,
+  company: 28,
+  source:  16,
+  status:  16,
+}
+
+const THIN_BORDER: Partial<ExcelJS.Border> = { style: 'thin' }
+const CELL_BORDER: ExcelJS.Borders = {
+  top: THIN_BORDER, left: THIN_BORDER, bottom: THIN_BORDER, right: THIN_BORDER,
+  diagonal: {},
+}
 
 export async function GET() {
   const session = await auth()
@@ -61,6 +77,7 @@ export async function GET() {
     )
   }
 
+  // ── Introspect columns (SOMENTE SELECT) ──────────────────────────────────────
   let columns: string[] = FILLABLE_COLUMNS
 
   const client = new Client({ connectionString })
@@ -78,24 +95,52 @@ export async function GET() {
     if (res.rows.length > 0) {
       const dbCols = new Set(res.rows.map(r => r.column_name.toLowerCase()))
       const intersected = FILLABLE_COLUMNS.filter(c => dbCols.has(c.toLowerCase()))
-      // If intersection is empty (schema diverged), fall back to full allowlist
       columns = intersected.length > 0 ? intersected : FILLABLE_COLUMNS
     }
   } catch (err) {
     console.error('[sdr leads template] introspection failed, using fallback', err)
-    // columns already set to FILLABLE_COLUMNS
   } finally {
     await client.end().catch(() => {})
   }
 
-  const ws = XLSX.utils.aoa_to_sheet([columns])
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Leads')
+  // ── Build styled workbook with exceljs ───────────────────────────────────────
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Leads')
 
-  // XLSX.write returns a Node Buffer (Uint8Array<ArrayBufferLike>); copy into a plain
-  // Uint8Array<ArrayBuffer> so TypeScript accepts it as BodyInit.
-  const xlsxBuf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Uint8Array
-  const body    = new Uint8Array(xlsxBuf)
+  // Column definitions (width + key for cell addressing)
+  ws.columns = columns.map(c => ({
+    header: c,
+    key:    c,
+    width:  COLUMN_WIDTHS[c] ?? 18,
+  }))
+
+  // Style the header row (row 1)
+  const headerRow = ws.getRow(1)
+  headerRow.height = 22
+  headerRow.eachCell(cell => {
+    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } }
+    cell.font      = { color: { argb: 'FFFFFFFF' }, bold: true }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    cell.border    = CELL_BORDER
+  })
+
+  // Apply thin-border grid to data rows (rows 2 … DATA_ROWS+1)
+  for (let r = 2; r <= DATA_ROWS + 1; r++) {
+    const dataRow = ws.getRow(r)
+    for (let c = 1; c <= columns.length; c++) {
+      dataRow.getCell(c).border = CELL_BORDER
+    }
+    dataRow.commit()
+  }
+
+  // Freeze the header row
+  ws.views = [{ state: 'frozen', ySplit: 1 }]
+
+  // ── Serialize and return ─────────────────────────────────────────────────────
+  const buf = await wb.xlsx.writeBuffer()
+  // writeBuffer returns Buffer (Uint8Array<ArrayBufferLike>); copy to plain Uint8Array
+  // so TypeScript accepts it as BodyInit.
+  const body = new Uint8Array(buf)
 
   return new Response(body, {
     status: 200,

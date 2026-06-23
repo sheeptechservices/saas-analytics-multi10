@@ -273,6 +273,7 @@ export async function POST(request: Request) {
 
   // ── POST new leads to n8n (app never writes to Supabase — n8n does) ──────────
   let n8nStatus = 0
+  let leadIds:   string[] = []
 
   if (novos.length > 0) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -285,6 +286,14 @@ export async function POST(request: Request) {
         signal: AbortSignal.timeout(15_000),
       })
       n8nStatus = res.status
+
+      // Tolerantly read n8n response body to extract inserted IDs.
+      // n8n may respond { inserted, ids } or a non-JSON body — never throw.
+      try {
+        const body = await res.json() as Record<string, unknown>
+        const raw  = Array.isArray(body.ids) ? body.ids : []
+        leadIds    = (raw as unknown[]).filter((v): v is string => typeof v === 'string')
+      } catch { /* non-JSON body — leadIds stays [] */ }
     } catch (err) {
       console.error('[sdr import → n8n]', err)
       return NextResponse.json(
@@ -308,5 +317,6 @@ export async function POST(request: Request) {
       amostra: duplicados.slice(0, AMOSTRA_MAX),
     },
     n8nStatus,
+    leadIds,
   })
 }
