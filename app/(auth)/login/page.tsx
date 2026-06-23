@@ -61,7 +61,7 @@ export default function LoginPage() {
         {/* Headline */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <h1 style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.025em' }}>
-            Seu SDR aprimorado com <span style={{ color: 'var(--primary)' }}>inteligência artificial</span>.
+            Seu SDR aprimorado com<br /><span style={{ color: 'var(--primary)' }}>inteligência artificial</span>.
           </h1>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, maxWidth: 340 }}>
             Gerencie seu ecossistema comercial automatizado em um só lugar.
