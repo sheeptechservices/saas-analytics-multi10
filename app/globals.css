@@ -194,12 +194,18 @@ body {
   animation: pulse-dot 1s ease-in-out infinite;
 }
 
+.row-cascade {
+  animation: rowExpand 0.35s ease-out both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shimmer-bar::after { animation: none; }
   .animate-slide-up  { animation: none; opacity: 1; transform: none; }
   .animate-count-pop { animation: none; opacity: 1; transform: none; }
   .btn-pulse         { animation: none; }
   .blast-dot         { animation: none; opacity: 1; transform: none; }
+  .row-cascade       { animation: none; opacity: 1; transform: none; }
 }
 
 /* ── Scrollbar ── */

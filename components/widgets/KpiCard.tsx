@@ -63,10 +63,11 @@ export interface KpiCardProps {
   sub?: string
   delay?: number
   change?: number | null
+  className?: string
 }
 
 export function KpiCard({
-  label, value, format, accent = 'var(--primary)', sub, delay = 0, change,
+  label, value, format, accent = 'var(--primary)', sub, delay = 0, change, className,
 }: KpiCardProps) {
   const [hov, setHov] = useState(false)
   const counted = useCountUp(value, 750, delay)
@@ -74,6 +75,7 @@ export function KpiCard({
 
   return (
     <div
+      className={className}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{

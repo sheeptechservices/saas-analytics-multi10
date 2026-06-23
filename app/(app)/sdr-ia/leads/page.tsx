@@ -736,13 +736,15 @@ export default function LeadsPage() {
                 return (
                   <tr
                     key={lead.id}
+                    className="row-cascade"
                     onClick={() => toggleOne(lead.id)}
                     style={{
+                      '--row-delay': `${Math.min(i, 9) * 40}ms`,
                       borderBottom: isLast ? 'none' : '1px solid var(--gray3)',
                       background: checked ? 'var(--primary-dim)' : 'transparent',
                       borderLeft: `3px solid ${checked ? 'var(--primary)' : 'transparent'}`,
                       cursor: 'pointer', transition: 'background .12s, border-color .12s',
-                    }}
+                    } as React.CSSProperties}
                   >
                     <td style={{ padding: '11px 16px' }} onClick={e => e.stopPropagation()}>
                       <input

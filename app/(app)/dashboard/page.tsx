@@ -403,14 +403,16 @@ export default function DashboardPage() {
       {!loading && hasData && (
         <>
           {/* ── KPI Cards (SDR) ────────────────────────────────────── */}
-          <div className="animate-slide-up delay-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
             <KpiCard
+              className="animate-slide-up delay-2"
               label="Contatos realizados"
               value={data!.kpis.contatos}
               accent="var(--primary-text)"
               sub={`de ${(data?.funnel.find(f => f.stageKey === 'leads')?.count ?? 0).toLocaleString('pt-BR')} leads recebidos`}
             />
             <KpiCard
+              className="animate-slide-up delay-3"
               label="Taxa de resposta"
               value={data!.kpis.taxaResposta}
               format={v => `${v}%`}
@@ -418,12 +420,14 @@ export default function DashboardPage() {
               sub="leads que responderam"
             />
             <KpiCard
+              className="animate-slide-up delay-4"
               label="Reuniões agendadas"
               value={data!.kpis.reunioes}
               accent="var(--green)"
               sub="com closer neste período"
             />
             <KpiCard
+              className="animate-slide-up delay-5"
               label="Conversão lead→reunião"
               value={data!.kpis.conversao}
               format={v => `${v}%`}
@@ -562,6 +566,7 @@ export default function DashboardPage() {
                 defaultSortKey="lastContact"
                 defaultSortDir="desc"
                 emptyMessage="Nenhuma sessão encontrada no período"
+                rowKey="sessionId"
                 onRowClick={row => router.push(`/sdr-ia/conversas?session=${encodeURIComponent(String(row.sessionId ?? ''))}`)}
               />
             </div>
