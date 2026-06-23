@@ -218,7 +218,8 @@ export async function POST(request: Request) {
   // ── Dedup against Supabase (SOMENTE SELECT — nunca escreve) ──────────────────
   // Uses phoneKey on both columns to match across heterogeneous formats:
   // DB phone may be raw/masked; phone_adjusted is digits-only without '+'.
-  const existingKeys = new Set<string>()
+  const existingKeys    = new Set<string>()
+  const existingIdByKey = new Map<string, string>()  // phoneKey → id do lead já cadastrado (1ª ocorrência vence)
 
   if (candidatos.length > 0) {
     const dsRow = await db
@@ -240,16 +241,16 @@ export async function POST(request: Request) {
 
           // Fetch broadly — exact-string match is unreliable across formats;
           // phoneKey normalizes both sides in the app. SELECT only — never writes.
-          const res = await pgClient.query<{ phone: string | null; phone_adjusted: string | null }>(
-            `SELECT phone, phone_adjusted
+          const res = await pgClient.query<{ id: string; phone: string | null; phone_adjusted: string | null }>(
+            `SELECT id, phone, phone_adjusted
                FROM leads
               WHERE phone IS NOT NULL OR phone_adjusted IS NOT NULL`,
           )
           for (const r of res.rows) {
             const k1 = phoneKey(r.phone ?? '')
             const k2 = phoneKey(r.phone_adjusted ?? '')
-            if (k1) existingKeys.add(k1)
-            if (k2) existingKeys.add(k2)
+            if (k1) { existingKeys.add(k1); if (!existingIdByKey.has(k1)) existingIdByKey.set(k1, r.id) }
+            if (k2) { existingKeys.add(k2); if (!existingIdByKey.has(k2)) existingIdByKey.set(k2, r.id) }
           }
         }
       } catch (err) {
@@ -263,9 +264,12 @@ export async function POST(request: Request) {
 
   // Partition candidatos into novos (new) vs supabase-duplicates
   const novos: LeadEntry[] = []
+  const existingLeadIdSet = new Set<string>()  // ids dos leads JÁ cadastrados que casaram na dedup
   for (const c of candidatos) {
     if (existingKeys.has(c.key)) {
       duplicados.push({ linha: c.linha, telefone: c.phone })
+      const existingId = existingIdByKey.get(c.key)
+      if (existingId) existingLeadIdSet.add(existingId)
     } else {
       novos.push({ name: c.name, phone: c.phone, company: c.company, source: c.source, status: c.status })
     }
@@ -318,5 +322,6 @@ export async function POST(request: Request) {
     },
     n8nStatus,
     leadIds,
+    existingLeadIds: Array.from(existingLeadIdSet),
   })
 }

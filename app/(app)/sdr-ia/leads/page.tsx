@@ -28,8 +28,9 @@ interface ImportResult {
   ignorados?:   { total: number; amostra: Array<{ linha: number; motivo: string }> }
   duplicados?:  { total: number; amostra: Array<{ linha: number; telefone: string }> }
   n8nStatus?:   number
-  leadIds?:     string[]
-  error?:       string
+  leadIds?:        string[]
+  existingLeadIds?: string[]
+  error?:          string
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -263,7 +264,11 @@ export default function LeadsPage() {
   }
 
   async function runBlast() {
-    const ids = importResult?.leadIds ?? []
+    // Alvo do blast = novos + já existentes (deduplicado)
+    const ids = Array.from(new Set([
+      ...(importResult?.leadIds ?? []),
+      ...(importResult?.existingLeadIds ?? []),
+    ]))
     if (ids.length === 0 || !selectedTemplate) return
     setBlasting(true)
     setBlastResult(null)
@@ -304,10 +309,12 @@ export default function LeadsPage() {
         setImportResult(json)
         setPage(1)
         setFetchSeq(s => s + 1)
-        // Open campaign modal when n8n returned IDs for the new leads
-        if ((json.leadIds?.length ?? 0) > 0) {
+        // Open modal when there are targets: novos OU já existentes (casaram na dedup)
+        const targetCount = (json.leadIds?.length ?? 0) + (json.existingLeadIds?.length ?? 0)
+        if (targetCount > 0) {
           setCampaignEnrolling(false)
           setCampaignEnrollResult(null)
+          setBlastMode(false)
           setShowCampaignModal(true)
         }
       }
@@ -328,6 +335,14 @@ export default function LeadsPage() {
   const n8nFalhou = (importResult?.importados ?? 0) > 0
     && typeof importResult?.n8nStatus === 'number'
     && (importResult.n8nStatus < 200 || importResult.n8nStatus >= 300)
+
+  // Alvos pós-import: novos (vieram do n8n) + já existentes (casaram na dedup)
+  const novosCount      = importResult?.leadIds?.length ?? 0
+  const existentesCount = importResult?.existingLeadIds?.length ?? 0
+  const blastTotal      = new Set([
+    ...(importResult?.leadIds ?? []),
+    ...(importResult?.existingLeadIds ?? []),
+  ]).size
 
   return (
     <div>
@@ -733,14 +748,22 @@ export default function LeadsPage() {
                   fontSize: 18, fontWeight: 800, color: 'var(--black)',
                   letterSpacing: '-0.01em', marginBottom: 10,
                 }}>
-                  {importResult?.importados} lead{importResult?.importados !== 1 ? 's' : ''} importados — o que fazer?
+                  {[
+                    novosCount > 0 ? `${novosCount} novo${novosCount !== 1 ? 's' : ''}` : null,
+                    existentesCount > 0 ? `${existentesCount} já na base` : null,
+                  ].filter(Boolean).join(' · ')} — o que fazer?
                 </div>
 
                 {/* Description */}
                 <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.65, marginBottom: 24 }}>
-                  <strong>Adicionar à campanha</strong> coloca esses leads na fila de disparo SDR
-                  (Template 1, agendado). <strong>Disparar mensagens</strong> envia um template
-                  aprovado agora para toda a lista.
+                  <strong>Disparar mensagens</strong> envia um template aprovado agora para toda a
+                  lista ({blastTotal} contato{blastTotal !== 1 ? 's' : ''}, novos + já existentes).
+                  {novosCount > 0 && (
+                    <> <strong>Adicionar à campanha</strong> coloca só os {novosCount} novo{novosCount !== 1 ? 's' : ''} na fila do drip SDR (Template 1).</>
+                  )}
+                  {novosCount === 0 && (
+                    <> Todos os contatos já estão na base — só o disparo está disponível.</>
+                  )}
                 </div>
 
                 {/* Loading */}
@@ -801,20 +824,22 @@ export default function LeadsPage() {
                       >
                         Disparar mensagens agora
                       </button>
-                      <button
-                        onClick={enrollImported}
-                        disabled={campaignEnrolling}
-                        style={{
-                          padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                          fontSize: 13, fontWeight: 800, border: 'none',
-                          background: campaignEnrolling ? 'var(--gray3)' : 'var(--primary)',
-                          color: campaignEnrolling ? 'var(--gray2)' : 'var(--white)',
-                          cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
-                          opacity: campaignEnrolling ? 0.7 : 1,
-                        }}
-                      >
-                        Adicionar à campanha
-                      </button>
+                      {novosCount > 0 && (
+                        <button
+                          onClick={enrollImported}
+                          disabled={campaignEnrolling}
+                          style={{
+                            padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                            fontSize: 13, fontWeight: 800, border: 'none',
+                            background: campaignEnrolling ? 'var(--gray3)' : 'var(--primary)',
+                            color: campaignEnrolling ? 'var(--gray2)' : 'var(--white)',
+                            cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
+                            opacity: campaignEnrolling ? 0.7 : 1,
+                          }}
+                        >
+                          Adicionar à campanha
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -826,7 +851,7 @@ export default function LeadsPage() {
                   fontSize: 18, fontWeight: 800, color: 'var(--black)',
                   letterSpacing: '-0.01em', marginBottom: 10,
                 }}>
-                  Disparar para {importResult?.leadIds?.length ?? 0} contato{(importResult?.leadIds?.length ?? 0) !== 1 ? 's' : ''}
+                  Disparar para {blastTotal} contato{blastTotal !== 1 ? 's' : ''}
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.65, marginBottom: 18 }}>
                   Envio real de WhatsApp usando um <strong>template aprovado</strong> para toda a
