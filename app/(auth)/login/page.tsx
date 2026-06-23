@@ -53,15 +53,18 @@ export default function LoginPage() {
           backgroundSize: '40px 40px',
         }} />
 
-        <div />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative', zIndex: 1 }}>
+          <img src="/logo-300.png" alt="300 Franchising" width={36} height={36} style={{ borderRadius: 8, display: 'block' }} />
+          <span style={{ fontSize: 16, fontWeight: 800, color: '#fff', letterSpacing: '-0.01em' }}>300 Franchising</span>
+        </div>
 
         {/* Headline */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <h1 style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.025em' }}>
-            Funil de vendas<br /><span style={{ color: 'var(--primary)' }}>conectado</span><br />ao CRM.
+            Seu SDR aprimorado com <span style={{ color: 'var(--primary)' }}>inteligência artificial</span>.
           </h1>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, maxWidth: 340 }}>
-            Visualize métricas reais do seu Kommo, enriqueça seus leads e tome decisões com dados — tudo em um lugar.
+            Gerencie seu ecossistema comercial automatizado em um só lugar.
           </p>
         </div>
 
@@ -74,16 +77,6 @@ export default function LoginPage() {
         padding: isMobile ? '32px 20px' : '48px', background: 'var(--bg)',
       }}>
         <div style={{ width: '100%', maxWidth: 380 }}>
-          {/* Marca — visível no mobile (painel esquerdo oculto) e no desktop */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
-            <div style={{
-              width: 36, height: 36, background: 'var(--primary)', borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: 800, color: 'var(--primary-contrast)',
-            }}>3</div>
-            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.01em' }}>300 Franchising</span>
-          </div>
-
           <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em', marginBottom: 6 }}>
             {greet}.
           </div>

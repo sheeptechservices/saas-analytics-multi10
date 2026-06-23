@@ -55,7 +55,7 @@ async function main() {
       id: tenantId,
       name: tenantName,
       slug: tenantSlug,
-      primaryColor: '#FFB400',
+      primaryColor: '#E10504',
       createdAt: new Date(),
     })
     console.log(`✅ Tenant "${tenantName}" criado  (id: ${tenantId})`)
@@ -79,7 +79,7 @@ async function main() {
       passwordHash: bcrypt.hashSync(password, 10),
       role: 'admin',
       avatarColor: '#FFFFFF',
-      avatarBg: '#FFB400',
+      avatarBg: '#E10504',
       createdAt: new Date(),
     })
     console.log(`✅ Usuário admin criado`)

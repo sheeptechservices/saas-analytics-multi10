@@ -67,7 +67,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
           <div style={{
             width: 28, height: 28, background: 'var(--primary)', borderRadius: 6,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 800, color: 'var(--black)',
+            fontSize: 13, fontWeight: 800, color: 'var(--primary-contrast)',
           }}>{displayName.charAt(0).toUpperCase()}</div>
         )}
         <div>

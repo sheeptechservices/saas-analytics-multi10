@@ -8,11 +8,11 @@
   --gray: #666666;
   --gray2: #AAAAAA;
   --gray3: #E3E4DE;
-  --primary: #FFB400;
-  --primary-dim: rgba(255,180,0,0.12);
-  --primary-mid: rgba(255,180,0,0.40);
-  --primary-text: #7A5600;
-  --primary-contrast: #121316;
+  --primary: #E10504;
+  --primary-dim: rgba(225,5,4,0.12);
+  --primary-mid: rgba(225,5,4,0.40);
+  --primary-text: #7C0302;
+  --primary-contrast: #FFFFFF;
   --red: #D93025;
   --green: #1E8A3E;
   --radius-sm: 8px;
