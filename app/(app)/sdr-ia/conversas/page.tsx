@@ -54,6 +54,19 @@ function buildComponents(values: string[]): object[] {
   return [{ type: 'body', parameters: values.map(text => ({ type: 'text', text })) }]
 }
 
+const LS_KEY = 'sdr-conversas-lidas'
+
+function readLidas(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {}
+  } catch { return {} }
+}
+
+function saveLidas(map: Record<string, number>): void {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(map)) } catch {}
+}
+
 // Returns YYYY-MM-DD in America/Sao_Paulo — used as a stable day key for grouping
 function dayKey(ts: number): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(ts))
@@ -275,6 +288,13 @@ export default function ConversasPage() {
   const [sending,     setSending]     = useState(false)
   const [sendError,   setSendError]   = useState<string | null>(null)
 
+  // Search
+  const [searchRaw, setSearchRaw] = useState('')
+  const [search,    setSearch]    = useState('')
+
+  // Unread tracking (localStorage-backed)
+  const [lidas, setLidas] = useState<Record<string, number>>({})
+
   const bottomRef     = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   // Stale-fetch guard: ensures a slow earlier fetch can't overwrite a later thread
@@ -285,6 +305,7 @@ export default function ConversasPage() {
   // Auto-scroll helpers: count tracks message growth; flag requests a guaranteed scroll
   const prevMsgCountRef         = useRef(0)
   const scrollToBottomOnLoadRef = useRef(false)
+  const lidasRef                = useRef<Record<string, number>>({})
 
   // ── Fetch session list ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -321,8 +342,16 @@ export default function ConversasPage() {
       const el = scrollAreaRef.current
       const nearBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120
       if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      // Polling brought new messages while this conversation is open → stay marked as read
+      if (activeId) {
+        const now = Date.now()
+        const next = { ...lidasRef.current, [activeId]: now }
+        lidasRef.current = next
+        setLidas(next)
+        saveLidas(next)
+      }
     }
-  }, [thread])
+  }, [thread, activeId])
 
   // ── Lazy-load templates when window is closed ───────────────────────────────
   useEffect(() => {
@@ -341,6 +370,19 @@ export default function ConversasPage() {
   // Keep refs in sync with state so the polling interval (empty deps) reads fresh values
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { sessPageRef.current = sessPage }, [sessPage])
+
+  // Hydrate lidas from localStorage on mount (client-only)
+  useEffect(() => {
+    const stored = readLidas()
+    lidasRef.current = stored
+    setLidas(stored)
+  }, [])
+
+  // Debounce search input — avoids filtering on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchRaw.trim().toLowerCase()), 250)
+    return () => clearTimeout(t)
+  }, [searchRaw])
 
   // ── Background polling every 15 s ───────────────────────────────────────────
   // Silently refreshes the session list and the open thread without touching loading state.
@@ -385,6 +427,12 @@ export default function ConversasPage() {
     setActiveId(sessionId)
     activeIdRef.current         = sessionId  // sync immediately (no state-update lag for poll guard)
     scrollToBottomOnLoadRef.current = true   // guarantee scroll when thread arrives
+    // Mark conversation as read immediately on open
+    const _now  = Date.now()
+    const _next = { ...lidasRef.current, [sessionId]: _now }
+    lidasRef.current = _next
+    setLidas(_next)
+    saveLidas(_next)
     setThread(null)
     setThreadLoading(true)
     setSendError(null)
@@ -467,6 +515,19 @@ export default function ConversasPage() {
     setTplVars(Array<string>(countVars(tpl)).fill(''))
   }
 
+  const filteredSessions = search
+    ? sessions.filter(s =>
+        (s.name ?? '').toLowerCase().includes(search) ||
+        s.phone.toLowerCase().includes(search)
+      )
+    : sessions
+
+  function isUnread(s: SessionItem): boolean {
+    if (s.lastContact == null) return false
+    const lastOpened = lidas[s.sessionId]
+    return lastOpened == null || s.lastContact > lastOpened
+  }
+
   const totalPages = Math.ceil(sessTotal / SESSION_LIMIT)
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -491,6 +552,22 @@ export default function ConversasPage() {
           WhatsApp
         </div>
 
+        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--gray3)' }}>
+          <input
+            type="search"
+            value={searchRaw}
+            onChange={e => setSearchRaw(e.target.value)}
+            placeholder="Buscar..."
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              fontFamily: 'inherit', fontSize: 12,
+              padding: '7px 12px', border: '1px solid var(--gray3)',
+              borderRadius: 8, background: 'var(--bg)', color: 'var(--black)',
+              outline: 'none',
+            }}
+          />
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sessLoading && (
             <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--gray2)', margin: 0 }}>
@@ -507,40 +584,69 @@ export default function ConversasPage() {
               Nenhuma conversa ainda
             </p>
           )}
-          {sessions.map(s => {
+          {!sessLoading && !sessError && sessions.length > 0 && filteredSessions.length === 0 && (
+            <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--gray2)', margin: 0 }}>
+              Nenhum resultado
+            </p>
+          )}
+          {filteredSessions.map(s => {
             const isActive = s.sessionId === activeId
+            const unread   = !isActive && isUnread(s)
+            const initial  = (s.name ?? s.phone).slice(0, 1).toUpperCase()
             return (
               <button
                 key={s.sessionId}
                 onClick={() => loadThread(s.sessionId)}
                 style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '11px 14px', background: isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
+                  display: 'flex', alignItems: 'flex-start', gap: 9,
+                  width: '100%', textAlign: 'left',
+                  padding: '10px 12px', background: isActive ? 'rgba(0,0,0,0.04)' : 'transparent',
                   border: 'none', borderBottom: '1px solid var(--gray3)',
                   borderLeft: `3px solid ${isActive ? 'var(--primary)' : 'transparent'}`,
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
-                  <span style={{
-                    fontSize: 13, fontWeight: 700, color: 'var(--black)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-                  }}>
-                    {s.name ?? s.phone}
-                  </span>
-                  <span style={{ fontSize: 10, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>
-                    {timeAgo(s.lastContact)}
-                  </span>
-                </div>
                 <div style={{
-                  fontSize: 11, color: 'var(--gray)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                  background: 'rgba(0,0,0,0.07)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 800, color: 'var(--black)',
                 }}>
-                  {s.lastMessage.role !== 'human' && '↗ '}
-                  {s.lastMessage.content}
+                  {initial}
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--gray2)', marginTop: 2 }}>
-                  {s.msgs} msg{s.msgs !== 1 ? 's' : ''}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', gap: 4, marginBottom: 2,
+                  }}>
+                    <span style={{
+                      fontSize: 13, fontWeight: unread ? 800 : 700, color: 'var(--black)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                    }}>
+                      {s.name ?? s.phone}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      {unread && (
+                        <span style={{
+                          width: 7, height: 7, borderRadius: '50%',
+                          background: 'var(--primary)', display: 'inline-block',
+                        }} />
+                      )}
+                      <span style={{ fontSize: 10, color: 'var(--gray2)', fontWeight: 500 }}>
+                        {timeAgo(s.lastContact)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: 11, color: 'var(--gray)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {s.lastMessage.role !== 'human' && '↗ '}
+                    {s.lastMessage.content}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--gray2)', marginTop: 2 }}>
+                    {s.msgs} msg{s.msgs !== 1 ? 's' : ''}
+                  </div>
                 </div>
               </button>
             )
