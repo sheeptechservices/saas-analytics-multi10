@@ -91,17 +91,17 @@ export function KpiCard({
         display: 'flex', flexDirection: 'column',
       }}
     >
-      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
         {label}
       </div>
       <div style={{
         fontSize: display.length > 14 ? 20 : display.length > 10 ? 23 : 26,
-        fontWeight: 800, color: accent, lineHeight: 1,
+        fontWeight: 800, color: 'var(--ink)', lineHeight: 1,
         transition: 'font-size 0.2s ease',
         letterSpacing: '-0.02em',
         wordBreak: 'break-all',
       }}>{display}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 5, fontWeight: 500 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5, fontWeight: 500 }}>{sub}</div>}
       <ChangeBadge value={change ?? null} />
     </div>
   )
