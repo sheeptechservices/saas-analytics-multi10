@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { CSSProperties } from 'react'
 import { timeAgo } from '@/lib/format'
+import { Skeleton, SkeletonSessionList } from '@/components/Skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -625,11 +626,7 @@ export default function ConversasPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {sessLoading && (
-            <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--gray2)', margin: 0 }}>
-              Carregando...
-            </p>
-          )}
+          {sessLoading && <SkeletonSessionList items={7} />}
           {sessError && (
             <p style={{ padding: '20px 16px', fontSize: 12, color: '#c0392b', margin: 0 }}>
               Falha ao carregar conversas
@@ -746,7 +743,13 @@ export default function ConversasPage() {
             display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, minHeight: 56,
           }}>
             {threadLoading ? (
-              <span style={{ fontSize: 13, color: 'var(--gray2)' }}>Carregando...</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+                <Skeleton circle width={34} height={34} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
+                  <Skeleton width="40%" height={13} />
+                  <Skeleton width="25%" height={10} />
+                </div>
+              </div>
             ) : thread ? (
               <>
                 <div style={{

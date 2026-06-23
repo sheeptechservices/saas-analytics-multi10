@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
+import { SkeletonTable } from '@/components/Skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -643,9 +644,7 @@ export default function LeadsPage() {
 
       {/* ── Loading ────────────────────────────────────────────────── */}
       {loading && (
-        <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-          Carregando...
-        </div>
+        <SkeletonTable rows={8} colWidths={['28%', '18%', '18%', '14%', '10%']} />
       )}
 
       {/* ── Error ──────────────────────────────────────────────────── */}
