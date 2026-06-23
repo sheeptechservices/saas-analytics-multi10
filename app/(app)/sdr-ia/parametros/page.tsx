@@ -25,6 +25,7 @@ interface Settings {
   n8nDispatchUrl?:  string
   n8nEnrollUrl?:    string
   n8nImportUrl?:    string
+  n8nBlastUrl?:     string
 }
 
 interface ApiData {
@@ -175,6 +176,9 @@ export default function ParametrosPage() {
   const [n8nImportUrl,       setN8nImportUrl]       = useState('')
   const [n8nImportSecret,    setN8nImportSecret]    = useState('')
   const [showImportSecret,   setShowImportSecret]   = useState(false)
+  const [n8nBlastUrl,        setN8nBlastUrl]        = useState('')
+  const [n8nBlastSecret,     setN8nBlastSecret]     = useState('')
+  const [showBlastSecret,    setShowBlastSecret]    = useState(false)
   const [remetenteError,     setRemetenteError]     = useState<string | null>(null)
   const [loading,            setLoading]            = useState(true)
   const [saving,             setSaving]             = useState(false)
@@ -237,13 +241,14 @@ export default function ParametrosPage() {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ApiData) => {
-        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, n8nImportUrl: importUrl, ...coreSettings } = d.settings
+        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, n8nImportUrl: importUrl, n8nBlastUrl: blastUrl, ...coreSettings } = d.settings
         setSettings({ ...DEFAULTS, ...coreSettings })
         setStatus(d.status)
         setN8nWebhookUrl(webhookUrl ?? '')
         setN8nDispatchUrl(dispatchUrl ?? '')
         setN8nEnrollUrl(enrollUrl ?? '')
         setN8nImportUrl(importUrl ?? '')
+        setN8nBlastUrl(blastUrl ?? '')
         // secrets are never returned by GET — fields stay empty intentionally
       })
       .catch(() => {})
@@ -272,6 +277,8 @@ export default function ParametrosPage() {
         ...(n8nEnrollSecret ? { n8nEnrollSecret } : {}),
         n8nImportUrl,
         ...(n8nImportSecret ? { n8nImportSecret } : {}),
+        n8nBlastUrl,
+        ...(n8nBlastSecret ? { n8nBlastSecret } : {}),
       }
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
@@ -972,6 +979,59 @@ export default function ParametrosPage() {
           </div>
           <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
             Webhook acionado ao importar leads via Excel. Deixe em branco para manter o segredo já salvo.
+          </div>
+
+          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
+
+          <FieldLabel>URL de disparo de lista (n8n)</FieldLabel>
+          <input
+            type="url"
+            value={n8nBlastUrl}
+            onChange={e => setN8nBlastUrl(e.target.value)}
+            placeholder="https://seu-n8n.example.com/webhook/..."
+            style={{
+              width: '100%', fontFamily: 'inherit', fontSize: 13,
+              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+          />
+
+          <FieldLabel>Segredo (opcional)</FieldLabel>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              type={showBlastSecret ? 'text' : 'password'}
+              value={n8nBlastSecret}
+              onChange={e => setN8nBlastSecret(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
+              style={{
+                width: '100%', fontFamily: 'inherit', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10,
+                padding: '10px 42px 10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', transition: 'border-color .15s',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowBlastSecret(s => !s)}
+              title={showBlastSecret ? 'Ocultar' : 'Mostrar'}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
+              }}
+            >
+              {showBlastSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
+            Recebe a lista de contatos para blast direto de template. Deixe em branco para manter o segredo já salvo.
           </div>
         </SectionCard>
       </CollapsibleArea>

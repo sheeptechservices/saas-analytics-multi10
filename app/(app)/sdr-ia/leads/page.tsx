@@ -46,6 +46,16 @@ function friendlyImportError(code: string): string {
   return code
 }
 
+function friendlyBlastError(code: string): string {
+  if (code === 'blast_url_nao_configurada')
+    return 'URL de disparo de lista n8n não configurada — acesse Parâmetros > Integrações n8n.'
+  if (code === 'remetente_nao_configurado')
+    return 'Remetente não configurado na campanha — defina em Parâmetros.'
+  if (code === 'fonte_sdr_nao_configurada')
+    return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
+  return code
+}
+
 function StatusBadge({ value }: { value: string | null }) {
   if (!value) return <span style={{ color: 'var(--gray3)', fontSize: 11 }}>—</span>
   const colors: Record<string, { bg: string; color: string }> = {
@@ -85,6 +95,17 @@ export default function LeadsPage() {
   const [campaignEnrolling,    setCampaignEnrolling]    = useState(false)
   const [campaignEnrollResult, setCampaignEnrollResult] = useState<{
     ok: boolean; enrolled?: number; partialError?: string; error?: string
+  } | null>(null)
+
+  // Blast (disparo direto de template à lista importada)
+  const [blastMode,        setBlastMode]        = useState(false)
+  const [blastTemplates,   setBlastTemplates]   = useState<{ nome_template: string; preview: string; fase_envio: string | null }[] | null>(null)
+  const [blastTplLoading,  setBlastTplLoading]  = useState(false)
+  const [blastTplError,    setBlastTplError]    = useState<string | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState('')
+  const [blasting,         setBlasting]         = useState(false)
+  const [blastResult,      setBlastResult]      = useState<{
+    ok: boolean; started?: number; totalSolicitado?: number; skipped?: number; error?: string
   } | null>(null)
 
   const masterRef   = useRef<HTMLInputElement>(null)
@@ -212,6 +233,57 @@ export default function LeadsPage() {
       })
     }
     setCampaignEnrolling(false)
+  }
+
+  function closeCampaignModal() {
+    setShowCampaignModal(false)
+    setCampaignEnrollResult(null)
+    setBlastMode(false)
+    setBlastResult(null)
+    setSelectedTemplate('')
+  }
+
+  async function openBlast() {
+    setBlastMode(true)
+    setBlastResult(null)
+    setSelectedTemplate('')
+    if (blastTemplates) return  // já carregado
+    setBlastTplLoading(true)
+    setBlastTplError(null)
+    try {
+      const res = await fetch('/api/sdr/templates')
+      const data = await res.json() as { items?: { nome_template: string; preview: string; fase_envio: string | null }[]; error?: string }
+      if (!res.ok) { setBlastTplError(data.error ?? `HTTP ${res.status}`); return }
+      setBlastTemplates(data.items ?? [])
+    } catch (e) {
+      setBlastTplError((e as Error).message)
+    } finally {
+      setBlastTplLoading(false)
+    }
+  }
+
+  async function runBlast() {
+    const ids = importResult?.leadIds ?? []
+    if (ids.length === 0 || !selectedTemplate) return
+    setBlasting(true)
+    setBlastResult(null)
+    try {
+      const res = await fetch('/api/sdr/leads/blast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: ids, template: selectedTemplate }),
+      })
+      const data = await res.json() as { ok: boolean; started?: number; totalSolicitado?: number; skipped?: number; error?: string }
+      if (res.ok && data.ok) {
+        setBlastResult({ ok: true, started: data.started, totalSolicitado: data.totalSolicitado, skipped: data.skipped })
+      } else {
+        setBlastResult({ ok: false, error: data.error ?? `HTTP ${res.status}`, skipped: data.skipped })
+      }
+    } catch (e) {
+      setBlastResult({ ok: false, error: (e as Error).message })
+    } finally {
+      setBlasting(false)
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -638,10 +710,7 @@ export default function LeadsPage() {
       {/* ── Campaign enroll modal ─────────────────────────────────── */}
       {showCampaignModal && (
         <div
-          onClick={campaignEnrolling ? undefined : () => {
-            setShowCampaignModal(false)
-            setCampaignEnrollResult(null)
-          }}
+          onClick={(campaignEnrolling || blasting) ? undefined : closeCampaignModal}
           style={{
             position: 'fixed', inset: 0, zIndex: 1000,
             background: 'rgba(0,0,0,0.45)',
@@ -657,84 +726,212 @@ export default function LeadsPage() {
               maxWidth: 440, width: '100%',
             }}
           >
-            {/* Title */}
-            <div style={{
-              fontSize: 18, fontWeight: 800, color: 'var(--black)',
-              letterSpacing: '-0.01em', marginBottom: 10,
-            }}>
-              {importResult?.importados} lead{importResult?.importados !== 1 ? 's' : ''} importados — adicionar à campanha?
-            </div>
+            {!blastMode ? (
+              <>
+                {/* Title */}
+                <div style={{
+                  fontSize: 18, fontWeight: 800, color: 'var(--black)',
+                  letterSpacing: '-0.01em', marginBottom: 10,
+                }}>
+                  {importResult?.importados} lead{importResult?.importados !== 1 ? 's' : ''} importados — o que fazer?
+                </div>
 
-            {/* Description */}
-            <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.65, marginBottom: 24 }}>
-              Clicar em <strong>Adicionar à campanha agora</strong> coloca esses leads na fila
-              de disparo SDR (Template 1). Você também pode fazer isso depois selecionando-os
-              manualmente na lista.
-            </div>
+                {/* Description */}
+                <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.65, marginBottom: 24 }}>
+                  <strong>Adicionar à campanha</strong> coloca esses leads na fila de disparo SDR
+                  (Template 1, agendado). <strong>Disparar mensagens</strong> envia um template
+                  aprovado agora para toda a lista.
+                </div>
 
-            {/* Loading */}
-            {campaignEnrolling && (
-              <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 20 }}>
-                Adicionando...
-              </div>
-            )}
-
-            {/* Result */}
-            {campaignEnrollResult && (
-              <div style={{
-                marginBottom: 20, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                background: campaignEnrollResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-                border: `1px solid ${campaignEnrollResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-                color: campaignEnrollResult.ok ? '#15803d' : 'var(--red)',
-              }}>
-                {campaignEnrollResult.ok
-                  ? `✓ ${campaignEnrollResult.enrolled} lead${campaignEnrollResult.enrolled !== 1 ? 's' : ''} adicionados à campanha`
-                  : `Erro ao adicionar: ${campaignEnrollResult.error}`
-                }
-                {campaignEnrollResult.partialError && (
-                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 6, fontWeight: 500 }}>
-                    Alguns lotes falharam: {campaignEnrollResult.partialError}
+                {/* Loading */}
+                {campaignEnrolling && (
+                  <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 20 }}>
+                    Adicionando...
                   </div>
                 )}
-              </div>
+
+                {/* Result */}
+                {campaignEnrollResult && (
+                  <div style={{
+                    marginBottom: 20, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                    background: campaignEnrollResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                    border: `1px solid ${campaignEnrollResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                    color: campaignEnrollResult.ok ? '#15803d' : 'var(--red)',
+                  }}>
+                    {campaignEnrollResult.ok
+                      ? `✓ ${campaignEnrollResult.enrolled} lead${campaignEnrollResult.enrolled !== 1 ? 's' : ''} adicionados à campanha`
+                      : `Erro ao adicionar: ${campaignEnrollResult.error}`
+                    }
+                    {campaignEnrollResult.partialError && (
+                      <div style={{ fontSize: 11, color: '#b45309', marginTop: 6, fontWeight: 500 }}>
+                        Alguns lotes falharam: {campaignEnrollResult.partialError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={closeCampaignModal}
+                    disabled={campaignEnrolling}
+                    style={{
+                      padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
+                      fontSize: 13, fontWeight: 700,
+                      border: '1px solid var(--gray3)', background: 'transparent',
+                      color: 'var(--gray)', cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
+                      opacity: campaignEnrolling ? 0.5 : 1,
+                    }}
+                  >
+                    {campaignEnrollResult ? 'Fechar' : 'Só manter na lista'}
+                  </button>
+
+                  {!campaignEnrollResult && (
+                    <>
+                      <button
+                        onClick={openBlast}
+                        disabled={campaignEnrolling}
+                        style={{
+                          padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
+                          fontSize: 13, fontWeight: 700,
+                          border: '1px solid var(--primary)', background: 'transparent',
+                          color: 'var(--primary)', cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
+                          opacity: campaignEnrolling ? 0.6 : 1,
+                        }}
+                      >
+                        Disparar mensagens agora
+                      </button>
+                      <button
+                        onClick={enrollImported}
+                        disabled={campaignEnrolling}
+                        style={{
+                          padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                          fontSize: 13, fontWeight: 800, border: 'none',
+                          background: campaignEnrolling ? 'var(--gray3)' : 'var(--primary)',
+                          color: campaignEnrolling ? 'var(--gray2)' : 'var(--white)',
+                          cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
+                          opacity: campaignEnrolling ? 0.7 : 1,
+                        }}
+                      >
+                        Adicionar à campanha
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Blast sub-view */}
+                <div style={{
+                  fontSize: 18, fontWeight: 800, color: 'var(--black)',
+                  letterSpacing: '-0.01em', marginBottom: 10,
+                }}>
+                  Disparar para {importResult?.leadIds?.length ?? 0} contato{(importResult?.leadIds?.length ?? 0) !== 1 ? 's' : ''}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.65, marginBottom: 18 }}>
+                  Envio real de WhatsApp usando um <strong>template aprovado</strong> para toda a
+                  lista importada. O n8n envia com um pequeno intervalo entre mensagens.
+                </div>
+
+                {blastTplLoading && (
+                  <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 18 }}>Carregando templates...</div>
+                )}
+                {blastTplError && (
+                  <div style={{
+                    marginBottom: 18, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: 'var(--red)',
+                  }}>
+                    {friendlyBlastError(blastTplError)}
+                  </div>
+                )}
+
+                {blastTemplates && !blastResult && (
+                  <div style={{ marginBottom: 18 }}>
+                    <select
+                      value={selectedTemplate}
+                      onChange={e => setSelectedTemplate(e.target.value)}
+                      disabled={blasting}
+                      style={{
+                        width: '100%', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit',
+                        fontSize: 13, border: '1px solid var(--gray3)', background: 'var(--white)', color: 'var(--black)',
+                      }}
+                    >
+                      <option value="">Escolha um template…</option>
+                      {blastTemplates.map(t => (
+                        <option key={t.nome_template} value={t.nome_template}>{t.nome_template}</option>
+                      ))}
+                    </select>
+                    {(() => {
+                      const tpl = blastTemplates.find(t => t.nome_template === selectedTemplate)
+                      return tpl?.preview ? (
+                        <div style={{
+                          marginTop: 10, padding: '10px 14px', borderRadius: 10, fontSize: 12.5,
+                          color: 'var(--gray)', background: 'rgba(0,0,0,0.04)',
+                          border: '1px solid rgba(0,0,0,0.08)', lineHeight: 1.55,
+                        }}>
+                          {tpl.preview}
+                        </div>
+                      ) : null
+                    })()}
+                  </div>
+                )}
+
+                {blasting && (
+                  <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 18 }}>Disparando...</div>
+                )}
+                {blastResult && (
+                  <div style={{
+                    marginBottom: 18, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                    background: blastResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                    border: `1px solid ${blastResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                    color: blastResult.ok ? '#15803d' : 'var(--red)',
+                  }}>
+                    {blastResult.ok
+                      ? `✓ Disparo iniciado para ${blastResult.started} contato${blastResult.started !== 1 ? 's' : ''}`
+                      : `Erro ao disparar: ${friendlyBlastError(blastResult.error ?? 'erro desconhecido')}`
+                    }
+                    {blastResult.ok && (blastResult.skipped ?? 0) > 0 && (
+                      <div style={{ fontSize: 11, color: '#b45309', marginTop: 6, fontWeight: 500 }}>
+                        {blastResult.skipped} ignorado(s) por telefone inválido.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => { if (blastResult) { closeCampaignModal() } else { setBlastMode(false) } }}
+                    disabled={blasting}
+                    style={{
+                      padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
+                      fontSize: 13, fontWeight: 700,
+                      border: '1px solid var(--gray3)', background: 'transparent',
+                      color: 'var(--gray)', cursor: blasting ? 'not-allowed' : 'pointer',
+                      opacity: blasting ? 0.5 : 1,
+                    }}
+                  >
+                    {blastResult ? 'Fechar' : 'Voltar'}
+                  </button>
+                  {!blastResult && (
+                    <button
+                      onClick={runBlast}
+                      disabled={blasting || !selectedTemplate}
+                      style={{
+                        padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
+                        fontSize: 13, fontWeight: 800, border: 'none',
+                        background: (blasting || !selectedTemplate) ? 'var(--gray3)' : 'var(--primary)',
+                        color: (blasting || !selectedTemplate) ? 'var(--gray2)' : 'var(--white)',
+                        cursor: (blasting || !selectedTemplate) ? 'not-allowed' : 'pointer',
+                        opacity: (blasting || !selectedTemplate) ? 0.7 : 1,
+                      }}
+                    >
+                      Disparar
+                    </button>
+                  )}
+                </div>
+              </>
             )}
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => {
-                  setShowCampaignModal(false)
-                  setCampaignEnrollResult(null)
-                }}
-                disabled={campaignEnrolling}
-                style={{
-                  padding: '10px 20px', borderRadius: 99, fontFamily: 'inherit',
-                  fontSize: 13, fontWeight: 700,
-                  border: '1px solid var(--gray3)', background: 'transparent',
-                  color: 'var(--gray)', cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
-                  opacity: campaignEnrolling ? 0.5 : 1,
-                }}
-              >
-                {campaignEnrollResult ? 'Fechar' : 'Só manter na lista'}
-              </button>
-
-              {!campaignEnrollResult && (
-                <button
-                  onClick={enrollImported}
-                  disabled={campaignEnrolling}
-                  style={{
-                    padding: '10px 22px', borderRadius: 99, fontFamily: 'inherit',
-                    fontSize: 13, fontWeight: 800, border: 'none',
-                    background: campaignEnrolling ? 'var(--gray3)' : 'var(--primary)',
-                    color: campaignEnrolling ? 'var(--gray2)' : 'var(--white)',
-                    cursor: campaignEnrolling ? 'not-allowed' : 'pointer',
-                    opacity: campaignEnrolling ? 0.7 : 1,
-                  }}
-                >
-                  Adicionar à campanha agora
-                </button>
-              )}
-            </div>
           </div>
         </div>
       )}
