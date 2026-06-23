@@ -166,12 +166,14 @@ export async function POST(request: Request) {
   }
 
   // ── ETL: normalize + classify + dedup within file ────────────────────────────
-  type IgnoredEntry = { linha: number; motivo: string }
-  type DupEntry     = { linha: number; telefone: string }
-  type LeadEntry    = { name: string; phone: string; company: string; source: string; status: string }
+  type IgnoredEntry  = { linha: number; motivo: string }
+  type DupEntry      = { linha: number; telefone: string }
+  type SuspeitoEntry = { linha: number; telefone: string }
+  type LeadEntry     = { name: string; phone: string; company: string; source: string; status: string }
 
   const ignorados:  IgnoredEntry[]                               = []
   const duplicados: DupEntry[]                                   = []
+  const suspeitos:  SuspeitoEntry[]                             = []
   const candidatos: Array<LeadEntry & { linha: number; key: string }> = []
   const seenKeys   = new Set<string>()
 
@@ -212,6 +214,16 @@ export async function POST(request: Request) {
     seenKeys.add(key)
 
     candidatos.push({ linha, name, phone: normalized, company, source, status, key })
+  }
+
+  // ── Detect suspicious BR numbers (10-digit national, digit after DDD is 2-5) ──
+  // ensureBr9 will NOT fix these — they're ambiguous (landline or mobile without 9th digit).
+  for (const c of candidatos) {
+    if (!c.phone.startsWith('+55')) continue
+    const national = c.phone.slice(3)
+    if (national.length === 10 && national[2] >= '2' && national[2] <= '5') {
+      suspeitos.push({ linha: c.linha, telefone: c.phone })
+    }
   }
 
   // ── Dedup against Supabase (SOMENTE SELECT — nunca escreve) ──────────────────
@@ -334,6 +346,10 @@ export async function POST(request: Request) {
     duplicados: {
       total:   duplicados.length,
       amostra: duplicados.slice(0, AMOSTRA_MAX),
+    },
+    suspeitos: {
+      total:   suspeitos.length,
+      amostra: suspeitos.slice(0, AMOSTRA_MAX),
     },
     n8nStatus,
     leadIds,
