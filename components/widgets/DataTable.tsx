@@ -23,6 +23,8 @@ export interface DataTableProps {
   maxHeight?: number
   /** Mobile rendering strategy. Defaults to 'cards'. Only affects < 768px. */
   mobileMode?: 'cards' | 'scroll'
+  /** Column key whose value uniquely identifies a row. Used to stabilise animation keys so re-sort doesn't re-trigger the cascade. */
+  rowKey?: string
 }
 
 // ─── DataTable ────────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ export function DataTable({
   emptyMessage = 'Nenhum dado disponível',
   maxHeight,
   mobileMode = 'cards',
+  rowKey,
 }: DataTableProps) {
   const [sortCol, setSortCol] = useState<string>(defaultSortKey ?? columns[0]?.key ?? '')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir)
@@ -110,7 +113,7 @@ export function DataTable({
       ) : (
         sorted.map((row, i) => (
           <DataTableRow
-            key={i}
+            key={rowKey ? String(row[rowKey]) : i}
             row={row}
             columns={columns}
             index={i}
@@ -175,14 +178,16 @@ export function DataTable({
 
           return (
             <div
-              key={i}
+              key={rowKey ? String(row[rowKey]) : i}
+              className="row-cascade"
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               style={{
+                '--row-delay': `${Math.min(i, 9) * 40}ms`,
                 background: 'var(--white)', border: '1px solid #ECECE9',
                 borderRadius: 12, padding: 14, marginBottom: 10,
                 boxShadow: 'var(--shadow-md)',
                 cursor: onRowClick ? 'pointer' : 'default',
-              }}
+              } as React.CSSProperties}
             >
               <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--black)', marginBottom: restCols.length ? 10 : 0 }}>
                 {firstDisplay}
@@ -257,18 +262,18 @@ function DataTableRow({
 
   return (
     <tr
+      className="row-cascade"
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       onClick={onClick ? () => onClick(row) : undefined}
       style={{
+        '--row-delay': `${Math.min(index, 9) * 40}ms`,
         borderBottom: isLast ? 'none' : '1px solid var(--gray3)',
         borderLeft: `3px solid ${hov ? 'var(--primary)' : 'transparent'}`,
         background: hov ? 'var(--primary-dim)' : 'transparent',
-        transition: 'all .18s ease',
+        transition: 'background .18s ease, border-color .18s ease',
         cursor: onClick ? 'pointer' : 'default',
-        animation: 'ai-step 0.3s ease both',
-        animationDelay: `${index * 40}ms`,
-      }}
+      } as React.CSSProperties}
     >
       {columns.map(col => {
         const value = row[col.key]
