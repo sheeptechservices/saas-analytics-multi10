@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import { timeAgo } from '@/lib/format'
 import { Skeleton, SkeletonSessionList } from '@/components/Skeleton'
@@ -313,6 +314,9 @@ export default function ConversasPage() {
   const scrollToBottomOnLoadRef = useRef(false)
   const lidasRef                = useRef<Record<string, number>>({})
   const didMountSyncRef         = useRef(false)
+  const didDeepLinkRef          = useRef(false)
+
+  const searchParams = useSearchParams()
 
   // ── Fetch session list ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -384,6 +388,17 @@ export default function ConversasPage() {
     lidasRef.current = stored
     setLidas(stored)
   }, [])
+
+  // Deep-link: open ?session=<id> on mount (once, StrictMode-safe via ref guard)
+  // supabase-n8n sessionIds arrive as plain digits (no '+') — normalize to E.164.
+  useEffect(() => {
+    if (didDeepLinkRef.current) return
+    const raw = searchParams.get('session')
+    if (!raw) return
+    didDeepLinkRef.current = true
+    const sessionId = raw.startsWith('+') ? raw : '+' + raw
+    loadThread(sessionId)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-sync once on mount so conversations are fresh when the page opens
   useEffect(() => {

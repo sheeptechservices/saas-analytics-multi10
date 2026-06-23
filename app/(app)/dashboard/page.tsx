@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
 import { KpiCard } from '@/components/widgets/KpiCard'
@@ -35,7 +36,7 @@ interface SdrBiData {
   kpis: { contatos: number; taxaResposta: number; reunioes: number; conversao: number }
   funnel: { stageKey: string; stageName: string; count: number; order: number }[]
   sentiment: { id: string; label: string; color: string; count: number }[]
-  recent: { sessionId: string; source: string; lastContact: number | null; msgs: number }[]
+  recent: { sessionId: string; source: string; lastContact: number | null; msgs: number; name: string | null }[]
   whatsapp?: WaBlock
   lastSyncAt: number | null
 }
@@ -155,6 +156,16 @@ function SourceBadge({ source }: { source: string }) {
 
 const TABLE_COLS: DataTableColumn[] = [
   {
+    key: 'name',
+    label: 'Nome',
+    sortable: true,
+    format: (v) => (
+      <span style={{ fontWeight: 700, color: v ? 'var(--black)' : 'var(--gray2)' }}>
+        {(v as string | null) ?? '—'}
+      </span>
+    ),
+  },
+  {
     key: 'source',
     label: 'Origem',
     sortable: false,
@@ -162,7 +173,7 @@ const TABLE_COLS: DataTableColumn[] = [
   },
   {
     key: 'sessionLabel',
-    label: 'Sessão',
+    label: 'Telefone',
     sortable: false,
     format: (v) => (
       <span title={v as string} style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--gray2)' }}>
@@ -226,6 +237,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [ready, setReady]     = useState(false)
 
+  const router    = useRouter()
   const modules   = useModules()
   const hasYCloud = modules.includes('integration.ycloud-whatsapp')
 
@@ -279,8 +291,10 @@ export default function DashboardPage() {
 
   // Derived table rows
   const tableRows = (data?.recent ?? []).map(r => ({
+    name:         r.name,
     source:       r.source,
     sessionLabel: r.sessionId,
+    sessionId:    r.sessionId,
     msgs:         r.msgs,
     lastContact:  r.lastContact ?? 0,
   }))
@@ -500,6 +514,7 @@ export default function DashboardPage() {
                 defaultSortKey="lastContact"
                 defaultSortDir="desc"
                 emptyMessage="Nenhuma sessão encontrada no período"
+                onRowClick={row => router.push(`/sdr-ia/conversas?session=${encodeURIComponent(String(row.sessionId ?? ''))}`)}
               />
             </div>
           )}
