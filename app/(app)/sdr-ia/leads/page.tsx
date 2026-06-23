@@ -82,6 +82,29 @@ function StatusBadge({ value }: { value: string | null }) {
   )
 }
 
+function ProportionBar({ started, total, skipped }: { started: number; total: number; skipped: number }) {
+  const [pct, setPct] = useState(0)
+  useEffect(() => {
+    const target = total > 0 ? Math.min(100, Math.round((started / total) * 100)) : 0
+    const raf = requestAnimationFrame(() => setPct(target))
+    return () => cancelAnimationFrame(raf)
+  }, [started, total])
+  return (
+    <div>
+      <div style={{ height: 6, borderRadius: 3, background: 'var(--primary-dim)', overflow: 'hidden', marginBottom: 6 }}>
+        <div style={{
+          height: '100%', borderRadius: 3, background: 'var(--primary)',
+          width: `${pct}%`, transition: 'width .5s ease-out',
+        }} />
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--gray)', fontWeight: 500 }}>
+        {started} enviado{started !== 1 ? 's' : ''}
+        {skipped > 0 && <> · {skipped} ignorado{skipped !== 1 ? 's' : ''} (telefone inválido)</>}
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeadsPage() {
@@ -1044,22 +1067,35 @@ export default function LeadsPage() {
                 )}
 
                 {blasting && (
-                  <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 18 }}>Disparando...</div>
+                  <div style={{ fontSize: 13, color: 'var(--gray2)', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    Disparando
+                    <span aria-hidden="true" style={{ display: 'inline-flex', gap: 3, marginLeft: 2 }}>
+                      <span className="blast-dot" />
+                      <span className="blast-dot" style={{ animationDelay: '.2s' }} />
+                      <span className="blast-dot" style={{ animationDelay: '.4s' }} />
+                    </span>
+                  </div>
                 )}
                 {blastResult && (
                   <div style={{
-                    marginBottom: 18, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                    marginBottom: 18, padding: '10px 14px', borderRadius: 10,
                     background: blastResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
                     border: `1px solid ${blastResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-                    color: blastResult.ok ? '#15803d' : 'var(--red)',
                   }}>
-                    {blastResult.ok
-                      ? `✓ Disparo iniciado para ${blastResult.started} contato${blastResult.started !== 1 ? 's' : ''}`
-                      : `Erro ao disparar: ${friendlyBlastError(blastResult.error ?? 'erro desconhecido')}`
-                    }
-                    {blastResult.ok && (blastResult.skipped ?? 0) > 0 && (
-                      <div style={{ fontSize: 11, color: '#b45309', marginTop: 6, fontWeight: 500 }}>
-                        {blastResult.skipped} ignorado(s) por telefone inválido.
+                    {blastResult.ok ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d', marginBottom: 10 }}>
+                          ✓ Disparo iniciado para {blastResult.started} contato{blastResult.started !== 1 ? 's' : ''}
+                        </div>
+                        <ProportionBar
+                          started={blastResult.started ?? 0}
+                          total={blastResult.totalSolicitado ?? blastResult.started ?? 0}
+                          skipped={blastResult.skipped ?? 0}
+                        />
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+                        {`Erro ao disparar: ${friendlyBlastError(blastResult.error ?? 'erro desconhecido')}`}
                       </div>
                     )}
                   </div>
@@ -1078,6 +1114,7 @@ export default function LeadsPage() {
                       </Button>
                       <Button
                         variant="primary"
+                        className={blasting ? 'btn-pulse' : undefined}
                         onClick={runBlast}
                         disabled={blasting}
                       >
@@ -1099,6 +1136,7 @@ export default function LeadsPage() {
                       {!blastResult && (
                         <Button
                           variant="primary"
+                          className={blasting ? 'btn-pulse' : undefined}
                           onClick={() => {
                             if ((importResult?.semNome ?? 0) > 0) { setBlastPendingConfirm(true) }
                             else { void runBlast() }
