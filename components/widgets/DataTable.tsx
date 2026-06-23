@@ -199,7 +199,7 @@ export function DataTable({
                     <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--gray2)' }}>
                       {col.label}
                     </span>
-                    <span style={{ fontSize: 13, fontWeight: col.align === 'right' ? 800 : 600, color: col.align === 'right' ? 'var(--green)' : 'var(--black)' }}>
+                    <span style={{ fontSize: 13, fontWeight: col.align === 'right' ? 800 : 600, color: col.align === 'right' ? 'var(--green)' : 'var(--black)', fontVariantNumeric: col.align === 'right' ? 'tabular-nums' : undefined }}>
                       {display}
                     </span>
                   </div>
@@ -281,6 +281,7 @@ function DataTableRow({
               textAlign: align,
               fontSize: 13, fontWeight: col.align === 'right' ? 800 : 600,
               color: col.align === 'right' ? 'var(--green)' : 'var(--black)',
+              fontVariantNumeric: col.align === 'right' ? 'tabular-nums' : undefined,
             }}
           >
             {col.format ? col.format(value) : String(value ?? '—')}
