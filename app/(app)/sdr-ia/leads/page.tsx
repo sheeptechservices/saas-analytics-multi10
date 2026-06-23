@@ -398,14 +398,7 @@ export default function LeadsPage() {
           <a
             href="/api/sdr/leads/template"
             download="modelo-leads.xlsx"
-            style={{
-              display: 'inline-flex', alignItems: 'center',
-              padding: '8px 16px', borderRadius: 99,
-              fontSize: 12, fontWeight: 700, textDecoration: 'none',
-              border: '1px solid var(--gray3)',
-              background: 'transparent', color: 'var(--gray)',
-              cursor: 'pointer', transition: 'all .15s', whiteSpace: 'nowrap' as const,
-            }}
+            className="btn btn-secondary btn-sm"
           >
             Baixar modelo
           </a>
