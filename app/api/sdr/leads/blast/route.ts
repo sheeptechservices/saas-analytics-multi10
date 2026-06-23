@@ -8,7 +8,7 @@
 // REGRA CRÍTICA: a app NUNCA escreve no Supabase — apenas LÊ (leads + remetente).
 // O envio é responsabilidade do n8n.
 //
-// Body:     { leadIds: string[], template: string }
+// Body:     { leadIds: string[], template: string, templateBody?: string, names?: Record<string,string> }
 // Response: { ok, started, totalSolicitado, skipped }
 
 import { NextResponse } from 'next/server'
@@ -44,6 +44,11 @@ function toE164(phone: string | null, phoneAdjusted: string | null): string | nu
   return E164_RE.test(e164) ? e164 : null
 }
 
+// Render template body replacing all {{variable}} placeholders with firstName.
+function renderMessage(templateBody: string, firstName: string): string {
+  return String(templateBody ?? '').replace(/\{\{\s*[\w.]+\s*\}\}/g, firstName)
+}
+
 // Ensure BR mobile numbers have the 9th digit (DDD(2) + 9 + 8 digits = 11 national digits).
 // Old leads may be stored without it (10 national digits). Landlines (1st digit 2-5) are
 // left untouched. Non-BR numbers are returned as-is.
@@ -64,12 +69,13 @@ export async function POST(request: Request) {
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
   if (denied) return denied
 
-  let body: { leadIds?: unknown; template?: unknown; names?: unknown }
+  let body: { leadIds?: unknown; template?: unknown; names?: unknown; templateBody?: unknown }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const template = typeof body.template === 'string' ? body.template.trim() : ''
+  const template     = typeof body.template     === 'string' ? body.template.trim()     : ''
+  const templateBody = typeof body.templateBody === 'string' ? body.templateBody        : ''
   if (!template) {
     return NextResponse.json({ error: 'template é obrigatório' }, { status: 400 })
   }
@@ -141,7 +147,7 @@ export async function POST(request: Request) {
 
   // ── Resolve remetente + recipients (SOMENTE SELECT — nunca escreve) ───────────
   const client = new Client({ connectionString })
-  let recipients: { phone: string; first_name: string }[]
+  let recipients: { phone: string; first_name: string; message: string; session_id: string }[]
   let remetente: string
 
   try {
@@ -165,9 +171,12 @@ export async function POST(request: Request) {
     for (const r of leadsRes.rows) {
       const phone = ensureBr9(toE164(r.phone, r.phone_adjusted) ?? '')
       if (!phone) continue  // sem telefone válido → skip
-      const dbFirst = String(r.name ?? '').trim().split(/\s+/)[0] ?? ''
+      const dbFirst    = String(r.name ?? '').trim().split(/\s+/)[0] ?? ''
       const first_name = dbFirst || names[r.id] || DEFAULT_FIRST_NAME
-      recipients.push({ phone, first_name })
+      const message    = renderMessage(templateBody, first_name)
+      const rawSession = (r.phone_adjusted ?? r.phone ?? '').replace(/\D/g, '')
+      const session_id = rawSession || phone.replace(/\D/g, '')
+      recipients.push({ phone, first_name, message, session_id })
     }
   } catch (err) {
     console.error('[sdr blast resolve]', err)
