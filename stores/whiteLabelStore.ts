@@ -33,7 +33,7 @@ interface WhiteLabelState {
 
 export const useWhiteLabel = create<WhiteLabelState>()(
   (set) => ({
-    primaryColor: '#FFB400',
+    primaryColor: '#E10504',
     logoUrl: null,
     brandName: '300 Franchising',
     setPrimaryColor: (color) => {
