@@ -274,13 +274,15 @@ export default function LeadsPage() {
       ...(importResult?.existingLeadIds ?? []),
     ]))
     if (ids.length === 0 || !selectedTemplate) return
+    const tpl = blastTemplates?.find(t => t.nome_template === selectedTemplate)
+    const templateBody = tpl?.preview ?? ''
     setBlasting(true)
     setBlastResult(null)
     try {
       const res = await fetch('/api/sdr/leads/blast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds: ids, template: selectedTemplate, names: importResult?.names ?? {} }),
+        body: JSON.stringify({ leadIds: ids, template: selectedTemplate, names: importResult?.names ?? {}, templateBody }),
       })
       const data = await res.json() as { ok: boolean; started?: number; totalSolicitado?: number; skipped?: number; error?: string }
       if (res.ok && data.ok) {
