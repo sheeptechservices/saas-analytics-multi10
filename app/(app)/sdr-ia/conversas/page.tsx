@@ -20,6 +20,7 @@ interface Message {
   content:    string
   occurredAt: number | null
   metadata:   Record<string, unknown>
+  origin?:    'ycloud' | 'n8n'
 }
 
 interface Thread {
@@ -66,7 +67,8 @@ function pagerStyle(enabled: boolean): CSSProperties {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Bubble({ msg }: { msg: Message }) {
-  const isHuman = msg.role === 'human'
+  const isHuman  = msg.role === 'human'
+  const isN8nBot = !isHuman && msg.origin === 'n8n'
   return (
     <div style={{ display: 'flex', justifyContent: isHuman ? 'flex-start' : 'flex-end' }}>
       <div style={{
@@ -78,7 +80,17 @@ function Bubble({ msg }: { msg: Message }) {
         fontSize: 13, lineHeight: 1.5,
       }}>
         <div style={{ marginBottom: 3 }}>{msg.content}</div>
-        <div style={{ fontSize: 10, opacity: 0.55, textAlign: isHuman ? 'left' : 'right' }}>
+        <div style={{
+          fontSize: 10, opacity: 0.55, textAlign: isHuman ? 'left' : 'right',
+          display: 'flex', alignItems: 'center', gap: 4,
+          justifyContent: isHuman ? 'flex-start' : 'flex-end',
+        }}>
+          {isN8nBot && (
+            <span style={{
+              fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 4,
+              background: 'rgba(255,255,255,0.22)', letterSpacing: '0.05em',
+            }}>IA</span>
+          )}
           {timeAgo(msg.occurredAt)}
         </div>
       </div>
