@@ -24,6 +24,10 @@
   --shadow-md: 0 1px 2px rgba(17,24,39,.05), 0 8px 20px rgba(17,24,39,.07);
   --shadow-lg: 0 4px 12px rgba(17,24,39,.06), 0 16px 40px rgba(17,24,39,.10);
   --transition: .2s ease;
+  --ink:   #16181D;
+  --ink-2: #3A3D44;
+  --muted: #8A8A92;
+  --line:  #ECECE9;
 }
 
 @theme {
