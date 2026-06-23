@@ -12,6 +12,7 @@ import type { DataTableColumn } from '@/components/widgets/DataTable'
 import { BarChart } from '@/components/widgets/BarChart'
 import type { BarChartItem } from '@/components/widgets/BarChart'
 import { useModules } from '@/components/ModulesProvider'
+import { SkeletonKpiCards, SkeletonBlock } from '@/components/Skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -325,9 +326,14 @@ export default function DashboardPage() {
       </div>
 
       {loading && (
-        <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-          Carregando...
-        </div>
+        <>
+          <SkeletonKpiCards count={4} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gap: 16, marginBottom: 16 }}>
+            <SkeletonBlock height={200} />
+            <SkeletonBlock height={200} />
+          </div>
+          <SkeletonBlock height={180} />
+        </>
       )}
 
       {!loading && !hasData && <EmptyState />}

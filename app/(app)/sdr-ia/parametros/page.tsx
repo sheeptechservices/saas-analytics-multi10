@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ChevronDown, ExternalLink, Eye, EyeOff } from 'lucide-react'
+import { SkeletonForm, SkeletonBlock } from '@/components/Skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -359,7 +360,12 @@ export default function ParametrosPage() {
   }
 
   if (loading) {
-    return <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Carregando...</div>
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <SkeletonBlock height={56} style={{ borderRadius: 12 }} />
+        <SkeletonForm rows={5} />
+      </div>
+    )
   }
 
   const hasTemplates = settings.templates.length > 0

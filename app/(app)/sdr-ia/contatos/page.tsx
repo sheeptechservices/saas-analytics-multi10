@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Search } from 'lucide-react'
 import { DataTable } from '@/components/widgets/DataTable'
 import type { DataTableColumn } from '@/components/widgets/DataTable'
+import { SkeletonTable } from '@/components/Skeleton'
 import { timeAgo } from '@/lib/format'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -188,9 +189,7 @@ export default function ContatosPage() {
 
       {/* ── Loading ────────────────────────────────────────────────── */}
       {loading && (
-        <div style={{ padding: '48px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-          Carregando...
-        </div>
+        <SkeletonTable rows={8} colWidths={['28%', '18%', '18%', '18%', '12%']} />
       )}
 
       {/* ── Error ──────────────────────────────────────────────────── */}
