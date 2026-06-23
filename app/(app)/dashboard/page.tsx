@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Settings } from 'lucide-react'
+import { BarChart3, Settings } from 'lucide-react'
 import { KpiCard } from '@/components/widgets/KpiCard'
 import { FunnelChart, FunnelFilterPanel } from '@/components/widgets/FunnelChart'
 import type { FunnelStage } from '@/components/widgets/FunnelChart'
@@ -37,6 +37,7 @@ interface SdrBiData {
   funnel: { stageKey: string; stageName: string; count: number; order: number }[]
   sentiment: { id: string; label: string; color: string; count: number }[]
   recent: { sessionId: string; source: string; lastContact: number | null; msgs: number; name: string | null }[]
+  sourceConfigured: boolean
   whatsapp?: WaBlock
   lastSyncAt: number | null
 }
@@ -192,26 +193,74 @@ const TABLE_COLS: DataTableColumn[] = [
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function EmptyState() {
+function EmptyState({ configured, onSync }: { configured: boolean; onSync: () => void }) {
+  const [syncing,   setSyncing]   = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+
+  async function handleSync() {
+    if (syncing) return
+    setSyncing(true)
+    setSyncError(null)
+    try {
+      const res = await fetch('/api/sdr/sync', { method: 'POST' })
+      if (!res.ok) throw new Error()
+      onSync()
+    } catch {
+      setSyncError('Falha ao sincronizar — tente novamente.')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '72px 32px', gap: 16, textAlign: 'center',
     }}>
-      <div style={{ fontSize: 36, opacity: 0.4 }}>📡</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>Nenhum dado disponível</div>
-      <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 340 }}>
-        Configure e sincronize a integração Supabase / n8n para visualizar os dados reais do SDR IA.
-      </div>
-      <Link href="/settings/integrations/sdr-source" style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
-        background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
-        borderRadius: 99, padding: '8px 18px', textDecoration: 'none',
-        transition: 'background .15s',
-      }}>
-        <Settings size={14} /> Configurar integração
-      </Link>
+      <BarChart3 size={40} color="var(--gray2)" opacity={0.45} />
+      {configured ? (
+        <>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>Nenhum dado ainda</div>
+          <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 340 }}>
+            Os dados do SDR IA vão aparecer aqui conforme as conversas e métricas forem registradas.
+          </div>
+          {syncError && (
+            <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600 }}>{syncError}</div>
+          )}
+          <button
+            onClick={() => { void handleSync() }}
+            disabled={syncing}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: 13, fontWeight: 700,
+              color: syncing ? 'var(--gray2)' : 'var(--primary-text)',
+              background: syncing ? 'var(--gray3)' : 'var(--primary-dim)',
+              border: `1px solid ${syncing ? 'var(--gray3)' : 'var(--primary-mid)'}`,
+              borderRadius: 99, padding: '8px 18px',
+              cursor: syncing ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', transition: 'all .15s',
+            }}
+          >
+            {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
+          </button>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>Nenhum dado disponível</div>
+          <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 340 }}>
+            Configure e sincronize a integração Supabase / n8n para visualizar os dados reais do SDR IA.
+          </div>
+          <Link href="/settings/integrations/sdr-source" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
+            background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
+            borderRadius: 99, padding: '8px 18px', textDecoration: 'none',
+            transition: 'background .15s',
+          }}>
+            <Settings size={14} /> Configurar integração
+          </Link>
+        </>
+      )}
     </div>
   )
 }
@@ -232,10 +281,11 @@ function WaSectionHeader() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [period, setPeriod]   = useState<Period>('30d')
-  const [data, setData]       = useState<SdrBiData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [ready, setReady]     = useState(false)
+  const [period,     setPeriod]     = useState<Period>('30d')
+  const [data,       setData]       = useState<SdrBiData | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [ready,      setReady]      = useState(false)
+  const [fetchEpoch, setFetchEpoch] = useState(0)
 
   const router    = useRouter()
   const modules   = useModules()
@@ -268,7 +318,7 @@ export default function DashboardPage() {
       .catch(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
-  }, [period])
+  }, [period, fetchEpoch])
 
   // Derived funnel data
   const allFunnelStages: FunnelStage[] = (data?.funnel ?? []).map(f => ({
@@ -350,7 +400,12 @@ export default function DashboardPage() {
         </>
       )}
 
-      {!loading && !hasData && <EmptyState />}
+      {!loading && !hasData && (
+        <EmptyState
+          configured={data?.sourceConfigured ?? false}
+          onSync={() => setFetchEpoch(e => e + 1)}
+        />
+      )}
 
       {!loading && hasData && (
         <>
