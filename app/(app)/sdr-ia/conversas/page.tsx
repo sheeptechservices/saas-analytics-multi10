@@ -288,6 +288,11 @@ export default function ConversasPage() {
   const [sending,     setSending]     = useState(false)
   const [sendError,   setSendError]   = useState<string | null>(null)
 
+  // Sync on demand
+  const [syncing,      setSyncing]      = useState(false)
+  const [syncFeedback, setSyncFeedback] = useState<'success' | 'error' | null>(null)
+  const [syncEpoch,    setSyncEpoch]    = useState(0)
+
   // Search
   const [searchRaw, setSearchRaw] = useState('')
   const [search,    setSearch]    = useState('')
@@ -319,7 +324,7 @@ export default function ConversasPage() {
       })
       .catch(() => setSessError(true))
       .finally(() => setSessLoading(false))
-  }, [sessPage])
+  }, [sessPage, syncEpoch])
 
   // ── Smart auto-scroll ───────────────────────────────────────────────────────
   // When a conversation is opened/switched, loadThread() sets scrollToBottomOnLoadRef
@@ -420,6 +425,24 @@ export default function ConversasPage() {
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [])  // intentionally empty — reads live state through refs
+
+  // ── Sync on demand ──────────────────────────────────────────────────────────
+  async function syncNow() {
+    if (syncing) return
+    setSyncing(true)
+    setSyncFeedback(null)
+    try {
+      const res = await fetch('/api/sdr/sync', { method: 'POST' })
+      if (!res.ok) throw new Error()
+      setSyncFeedback('success')
+      setSyncEpoch(e => e + 1)
+    } catch {
+      setSyncFeedback('error')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncFeedback(null), 3000)
+    }
+  }
 
   // ── Open a session ──────────────────────────────────────────────────────────
   function loadThread(sessionId: string) {
@@ -545,11 +568,36 @@ export default function ConversasPage() {
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
-          padding: '12px 16px', borderBottom: '1px solid var(--gray3)',
-          fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
-          letterSpacing: '0.08em', color: 'var(--gray2)',
+          padding: '10px 12px 10px 16px', borderBottom: '1px solid var(--gray3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         }}>
-          WhatsApp
+          <span style={{
+            fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
+            letterSpacing: '0.08em', color: 'var(--gray2)',
+          }}>WhatsApp</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {syncFeedback && (
+              <span style={{
+                fontSize: 10, fontWeight: 700,
+                color: syncFeedback === 'success' ? '#166534' : '#9a2008',
+              }}>
+                {syncFeedback === 'success' ? 'Sincronizado' : 'Falha ao sincronizar'}
+              </span>
+            )}
+            <button
+              onClick={() => { void syncNow() }}
+              disabled={syncing}
+              title="Sincronizar conversas agora"
+              style={{
+                fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+                border: '1px solid var(--gray3)', background: 'transparent',
+                fontFamily: 'inherit', cursor: syncing ? 'not-allowed' : 'pointer',
+                color: syncing ? 'var(--gray3)' : 'var(--gray2)',
+              }}
+            >
+              {syncing ? '⟳' : '↺'} Sincronizar
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--gray3)' }}>
