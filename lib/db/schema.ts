@@ -332,6 +332,41 @@ export const contacts = sqliteTable('contacts', {
   lookupIdx: index('contacts_lookup_idx').on(t.tenantId, t.source, t.lastInteractionAt),
 }))
 
+// Blast campaign header — one row per dispatch action.
+export const blastCampaigns = sqliteTable('blast_campaigns', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  template: text('template').notNull(),
+  templateBody: text('template_body'),
+  totalSolicitado: integer('total_solicitado').notNull(),
+  skipped: integer('skipped').notNull().default(0),
+  started: integer('started').notNull().default(0),
+  status: text('status', { enum: ['enviando', 'concluido', 'erro'] }).notNull().default('enviando'),
+  createdBy: text('created_by').references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  tenantCreatedAtIdx: index('blast_campaigns_tenant_created_at_idx').on(t.tenantId, t.createdAt),
+}))
+
+// Per-recipient delivery record — one row per lead per campaign.
+export const blastRecipients = sqliteTable('blast_recipients', {
+  id: text('id').primaryKey(),
+  campaignId: text('campaign_id').notNull().references(() => blastCampaigns.id, { onDelete: 'cascade' }),
+  leadId: text('lead_id').notNull(),
+  phone: text('phone').notNull(),
+  firstName: text('first_name').notNull(),
+  messageBody: text('message_body').notNull(),
+  ycloudMessageId: text('ycloud_message_id'),
+  status: text('status', { enum: ['pendente', 'enviado', 'entregue', 'lido', 'falhou'] }).notNull().default('pendente'),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  lastStatusAt: integer('last_status_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  campaignIdx: index('blast_recipients_campaign_idx').on(t.campaignId),
+  ycloudMessageIdx: index('blast_recipients_ycloud_message_idx').on(t.ycloudMessageId),
+}))
+
 // Campaign / parameters config per tenant (the "Parâmetros" tab). Passive-persisted,
 // modelled with status + version for future write-back to n8n.
 export const campaignSettings = sqliteTable('campaign_settings', {
