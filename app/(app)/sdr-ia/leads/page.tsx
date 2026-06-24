@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { SkeletonTable } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useCountUp } from '@/components/widgets/KpiCard'
+import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,8 @@ export default function LeadsPage() {
   const masterRef           = useRef<HTMLInputElement>(null)
   const fileInputRef        = useRef<HTMLInputElement>(null)
   const templateDropdownRef = useRef<HTMLDivElement>(null)
+
+  const { canDispatch } = useCanDispatch()
 
   // Debounce search
   useEffect(() => {
@@ -638,13 +641,15 @@ export default function LeadsPage() {
         display: 'flex', alignItems: 'center', gap: 14,
         marginBottom: 16, flexWrap: 'wrap' as const,
       }}>
-        <Button
-          variant="primary"
-          onClick={enroll}
-          disabled={enrolling || selected.size === 0}
-        >
-          {enrolling ? 'Adicionando...' : `Adicionar à campanha${selected.size > 0 ? ` (${selected.size})` : ''}`}
-        </Button>
+        {canDispatch && (
+          <Button
+            variant="primary"
+            onClick={enroll}
+            disabled={enrolling || selected.size === 0}
+          >
+            {enrolling ? 'Adicionando...' : `Adicionar à campanha${selected.size > 0 ? ` (${selected.size})` : ''}`}
+          </Button>
+        )}
 
         {enrollResult?.ok && (
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>
@@ -898,7 +903,7 @@ export default function LeadsPage() {
                     {campaignEnrollResult ? 'Fechar' : 'Só manter na lista'}
                   </Button>
 
-                  {!campaignEnrollResult && (
+                  {!campaignEnrollResult && canDispatch && (
                     <>
                       <Button
                         variant="secondary"
@@ -1125,14 +1130,16 @@ export default function LeadsPage() {
                       >
                         Cancelar
                       </Button>
-                      <Button
-                        variant="primary"
-                        className={blasting ? 'btn-pulse' : undefined}
-                        onClick={runBlast}
-                        disabled={blasting}
-                      >
-                        Confirmar disparo
-                      </Button>
+                      {canDispatch && (
+                        <Button
+                          variant="primary"
+                          className={blasting ? 'btn-pulse' : undefined}
+                          onClick={runBlast}
+                          disabled={blasting}
+                        >
+                          Confirmar disparo
+                        </Button>
+                      )}
                     </>
                   ) : (
                     <>
@@ -1146,7 +1153,7 @@ export default function LeadsPage() {
                       >
                         {blastResult ? 'Fechar' : 'Voltar'}
                       </Button>
-                      {!blastResult && (
+                      {!blastResult && canDispatch && (
                         <Button
                           variant="primary"
                           className={blasting ? 'btn-pulse' : undefined}
