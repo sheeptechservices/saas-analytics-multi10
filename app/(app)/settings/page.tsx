@@ -16,6 +16,7 @@ const PRESET_COLORS = [
 ]
 
 type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe'
+type IntegStatus = 'loading' | 'connected' | 'disconnected' | 'error' | 'pending'
 const TABS: { id: TabKey; label: string; adminOnly?: boolean }[] = [
   { id: 'integracoes', label: 'Integrações' },
   { id: 'equipe',      label: 'Equipe' },
@@ -203,8 +204,9 @@ export default function SettingsPage() {
   const [savedProfile, setSavedProfile] = useState(false)
 
   // Integration statuses — fetched once when the integracoes tab is first opened
-  const [integStatuses, setIntegStatuses] = useState<Record<string, 'loading' | 'connected' | 'disconnected'>>({})
+  const [integStatuses, setIntegStatuses] = useState<Record<string, IntegStatus>>({})
   const [integFetched, setIntegFetched] = useState(false)
+  const [sdrSyncMeta, setSdrSyncMeta] = useState<{ error: string | null; lastSyncAt: number | null } | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['settings'],
@@ -257,15 +259,25 @@ export default function SettingsPage() {
       fetch('/api/sdr/source').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ycloud/source').then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([kommo, google, meta, tiktok, ai, sdrSource, ycloud]) => {
+      const sdrStatus: IntegStatus = !sdrSource?.configured
+        ? 'disconnected'
+        : sdrSource.lastSyncStatus === 'error'
+          ? 'error'
+          : sdrSource.lastSyncStatus === 'ok'
+            ? 'connected'
+            : 'pending'
       setIntegStatuses({
         'kommo':            kommo?.status === 'connected' ? 'connected' : 'disconnected',
         'google-ads':       google?.accountId != null ? 'connected' : 'disconnected',
         'meta-ads':         meta?.accountId != null ? 'connected' : 'disconnected',
         'tiktok-ads':       tiktok?.accountId != null ? 'connected' : 'disconnected',
         'ai':               ai?.configured ? 'connected' : 'disconnected',
-        'sdr-source':       sdrSource?.configured ? 'connected' : 'disconnected',
+        'sdr-source':       sdrStatus,
         'ycloud-whatsapp':  ycloud?.configured ? 'connected' : 'disconnected',
       })
+      setSdrSyncMeta(sdrSource?.configured
+        ? { error: sdrSource.lastSyncError ?? null, lastSyncAt: sdrSource.lastSyncAt ?? null }
+        : null)
     })
   }, [tab, integFetched])
 
@@ -550,6 +562,11 @@ export default function SettingsPage() {
                 {group.items.map(item => {
                   const st = integStatuses[item.slug] ?? 'loading'
                   const connected = st === 'connected'
+                  const isError   = st === 'error'
+                  const isPending = st === 'pending'
+                  const sdrTooltip = isError && item.slug === 'sdr-source' && sdrSyncMeta
+                    ? [sdrSyncMeta.error ?? 'Erro no sync', sdrSyncMeta.lastSyncAt ? relTime(sdrSyncMeta.lastSyncAt) : null].filter(Boolean).join(' · ')
+                    : undefined
                   return (
                     <Link
                       key={item.slug}
@@ -582,14 +599,23 @@ export default function SettingsPage() {
                       </div>
 
                       {/* Status badge */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, marginRight: 8 }}>
+                      <div
+                        title={sdrTooltip}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, marginRight: 8 }}
+                      >
                         {st === 'loading' ? (
                           <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>—</span>
                         ) : (
                           <>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: connected ? 'var(--green)' : 'var(--gray3)' }} />
-                            <span style={{ fontSize: 12, fontWeight: 600, color: connected ? 'var(--green)' : 'var(--gray2)' }}>
-                              {connected ? 'Conectado' : 'Não conectado'}
+                            <div style={{
+                              width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                              background: connected ? 'var(--green)' : isError ? '#d97706' : isPending ? 'var(--gray2)' : 'var(--gray3)',
+                            }} />
+                            <span style={{
+                              fontSize: 12, fontWeight: 600,
+                              color: connected ? 'var(--green)' : isError ? '#d97706' : 'var(--gray2)',
+                            }}>
+                              {connected ? 'Conectado' : isError ? 'Atenção' : isPending ? 'Pendente' : 'Não conectado'}
                             </span>
                           </>
                         )}
@@ -601,7 +627,7 @@ export default function SettingsPage() {
                         background: 'var(--bg)', border: '1px solid var(--gray3)',
                         fontSize: 12, fontWeight: 700, color: 'var(--gray)',
                       }}>
-                        {integStatuses[item.slug] === undefined ? 'Gerenciar' : (connected ? 'Gerenciar' : 'Conectar')}
+                        {st === 'disconnected' ? 'Conectar' : 'Gerenciar'}
                       </div>
                     </Link>
                   )
@@ -718,6 +744,14 @@ const fieldStyle: React.CSSProperties = {
   fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
   color: 'var(--black)', background: 'var(--white)',
   border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
+}
+
+function relTime(ms: number): string {
+  const diff = Date.now() - ms
+  if (diff < 60_000) return 'agora'
+  if (diff < 3_600_000) return `há ${Math.floor(diff / 60_000)}m`
+  if (diff < 86_400_000) return `há ${Math.floor(diff / 3_600_000)}h`
+  return `há ${Math.floor(diff / 86_400_000)}d`
 }
 
 function textOn(hex: string) {
