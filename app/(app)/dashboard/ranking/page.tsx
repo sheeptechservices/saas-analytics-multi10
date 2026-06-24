@@ -1,7 +1,9 @@
 'use client'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, useRef } from 'react'
+import { X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { SparkleIcon } from '@/components/icons/SparkleIcon'
 
 type Period = 'all' | '7d' | '30d' | '90d'
 type Metric = 'revenue' | 'won' | 'conversion'
@@ -164,7 +166,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
               </div>
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'var(--bg)', cursor: 'pointer', fontSize: 16, color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'var(--bg)', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         {/* Modal body */}
@@ -191,7 +193,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     {t.members.length} {t.members.length === 1 ? 'membro' : 'membros'}
                   </span>
                   <button onClick={() => openEdit(t)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 12, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => deleteTeam(t)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(217,48,37,0.2)', background: 'rgba(217,48,37,0.06)', fontSize: 12, fontWeight: 600, color: 'var(--red)', cursor: 'pointer' }}>✕</button>
+                  <button onClick={() => deleteTeam(t)} aria-label="Excluir time" style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(217,48,37,0.2)', background: 'rgba(217,48,37,0.06)', color: 'var(--red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={12} /></button>
                 </div>
               ))}
             </div>
@@ -930,8 +932,8 @@ export default function RankingPage() {
               }} />
             ))}
 
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--gray2)', marginBottom: 24, position: 'relative' }}>
-              ✦ Pódio
+            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--gray2)', marginBottom: 24, position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <SparkleIcon size={9} /> Pódio
             </div>
 
             {/* Cards */}

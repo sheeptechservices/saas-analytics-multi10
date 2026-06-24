@@ -1,6 +1,7 @@
 'use client'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { formatCurrency, daysAgo } from '@/lib/utils'
 
 type Priority = 'high' | 'normal' | 'low'
@@ -49,7 +50,7 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
                 {lead.stage?.name} · {lead.responsibleName}
               </div>
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 18, lineHeight: 1 }}>✕</button>
+            <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', marginTop: 8 }}>
             {formatCurrency(lead.price)}
@@ -88,8 +89,8 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
                   background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)',
                 }}>
                   {tag}
-                  <button onClick={() => setTags(tags.filter(t => t !== tag))}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-text)', lineHeight: 1, padding: 0, fontSize: 12 }}>✕</button>
+                  <button onClick={() => setTags(tags.filter(t => t !== tag))} aria-label="Remover tag"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-text)', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={10} /></button>
                 </span>
               ))}
             </div>
@@ -355,7 +356,7 @@ export default function PipelinePage() {
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--gray2)')}
             >
-              ✕ Limpar
+              <X size={12} /> Limpar
             </button>
           )}
         </div>

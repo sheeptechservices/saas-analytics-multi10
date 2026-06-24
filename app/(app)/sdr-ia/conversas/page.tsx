@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { CSSProperties } from 'react'
+import { X } from 'lucide-react'
 import { timeAgo } from '@/lib/format'
 import { Skeleton, SkeletonSessionList } from '@/components/Skeleton'
 
@@ -797,7 +798,8 @@ export default function ConversasPage() {
                       fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
                       background: 'rgba(180,50,0,0.06)', color: '#9a2008',
                       border: '1px solid rgba(180,50,0,0.18)',
-                    }}>✕ Janela encerrada</span>
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                    }}><X size={9} /> Janela encerrada</span>
                   )}
                 </div>
               </>
