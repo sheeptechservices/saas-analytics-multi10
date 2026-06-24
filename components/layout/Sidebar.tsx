@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, BarChart3, Sparkles, Settings } from 'lucide-react'
+import { LayoutGrid, BarChart3, Sparkles, Settings, Radio } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
 import { useModules } from '@/components/ModulesProvider'
 import { useIsMobile } from '@/lib/hooks/useMediaQuery'
@@ -13,6 +13,7 @@ interface NavItem {
   label:        string
   icon:         React.ReactNode
   activePrefix?: string
+  isActive?:    (pathname: string) => boolean
 }
 
 interface NavGroup {
@@ -35,7 +36,12 @@ const navItems: NavGroup[] = [
       {
         href: '/sdr-ia/parametros', label: 'SDR IA',
         icon: <Sparkles size={16} />,
-        activePrefix: '/sdr-ia',
+        isActive: (p) => p.startsWith('/sdr-ia') && !p.startsWith('/sdr-ia/disparos'),
+      },
+      {
+        href: '/sdr-ia/disparos', label: 'Disparos',
+        icon: <Radio size={16} />,
+        isActive: (p) => p.startsWith('/sdr-ia/disparos'),
       },
     ],
   },
@@ -64,6 +70,7 @@ export function Sidebar() {
     if (href === '/dashboard')     return modules.some(k => k.startsWith('dashboard.'))
     if (href === '/pipeline')      return modules.includes('pipeline')
     if (href === '/sdr-ia/parametros') return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
+    if (href === '/sdr-ia/disparos')   return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
     return true
   }
 
@@ -103,9 +110,11 @@ export function Sidebar() {
             {group.section}
           </div>
           {visibleItems.map(item => {
-            const active = item.activePrefix
-              ? pathname.startsWith(item.activePrefix)
-              : pathname === item.href
+            const active = item.isActive
+              ? item.isActive(pathname)
+              : item.activePrefix
+                ? pathname.startsWith(item.activePrefix)
+                : pathname === item.href
             return (
               <Link
                 key={item.href}
