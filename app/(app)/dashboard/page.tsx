@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { BarChart3, Settings } from 'lucide-react'
+import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { KpiCard } from '@/components/widgets/KpiCard'
 import { FunnelChart, FunnelFilterPanel } from '@/components/widgets/FunnelChart'
 import type { FunnelStage } from '@/components/widgets/FunnelChart'
@@ -113,7 +114,7 @@ function AskAIButton({ question }: { question: string }) {
         transition: 'all 0.18s cubic-bezier(0.34,1.4,0.64,1)',
       }}
     >
-      <span style={{ fontSize: 9 }}>✦</span> Analisar
+      <SparkleIcon size={9} /> Analisar
     </button>
   )
 }
