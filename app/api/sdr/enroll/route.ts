@@ -12,6 +12,7 @@ import { db } from '@/lib/db'
 import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
+import { requireRole } from '@/lib/auth-guard'
 
 const SOURCE      = 'sdr-n8n'
 const MAX_LEADS   = 100
@@ -20,6 +21,9 @@ const UUID_RE     = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const roleCheck = requireRole(['master', 'admin', 'manager'], session)
+  if (roleCheck) return roleCheck
 
   const { tenantId } = session.user
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
