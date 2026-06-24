@@ -708,6 +708,7 @@ export default function LeadsPage() {
                     checked={allOnPage}
                     onChange={toggleAll}
                     disabled={pageIds.length === 0}
+                    aria-label="Selecionar todos"
                     style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                   />
                 </th>
@@ -738,6 +739,7 @@ export default function LeadsPage() {
                     key={lead.id}
                     className="row-cascade"
                     onClick={() => toggleOne(lead.id)}
+                    aria-selected={checked}
                     style={{
                       '--row-delay': `${Math.min(i, 9) * 40}ms`,
                       borderBottom: isLast ? 'none' : '1px solid var(--gray3)',
@@ -751,6 +753,7 @@ export default function LeadsPage() {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleOne(lead.id)}
+                        aria-label={`Selecionar ${lead.name || lead.phone}`}
                         style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                       />
                     </td>
