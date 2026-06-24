@@ -80,7 +80,7 @@ export function KpiCard({
       onMouseLeave={() => setHov(false)}
       style={{
         background: 'var(--white)',
-        border: '1px solid #ECECE9',
+        border: '1px solid var(--line)',
         borderLeft: `4px solid ${accent}`,
         borderRadius: 12,
         padding: '18px 20px',

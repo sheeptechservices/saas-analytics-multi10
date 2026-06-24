@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { X, ArrowUp } from 'lucide-react'
+import { SparkleIcon } from '@/components/icons/SparkleIcon'
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; streaming?: boolean }
 
@@ -228,7 +229,9 @@ export function AIAssistant() {
           ><X size={10} /></button>
 
           {/* Spark icon */}
-          <div style={{ fontSize: 18, marginBottom: 7, lineHeight: 1 }}>✦</div>
+          <div style={{ marginBottom: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <SparkleIcon size={18} />
+          </div>
 
           <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.45, marginBottom: 8 }}>
             Pergunte à IA sobre seus dados!
@@ -305,11 +308,11 @@ export function AIAssistant() {
             width: 34, height: 34, borderRadius: '50%',
             background: 'var(--primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 15, color: 'var(--primary-contrast)',
+            color: 'var(--primary-contrast)',
             boxShadow: '0 2px 8px rgba(255,180,0,0.4)',
             animation: 'spin-slow 24s linear infinite',
             flexShrink: 0,
-          }}>✦</div>
+          }}><SparkleIcon size={15} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--black)' }}>Assistente IA</div>
             <div style={{ fontSize: 10, color: 'var(--gray)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -465,7 +468,7 @@ function FABButton({ open, onClick }: { open: boolean; onClick: () => void }) {
         transition: 'transform 0.35s cubic-bezier(0.34,1.4,0.64,1)',
         transform: open ? 'rotate(135deg) scale(0.9)' : 'rotate(0deg) scale(1)',
       }}>
-        {open ? '✕' : '✦'}
+        {open ? <X size={16} strokeWidth={2.5} /> : <SparkleIcon size={16} />}
       </span>
     </button>
   )

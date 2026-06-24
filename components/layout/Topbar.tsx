@@ -94,7 +94,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
             style={{
               width: 34, height: 34, borderRadius: 100, background: 'var(--primary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 800, color: 'var(--black)', cursor: 'pointer',
+              fontSize: 12, fontWeight: 800, color: 'var(--primary-contrast)', cursor: 'pointer',
               overflow: 'hidden',
             }}
           >
