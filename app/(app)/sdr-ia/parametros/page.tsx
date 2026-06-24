@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ChevronDown, ExternalLink, Eye, EyeOff } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ExternalLink } from 'lucide-react'
 import { SkeletonForm, SkeletonBlock } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button'
 type Tom         = 'formal' | 'consultivo' | 'direto'
 type Status      = 'draft' | 'active' | 'paused'
 type N8nDelivery = { ok: boolean; status?: number; error?: string } | null
-type AreaId      = 'campanha' | 'ia-conteudo' | 'integracoes-n8n' | 'teste-disparo' | 'avancado'
+type AreaId      = 'campanha' | 'ia-conteudo' | 'teste-disparo' | 'avancado'
 
 interface Settings {
   tom:              Tom
@@ -162,26 +162,10 @@ function CollapsibleArea({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ParametrosPage() {
-  const [settings,           setSettings]           = useState<Settings>(DEFAULTS)
-  const [status,             setStatus]             = useState<Status>('draft')
-  const [n8nWebhookUrl,      setN8nWebhookUrl]      = useState('')
-  const [n8nWebhookSecret,   setN8nWebhookSecret]   = useState('')
-  const [showSecret,         setShowSecret]         = useState(false)
-  const [n8nDispatchUrl,     setN8nDispatchUrl]     = useState('')
-  const [n8nDispatchSecret,  setN8nDispatchSecret]  = useState('')
-  const [showDispatchSecret, setShowDispatchSecret] = useState(false)
-  const [dispatching,        setDispatching]        = useState(false)
-  const [dispatchResult,     setDispatchResult]     = useState<{ ok: boolean; status?: number; error?: string } | undefined>(undefined)
-  const [n8nEnrollUrl,       setN8nEnrollUrl]       = useState('')
-  const [n8nEnrollSecret,    setN8nEnrollSecret]    = useState('')
-  const [showEnrollSecret,   setShowEnrollSecret]   = useState(false)
-  const [n8nImportUrl,       setN8nImportUrl]       = useState('')
-  const [n8nImportSecret,    setN8nImportSecret]    = useState('')
-  const [showImportSecret,   setShowImportSecret]   = useState(false)
-  const [n8nBlastUrl,        setN8nBlastUrl]        = useState('')
-  const [n8nBlastSecret,     setN8nBlastSecret]     = useState('')
-  const [showBlastSecret,    setShowBlastSecret]    = useState(false)
-  const [remetenteError,     setRemetenteError]     = useState<string | null>(null)
+  const [settings,        setSettings]        = useState<Settings>(DEFAULTS)
+  const [status,          setStatus]          = useState<Status>('draft')
+  const [preservedN8nUrls, setPreservedN8nUrls] = useState<Record<string, string>>({})
+  const [remetenteError,  setRemetenteError]  = useState<string | null>(null)
   const [loading,            setLoading]            = useState(true)
   const [saving,             setSaving]             = useState(false)
   const [saved,              setSaved]              = useState(false)
@@ -246,12 +230,13 @@ export default function ParametrosPage() {
         const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, n8nImportUrl: importUrl, n8nBlastUrl: blastUrl, ...coreSettings } = d.settings
         setSettings({ ...DEFAULTS, ...coreSettings })
         setStatus(d.status)
-        setN8nWebhookUrl(webhookUrl ?? '')
-        setN8nDispatchUrl(dispatchUrl ?? '')
-        setN8nEnrollUrl(enrollUrl ?? '')
-        setN8nImportUrl(importUrl ?? '')
-        setN8nBlastUrl(blastUrl ?? '')
-        // secrets are never returned by GET — fields stay empty intentionally
+        const urls: Record<string, string> = {}
+        if (webhookUrl) urls.n8nWebhookUrl = webhookUrl
+        if (dispatchUrl) urls.n8nDispatchUrl = dispatchUrl
+        if (enrollUrl) urls.n8nEnrollUrl = enrollUrl
+        if (importUrl) urls.n8nImportUrl = importUrl
+        if (blastUrl) urls.n8nBlastUrl = blastUrl
+        setPreservedN8nUrls(urls)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -271,16 +256,7 @@ export default function ParametrosPage() {
     try {
       const settingsPayload = {
         ...settings,
-        n8nWebhookUrl,
-        ...(n8nWebhookSecret  ? { n8nWebhookSecret }  : {}),
-        n8nDispatchUrl,
-        ...(n8nDispatchSecret ? { n8nDispatchSecret } : {}),
-        n8nEnrollUrl,
-        ...(n8nEnrollSecret ? { n8nEnrollSecret } : {}),
-        n8nImportUrl,
-        ...(n8nImportSecret ? { n8nImportSecret } : {}),
-        n8nBlastUrl,
-        ...(n8nBlastSecret ? { n8nBlastSecret } : {}),
+        ...preservedN8nUrls,
       }
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
@@ -296,20 +272,6 @@ export default function ParametrosPage() {
       setSaveError((e as Error).message)
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function dispatch() {
-    setDispatching(true)
-    setDispatchResult(undefined)
-    try {
-      const res = await fetch('/api/sdr/dispatch', { method: 'POST' })
-      const data = await res.json() as { ok: boolean; status?: number; error?: string }
-      setDispatchResult(data)
-    } catch (e) {
-      setDispatchResult({ ok: false, error: (e as Error).message })
-    } finally {
-      setDispatching(false)
     }
   }
 
@@ -370,7 +332,7 @@ export default function ParametrosPage() {
   }
 
   const hasTemplates = settings.templates.length > 0
-  const hasWebhook   = !!n8nWebhookUrl
+  const hasWebhook   = !!preservedN8nUrls.n8nWebhookUrl
 
   return (
     <div>
@@ -720,322 +682,7 @@ export default function ParametrosPage() {
         </SectionCard>
       </CollapsibleArea>
 
-      {/* ━━━ Área 3: Integrações n8n ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <CollapsibleArea
-        id="integracoes-n8n"
-        title="Integrações n8n"
-        open={openAreas.has('integracoes-n8n')}
-        onToggle={() => toggleArea('integracoes-n8n')}
-      >
-        <SectionCard title="Integração n8n">
-          <FieldLabel>URL do Webhook n8n</FieldLabel>
-          <input
-            type="url"
-            value={n8nWebhookUrl}
-            onChange={e => setN8nWebhookUrl(e.target.value)}
-            placeholder="https://seu-n8n.example.com/webhook/..."
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-
-          <FieldLabel>Segredo (opcional)</FieldLabel>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
-            <input
-              type={showSecret ? 'text' : 'password'}
-              value={n8nWebhookSecret}
-              onChange={e => setN8nWebhookSecret(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              style={{
-                width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10,
-                padding: '10px 42px 10px 14px',
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                boxSizing: 'border-box', transition: 'border-color .15s',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowSecret(s => !s)}
-              title={showSecret ? 'Ocultar' : 'Mostrar'}
-              style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
-              }}
-            >
-              {showSecret ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
-            Enviado como{' '}
-            <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 10 }}>Authorization: Bearer</code>
-            {' '}no cabeçalho da requisição. Deixe em branco para manter o segredo já salvo.
-          </div>
-
-          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
-
-          <FieldLabel>URL de disparo (n8n)</FieldLabel>
-          <input
-            type="url"
-            value={n8nDispatchUrl}
-            onChange={e => setN8nDispatchUrl(e.target.value)}
-            placeholder="https://seu-n8n.example.com/webhook/..."
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-
-          <FieldLabel>Segredo de disparo (opcional)</FieldLabel>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
-            <input
-              type={showDispatchSecret ? 'text' : 'password'}
-              value={n8nDispatchSecret}
-              onChange={e => setN8nDispatchSecret(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              style={{
-                width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10,
-                padding: '10px 42px 10px 14px',
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                boxSizing: 'border-box', transition: 'border-color .15s',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowDispatchSecret(s => !s)}
-              title={showDispatchSecret ? 'Ocultar' : 'Mostrar'}
-              style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
-              }}
-            >
-              {showDispatchSecret ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 20 }}>
-            Deixe em branco para manter o segredo já salvo.
-          </div>
-
-          <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5, marginBottom: 16 }}>
-            Aciona um ciclo de disparo no n8n para os leads agendados (não escolhe destinatários aqui).
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const }}>
-            <Button
-              variant="primary"
-              onClick={dispatch}
-              disabled={dispatching || !n8nDispatchUrl}
-            >
-              {dispatching ? 'Disparando...' : 'Disparar agora'}
-            </Button>
-
-            {dispatchResult !== undefined && dispatchResult.ok && (
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                fontSize: 12, fontWeight: 700,
-                background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
-                border: '1px solid rgba(34,197,94,0.25)',
-                borderRadius: 99, padding: '5px 14px',
-              }}>
-                Disparo acionado ✓
-                {dispatchResult.status !== undefined && (
-                  <span style={{ fontWeight: 500, opacity: 0.75 }}>· HTTP {dispatchResult.status}</span>
-                )}
-              </div>
-            )}
-            {dispatchResult !== undefined && !dispatchResult.ok && (
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                fontSize: 12, fontWeight: 700,
-                background: 'rgba(239,68,68,0.08)', color: 'var(--red)',
-                border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 99, padding: '5px 14px',
-              }}>
-                Falha: {dispatchResult.error ?? `HTTP ${dispatchResult.status}`}
-              </div>
-            )}
-          </div>
-
-          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
-
-          <FieldLabel>URL de enrollment (n8n)</FieldLabel>
-          <input
-            type="url"
-            value={n8nEnrollUrl}
-            onChange={e => setN8nEnrollUrl(e.target.value)}
-            placeholder="https://seu-n8n.example.com/webhook/..."
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-
-          <FieldLabel>Segredo de enrollment (opcional)</FieldLabel>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
-            <input
-              type={showEnrollSecret ? 'text' : 'password'}
-              value={n8nEnrollSecret}
-              onChange={e => setN8nEnrollSecret(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              style={{
-                width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10,
-                padding: '10px 42px 10px 14px',
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                boxSizing: 'border-box', transition: 'border-color .15s',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowEnrollSecret(s => !s)}
-              title={showEnrollSecret ? 'Ocultar' : 'Mostrar'}
-              style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
-              }}
-            >
-              {showEnrollSecret ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
-            Webhook acionado pela página Leads ao adicionar leads à campanha. Deixe em branco para manter o segredo já salvo.
-          </div>
-
-          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
-
-          <FieldLabel>URL de importação (n8n)</FieldLabel>
-          <input
-            type="url"
-            value={n8nImportUrl}
-            onChange={e => setN8nImportUrl(e.target.value)}
-            placeholder="https://seu-n8n.example.com/webhook/..."
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-
-          <FieldLabel>Segredo de importação (opcional)</FieldLabel>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
-            <input
-              type={showImportSecret ? 'text' : 'password'}
-              value={n8nImportSecret}
-              onChange={e => setN8nImportSecret(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              style={{
-                width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10,
-                padding: '10px 42px 10px 14px',
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                boxSizing: 'border-box', transition: 'border-color .15s',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowImportSecret(s => !s)}
-              title={showImportSecret ? 'Ocultar' : 'Mostrar'}
-              style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
-              }}
-            >
-              {showImportSecret ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
-            Webhook acionado ao importar leads via Excel. Deixe em branco para manter o segredo já salvo.
-          </div>
-
-          <div style={{ height: 1, background: 'var(--gray3)', margin: '24px 0' }} />
-
-          <FieldLabel>URL de disparo de lista (n8n)</FieldLabel>
-          <input
-            type="url"
-            value={n8nBlastUrl}
-            onChange={e => setN8nBlastUrl(e.target.value)}
-            placeholder="https://seu-n8n.example.com/webhook/..."
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-
-          <FieldLabel>Segredo (opcional)</FieldLabel>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
-            <input
-              type={showBlastSecret ? 'text' : 'password'}
-              value={n8nBlastSecret}
-              onChange={e => setN8nBlastSecret(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="new-password"
-              style={{
-                width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10,
-                padding: '10px 42px 10px 14px',
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                boxSizing: 'border-box', transition: 'border-color .15s',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowBlastSecret(s => !s)}
-              title={showBlastSecret ? 'Ocultar' : 'Mostrar'}
-              style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--gray2)', padding: 4, display: 'flex', alignItems: 'center',
-              }}
-            >
-              {showBlastSecret ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, lineHeight: 1.5 }}>
-            Recebe a lista de contatos para blast direto de template. Deixe em branco para manter o segredo já salvo.
-          </div>
-        </SectionCard>
-      </CollapsibleArea>
-
-      {/* ━━━ Área 4: Teste de disparo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* ━━━ Área 3: Teste de disparo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <CollapsibleArea
         id="teste-disparo"
         title="Teste de disparo"

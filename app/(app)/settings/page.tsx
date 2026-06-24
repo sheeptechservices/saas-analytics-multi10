@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
 import { initials } from '@/lib/utils'
-import { Pencil, Trash2, Clock, Search, Check, Database } from 'lucide-react'
+import { Pencil, Trash2, Clock, Search, Check, Database, KeyRound } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { useModules } from '@/components/ModulesProvider'
 
@@ -70,6 +70,7 @@ interface IntegrationItem {
   iconBg: string
   iconColor?: string
   icon: React.ReactNode
+  moduleKey?: string
 }
 
 const INTEGRATION_GROUPS: { group: string; items: IntegrationItem[] }[] = [
@@ -155,6 +156,21 @@ const INTEGRATION_GROUPS: { group: string; items: IntegrationItem[] }[] = [
         iconBg: 'var(--primary-dim)',
         iconColor: 'var(--primary-text)',
         icon: <SparkleIcon size={20} />,
+      },
+    ],
+  },
+  {
+    group: 'Automação',
+    items: [
+      {
+        slug: 'credenciais',
+        moduleKey: 'sdr.parametros',
+        label: 'Credenciais',
+        desc: 'URLs e segredos de integração usados pela automação de campanha.',
+        href: '/settings/integrations/credenciais',
+        iconBg: '#f5f3ff',
+        iconColor: '#7c3aed',
+        icon: <KeyRound size={20} />,
       },
     ],
   },
@@ -523,7 +539,7 @@ export default function SettingsPage() {
       {tab === 'integracoes' && (
         <div className="animate-slide-up delay-2">
           {INTEGRATION_GROUPS
-            .map(g => ({ ...g, items: g.items.filter(i => modules.includes('integration.' + i.slug)) }))
+            .map(g => ({ ...g, items: g.items.filter(i => modules.includes(i.moduleKey ?? ('integration.' + i.slug))) }))
             .filter(g => g.items.length > 0)
             .map(group => (
             <div key={group.group} style={{ marginBottom: 28 }}>
@@ -585,7 +601,7 @@ export default function SettingsPage() {
                         background: 'var(--bg)', border: '1px solid var(--gray3)',
                         fontSize: 12, fontWeight: 700, color: 'var(--gray)',
                       }}>
-                        {connected ? 'Gerenciar' : 'Conectar'}
+                        {integStatuses[item.slug] === undefined ? 'Gerenciar' : (connected ? 'Gerenciar' : 'Conectar')}
                       </div>
                     </Link>
                   )
