@@ -16,7 +16,8 @@ export default auth((req) => {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/webhooks/') ||
-    pathname === '/api/sdr/blast/ack' // server-to-server (n8n); autentica via Bearer próprio
+    pathname === '/api/sdr/blast/ack' ||    // server-to-server (n8n); autentica via Bearer próprio
+    pathname === '/api/sdr/dispatch/ack'    // idem (ack do drip/campanha)
 
   // 1. Master on /login → /master
   if (isLoggedIn && isMaster && pathname === '/login') {
