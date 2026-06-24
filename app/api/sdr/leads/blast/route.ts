@@ -14,10 +14,12 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
-import { dataSources, campaignSettings } from '@/lib/db/schema'
+import { dataSources, campaignSettings, blastCampaigns, blastRecipients } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
+import { requireRole } from '@/lib/auth-guard'
+import { randomUUID } from 'crypto'
 import { Client } from 'pg'
 
 const PROVIDER_KEY      = 'supabase-n8n'
@@ -64,6 +66,9 @@ function ensureBr9(e164: string): string {
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const roleCheck = requireRole(['master', 'admin', 'manager'], session)
+  if (roleCheck) return roleCheck
 
   const { tenantId } = session.user
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
@@ -147,7 +152,7 @@ export async function POST(request: Request) {
 
   // ── Resolve remetente + recipients (SOMENTE SELECT — nunca escreve) ───────────
   const client = new Client({ connectionString })
-  let recipients: { phone: string; first_name: string; message: string; session_id: string }[]
+  let recipients: { leadId: string; phone: string; first_name: string; message: string; session_id: string }[]
   let remetente: string
 
   try {
@@ -176,7 +181,7 @@ export async function POST(request: Request) {
       const message    = renderMessage(templateBody, first_name)
       const rawSession = (r.phone_adjusted ?? r.phone ?? '').replace(/\D/g, '')
       const session_id = rawSession || phone.replace(/\D/g, '')
-      recipients.push({ phone, first_name, message, session_id })
+      recipients.push({ leadId: r.id, phone, first_name, message, session_id })
     }
   } catch (err) {
     console.error('[sdr blast resolve]', err)
@@ -196,6 +201,44 @@ export async function POST(request: Request) {
     )
   }
 
+  // ── Persist campaign + recipients in Turso (before calling n8n) ──────────────
+  const campaignId = randomUUID()
+  const now = new Date()
+
+  await db.insert(blastCampaigns).values({
+    id: campaignId,
+    tenantId,
+    template,
+    templateBody: templateBody || null,
+    totalSolicitado: leadIds.length,
+    skipped,
+    started: 0,
+    status: 'enviando',
+    createdBy: session.user.id,
+    createdAt: now,
+  })
+
+  const recipientRows = recipients.map(r => ({
+    id: randomUUID(),
+    campaignId,
+    leadId: r.leadId,
+    phone: r.phone,
+    firstName: r.first_name,
+    messageBody: r.message,
+    status: 'pendente' as const,
+    createdAt: now,
+  }))
+  await db.insert(blastRecipients).values(recipientRows)
+
+  // Build enriched payload for n8n (add campaignId + recipientId per item)
+  const enrichedRecipients = recipientRows.map((row, i) => ({
+    recipientId: row.id,
+    phone: row.phone,
+    first_name: recipients[i].first_name,
+    message: recipients[i].message,
+    session_id: recipients[i].session_id,
+  }))
+
   // ── Trigger blast on n8n (app never sends WhatsApp directly — n8n does) ───────
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -204,7 +247,7 @@ export async function POST(request: Request) {
     const res = await fetch(blastUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ tenantId, template, remetente, recipients }),
+      body: JSON.stringify({ tenantId, campaignId, template, remetente, recipients: enrichedRecipients }),
       signal: AbortSignal.timeout(15_000),
     })
 
@@ -216,6 +259,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok:              res.ok,
+      campaignId,
       started:         started ?? recipients.length,
       totalSolicitado: leadIds.length,
       skipped,
@@ -223,6 +267,6 @@ export async function POST(request: Request) {
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     console.error('[sdr blast → n8n]', error)
-    return NextResponse.json({ ok: false, error, totalSolicitado: leadIds.length, skipped }, { status: 502 })
+    return NextResponse.json({ ok: false, campaignId, error, totalSolicitado: leadIds.length, skipped }, { status: 502 })
   }
 }

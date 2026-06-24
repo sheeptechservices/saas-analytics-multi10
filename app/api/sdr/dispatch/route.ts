@@ -4,12 +4,16 @@ import { db } from '@/lib/db'
 import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
+import { requireRole } from '@/lib/auth-guard'
 
 const SOURCE = 'sdr-n8n'
 
 export async function POST() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const roleCheck = requireRole(['master', 'admin', 'manager'], session)
+  if (roleCheck) return roleCheck
 
   const { tenantId } = session.user
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
