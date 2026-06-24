@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
 
 // ─── SecretInput ──────────────────────────────────────────────────────────────
 
@@ -132,6 +133,8 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CredenciaisPage() {
+  const { canDispatch } = useCanDispatch()
+
   // full settings from GET — preserved and re-sent on PUT so campaign fields aren't zeroed
   const [fullSettings, setFullSettings]     = useState<Record<string, unknown>>({})
   const [fullStatus,   setFullStatus]       = useState<string>('draft')
@@ -301,13 +304,15 @@ export default function CredenciaisPage() {
           />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const }}>
-            <Button
-              variant="primary"
-              onClick={dispatch}
-              disabled={dispatching || !n8nDispatchUrl}
-            >
-              {dispatching ? 'Disparando...' : 'Disparar agora'}
-            </Button>
+            {canDispatch && (
+              <Button
+                variant="primary"
+                onClick={dispatch}
+                disabled={dispatching || !n8nDispatchUrl}
+              >
+                {dispatching ? 'Disparando...' : 'Disparar agora'}
+              </Button>
+            )}
 
             {dispatchResult !== undefined && dispatchResult.ok && (
               <div style={{
