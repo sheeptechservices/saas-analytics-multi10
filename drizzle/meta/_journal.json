@@ -57,6 +57,13 @@
       "when": 1782308684555,
       "tag": "0007_concerned_domino",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1782331253366,
+      "tag": "0008_narrow_bastion",
+      "breakpoints": true
     }
   ]
 }

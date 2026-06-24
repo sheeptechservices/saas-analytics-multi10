@@ -342,6 +342,7 @@ export const blastCampaigns = sqliteTable('blast_campaigns', {
   skipped: integer('skipped').notNull().default(0),
   started: integer('started').notNull().default(0),
   status: text('status', { enum: ['enviando', 'concluido', 'erro'] }).notNull().default('enviando'),
+  kind: text('kind', { enum: ['manual', 'campanha'] }).notNull().default('manual'),
   createdBy: text('created_by').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({
@@ -356,6 +357,7 @@ export const blastRecipients = sqliteTable('blast_recipients', {
   phone: text('phone').notNull(),
   firstName: text('first_name').notNull(),
   messageBody: text('message_body').notNull(),
+  template: text('template'),
   ycloudMessageId: text('ycloud_message_id'),
   status: text('status', { enum: ['pendente', 'enviado', 'entregue', 'lido', 'falhou'] }).notNull().default('pendente'),
   errorCode: text('error_code'),
