@@ -1057,14 +1057,22 @@ export default function LeadsPage() {
                     marginBottom: 18, padding: '12px 16px', borderRadius: 10,
                     background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)',
                   }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
                       Confirmar disparo
                     </div>
-                    <div style={{ fontSize: 13, color: '#78350f', lineHeight: 1.6 }}>
-                      {(importResult?.semNome ?? 0)} contato{(importResult?.semNome ?? 0) !== 1 ? 's' : ''} sem nome serão
-                      enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.
-                      Deseja continuar?
+                    <div style={{ fontSize: 13, color: '#78350f', lineHeight: 1.65 }}>
+                      Template: <strong>{selectedTemplate}</strong><br />
+                      Disparar para <strong>{blastTotal} contato{blastTotal !== 1 ? 's' : ''}</strong>.
                     </div>
+                    <div style={{ fontSize: 12, color: '#92400e', marginTop: 6, lineHeight: 1.5 }}>
+                      Envio real via WhatsApp — ação irreversível.
+                    </div>
+                    {(importResult?.semNome ?? 0) > 0 && (
+                      <div style={{ fontSize: 12, color: '#78350f', marginTop: 8, lineHeight: 1.5 }}>
+                        Atenção: {(importResult?.semNome ?? 0)} contato{(importResult?.semNome ?? 0) !== 1 ? 's' : ''} sem nome
+                        serão enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1139,10 +1147,7 @@ export default function LeadsPage() {
                         <Button
                           variant="primary"
                           className={blasting ? 'btn-pulse' : undefined}
-                          onClick={() => {
-                            if ((importResult?.semNome ?? 0) > 0) { setBlastPendingConfirm(true) }
-                            else { void runBlast() }
-                          }}
+                          onClick={() => setBlastPendingConfirm(true)}
                           disabled={blasting || !selectedTemplate}
                         >
                           Disparar
