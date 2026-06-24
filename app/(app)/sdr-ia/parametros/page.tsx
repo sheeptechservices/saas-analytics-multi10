@@ -346,8 +346,8 @@ export default function ParametrosPage() {
         <AlertTriangle size={15} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
         <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.55 }}>
           {hasWebhook
-            ? <>As configurações são <strong>salvas no sistema</strong> e <strong>enviadas automaticamente ao webhook n8n</strong> configurado a cada salvamento.</>
-            : <>As configurações são <strong>salvas no sistema</strong>. Configure o webhook n8n abaixo para ativar o envio automático à campanha.</>
+            ? <>As configurações são <strong>salvas no sistema</strong> e <strong>enviadas automaticamente à integração</strong> configurada a cada salvamento.</>
+            : <>As configurações são <strong>salvas no sistema</strong>. Configure as credenciais de integração em <strong>Configurações → Credenciais</strong> para ativar o envio automático à campanha.</>
           }
         </div>
       </div>
@@ -381,7 +381,7 @@ export default function ParametrosPage() {
             })}
           </div>
           <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>
-            {status === 'active'  ? 'Campanha marcada como ativa — sem disparos até a integração n8n estar conectada.'
+            {status === 'active'  ? 'Campanha marcada como ativa — sem disparos até a integração estar configurada.'
              : status === 'paused' ? 'Campanha pausada — sem disparos mesmo quando integrada.'
              : 'Rascunho — configuração em elaboração.'}
           </div>
@@ -618,7 +618,7 @@ export default function ParametrosPage() {
             <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, color: 'var(--primary-text)' }}>
               {'{{empresa}}'}
             </code>
-            {' '}como variáveis que o n8n substituirá em cada envio.
+            {' '}como variáveis que serão substituídas em cada envio.
           </div>
 
           {hasTemplates && (
@@ -633,7 +633,7 @@ export default function ParametrosPage() {
                       value={tmpl}
                       onChange={e => updTemplate(i, e.target.value)}
                       rows={4}
-                      placeholder={`Template ${i + 1}...`}
+                      placeholder={`Mensagem ${i + 1}...`}
                       style={{
                         flex: 1, minWidth: 0, fontFamily: 'inherit', fontSize: 13,
                         resize: 'vertical', lineHeight: 1.55,
@@ -696,7 +696,7 @@ export default function ParametrosPage() {
             borderRadius: 10, padding: '10px 14px', marginBottom: 20,
             fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
           }}>
-            ⚠ Envia mensagem <strong style={{ fontWeight: 800 }}>real</strong> (com custo) diretamente via YCloud, somente para os números informados — não usa a fila de campanha.
+            ⚠ Envia mensagem <strong style={{ fontWeight: 800 }}>real</strong> (com custo) diretamente via WhatsApp, somente para os números informados — não usa a sequência da campanha.
           </div>
 
           <FieldLabel>Template</FieldLabel>
@@ -839,7 +839,7 @@ export default function ParametrosPage() {
       >
         <SectionCard title="Fonte de dados">
           <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 16 }}>
-            A conexão com o Supabase e o n8n é configurada separadamente.
+            A conexão com a fonte de dados e a integração são configuradas separadamente.
             As configurações de campanha acima serão aplicadas quando a fonte estiver conectada e a integração ativada.
           </div>
           <Link href="/settings/integrations/sdr-source" style={{
@@ -880,7 +880,7 @@ export default function ParametrosPage() {
         {/* n8n delivery feedback */}
         {n8nDelivery === null && (
           <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>
-            Webhook n8n não configurado — settings salvas localmente.
+            Integração de envio não configurada — configurações salvas localmente.
           </div>
         )}
         {n8nDelivery !== null && n8nDelivery !== undefined && n8nDelivery.ok && (
@@ -891,7 +891,7 @@ export default function ParametrosPage() {
             border: '1px solid rgba(34,197,94,0.25)',
             borderRadius: 99, padding: '5px 14px',
           }}>
-            ✓ Enviado ao n8n
+            ✓ Integração atualizada
             {n8nDelivery.status !== undefined && (
               <span style={{ fontWeight: 500, opacity: 0.75 }}>· HTTP {n8nDelivery.status}</span>
             )}
@@ -905,7 +905,7 @@ export default function ParametrosPage() {
             border: '1px solid rgba(245,158,11,0.30)',
             borderRadius: 99, padding: '5px 14px',
           }}>
-            ⚠ Falha ao enviar ao n8n
+            ⚠ Falha ao atualizar a integração
             {(n8nDelivery.error ?? n8nDelivery.status) !== undefined && (
               <span style={{ fontWeight: 500, opacity: 0.85 }}>
                 · {n8nDelivery.error ?? `HTTP ${n8nDelivery.status}`}

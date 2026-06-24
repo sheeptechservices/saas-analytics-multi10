@@ -47,7 +47,7 @@ const LIMIT = 50
 
 function friendlyImportError(code: string): string {
   if (code === 'import_url_nao_configurada')
-    return 'URL de importação n8n não configurada — acesse Parâmetros > Integrações n8n.'
+    return 'URL de importação não configurada — acesse Configurações > Credenciais.'
   if (code === 'fonte_sdr_nao_configurada')
     return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
   return code
@@ -55,7 +55,7 @@ function friendlyImportError(code: string): string {
 
 function friendlyBlastError(code: string): string {
   if (code === 'blast_url_nao_configurada')
-    return 'URL de disparo de lista n8n não configurada — acesse Parâmetros > Integrações n8n.'
+    return 'URL de disparo de lista não configurada — acesse Configurações > Credenciais.'
   if (code === 'remetente_nao_configurado')
     return 'Remetente não configurado na campanha — defina em Parâmetros.'
   if (code === 'fonte_sdr_nao_configurada')
@@ -522,8 +522,8 @@ export default function LeadsPage() {
                 color: n8nFalhou ? '#b45309' : 'var(--green)',
               }}>
                 {n8nFalhou
-                  ? <>⚠ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{importResult.importados !== 1 ? 's' : ''} enviados, mas o n8n retornou HTTP {importResult.n8nStatus} — podem não ter sido importados. Verifique o fluxo de importação no n8n.</>
-                  : <>✓ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{importResult.importados !== 1 ? 's' : ''} enviados ao n8n para importação</>
+                  ? <>⚠ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{importResult.importados !== 1 ? 's' : ''} enviados, mas a importação retornou um erro (HTTP {importResult.n8nStatus}) — tente novamente em instantes ou verifique a configuração de importação.</>
+                  : <>✓ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{importResult.importados !== 1 ? 's' : ''} enviados para importação</>
                 }
               </div>
               <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginBottom: 6 }}>
@@ -611,7 +611,7 @@ export default function LeadsPage() {
               )}
 
               <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 10, lineHeight: 1.5 }}>
-                O n8n processa de forma assíncrona — os leads podem levar alguns instantes para aparecer na lista.
+                A importação é processada de forma assíncrona — os leads podem levar alguns instantes para aparecer na lista.
                 {' '}
                 <button
                   onClick={() => setFetchSeq(s => s + 1)}
@@ -659,7 +659,7 @@ export default function LeadsPage() {
 
         {!enrollResult && (
           <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>
-            Os leads selecionados entram na fila de disparo (Template 1).
+            Os leads selecionados entram na campanha e recebem a primeira mensagem da sequência.
           </span>
         )}
       </div>
@@ -686,7 +686,7 @@ export default function LeadsPage() {
           </div>
           <div style={{ fontSize: 13, color: 'var(--gray2)' }}>
             {error === 'fonte_sdr_nao_configurada'
-              ? 'Configure a fonte de dados SDR (Supabase / n8n) primeiro.'
+              ? 'Configure a fonte de dados do SDR primeiro.'
               : error}
           </div>
         </div>
@@ -851,7 +851,7 @@ export default function LeadsPage() {
                   <strong>Disparar mensagens</strong> envia um template aprovado agora para toda a
                   lista ({blastTotal} contato{blastTotal !== 1 ? 's' : ''}, novos + já existentes).
                   {novosCount > 0 && (
-                    <> <strong>Adicionar à campanha</strong> coloca só os {novosCount} novo{novosCount !== 1 ? 's' : ''} na fila do drip SDR (Template 1).</>
+                    <> <strong>Adicionar à campanha</strong> inicia a sequência de mensagens para os {novosCount} novo{novosCount !== 1 ? 's' : ''}.</>
                   )}
                   {novosCount === 0 && (
                     <> Todos os contatos já estão na base — só o disparo está disponível.</>
@@ -928,7 +928,7 @@ export default function LeadsPage() {
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.65, marginBottom: 18 }}>
                   Envio real de WhatsApp usando um <strong>template aprovado</strong> para toda a
-                  lista importada. O n8n envia com um pequeno intervalo entre mensagens.
+                  lista importada. As mensagens são enviadas com um pequeno intervalo entre elas.
                 </div>
 
                 {blastTplLoading && (

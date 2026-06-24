@@ -236,7 +236,7 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
         <>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>Nenhum dado disponível</div>
           <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 340 }}>
-            Configure e sincronize a integração Supabase / n8n para visualizar os dados reais do SDR IA.
+            Configure e sincronize a fonte de dados do SDR IA para visualizar os dados reais.
           </div>
           <Link href="/settings/integrations/sdr-source" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
