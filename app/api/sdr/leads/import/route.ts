@@ -327,7 +327,7 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error('[sdr import → n8n]', err)
       return NextResponse.json(
-        { ok: false, error: 'Falha ao enviar ao n8n: ' + (err instanceof Error ? err.message : String(err)) },
+        { ok: false, error: 'Falha ao enviar para importação: ' + (err instanceof Error ? err.message : String(err)) },
         { status: 502 },
       )
     }
