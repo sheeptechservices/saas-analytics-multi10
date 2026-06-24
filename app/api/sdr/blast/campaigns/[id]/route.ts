@@ -62,6 +62,7 @@ export async function GET(
       firstName:      r.firstName,
       status:         r.status,
       ycloudMessageId: r.ycloudMessageId,
+      template:       r.template,
       errorCode:      r.errorCode,
       errorReason:    errorReason(r.errorCode, r.errorMessage),
       lastStatusAt:   r.lastStatusAt,

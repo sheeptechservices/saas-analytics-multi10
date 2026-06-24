@@ -8,8 +8,11 @@ import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type CampaignKind = 'manual' | 'campanha'
+
 interface Campaign {
   id:              string
+  kind:            CampaignKind
   template:        string
   templateBody:    string | null
   totalSolicitado: number
@@ -31,6 +34,7 @@ interface Recipient {
   phone:           string
   firstName:       string
   status:          'pendente' | 'enviado' | 'entregue' | 'lido' | 'falhou'
+  template:        string | null
   ycloudMessageId: string | null
   errorCode:       string | null
   errorReason:     string | null
@@ -51,6 +55,11 @@ function fmtDate(ts: number | null): string {
   })
 }
 
+function fmtDayShort(ts: number | null): string {
+  if (!ts) return '—'
+  return new Date(ts * 1000).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
 function fmtPhone(phone: string): string {
   if (phone.startsWith('+55') && phone.length === 14) {
     const n = phone.slice(3)
@@ -59,9 +68,14 @@ function fmtPhone(phone: string): string {
   return phone
 }
 
-// RFC-4180 compliant CSV field: always wrap in double-quotes, double internal quotes.
 function csvField(s: string): string {
   return '"' + String(s ?? '').replace(/"/g, '""') + '"'
+}
+
+function rowTitle(c: Campaign): string {
+  return c.kind === 'campanha'
+    ? `Campanha SDR · ${fmtDayShort(c.createdAt)}`
+    : c.template
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -69,11 +83,11 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const STATUS_COLOR: Record<string, { dot: string; text: string; bg: string; border: string }> = {
-  pendente: { dot: 'var(--gray3)',  text: 'var(--gray2)',   bg: 'var(--bg)',             border: 'var(--gray3)'          },
-  enviado:  { dot: '#60a5fa',       text: '#1d4ed8',        bg: 'rgba(59,130,246,0.07)', border: 'rgba(59,130,246,0.25)' },
-  entregue: { dot: 'var(--primary)', text: 'var(--primary-text)', bg: 'var(--primary-dim)', border: 'var(--primary-mid)' },
-  lido:     { dot: 'var(--green)',  text: 'var(--green)',   bg: 'rgba(30,138,62,0.07)',  border: 'rgba(30,138,62,0.22)'  },
-  falhou:   { dot: 'var(--red)',    text: 'var(--red)',     bg: 'rgba(217,48,37,0.07)',  border: 'rgba(217,48,37,0.20)'  },
+  pendente: { dot: 'var(--gray3)',   text: 'var(--gray2)',        bg: 'var(--bg)',             border: 'var(--gray3)'          },
+  enviado:  { dot: '#60a5fa',        text: '#1d4ed8',             bg: 'rgba(59,130,246,0.07)', border: 'rgba(59,130,246,0.25)' },
+  entregue: { dot: 'var(--primary)', text: 'var(--primary-text)', bg: 'var(--primary-dim)',    border: 'var(--primary-mid)'    },
+  lido:     { dot: 'var(--green)',   text: 'var(--green)',        bg: 'rgba(30,138,62,0.07)',  border: 'rgba(30,138,62,0.22)'  },
+  falhou:   { dot: 'var(--red)',     text: 'var(--red)',          bg: 'rgba(217,48,37,0.07)',  border: 'rgba(217,48,37,0.20)'  },
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -92,9 +106,9 @@ function StatusBadge({ status }: { status: string }) {
 
 function CampaignStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string }> = {
-    enviando:  { label: 'Em andamento', color: '#d97706'       },
-    concluido: { label: 'Concluído',    color: 'var(--green)'  },
-    erro:      { label: 'Erro',         color: 'var(--red)'    },
+    enviando:  { label: 'Em andamento', color: '#d97706'      },
+    concluido: { label: 'Concluído',    color: 'var(--green)' },
+    erro:      { label: 'Erro',         color: 'var(--red)'   },
   }
   const s = map[status] ?? { label: status, color: 'var(--gray2)' }
   return <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{s.label}</span>
@@ -108,8 +122,6 @@ function MetricPill({ label, value, color }: { label: string; value: number; col
     </span>
   )
 }
-
-// ─── Pill button (shared look for Exportar / Atualizar) ───────────────────────
 
 function PillBtn({
   onClick, icon, label, disabled,
@@ -133,6 +145,33 @@ function PillBtn({
   )
 }
 
+// ─── Tab bar ─────────────────────────────────────────────────────────────────
+
+function TabBar({ active, onChange }: { active: CampaignKind; onChange: (k: CampaignKind) => void }) {
+  const tabs: { id: CampaignKind; label: string }[] = [
+    { id: 'manual',   label: 'Manuais'      },
+    { id: 'campanha', label: 'Campanha SDR' },
+  ]
+  return (
+    <div style={{ display: 'flex', borderBottom: '1px solid var(--gray3)', marginBottom: 20 }}>
+      {tabs.map(t => (
+        <button
+          key={t.id}
+          onClick={() => onChange(t.id)}
+          style={{
+            padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            background: 'none', border: 'none', borderBottom: `2px solid ${active === t.id ? 'var(--primary)' : 'transparent'}`,
+            color: active === t.id ? 'var(--black)' : 'var(--gray)',
+            transition: 'color .15s, border-color .15s', marginBottom: -1,
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Detail view ──────────────────────────────────────────────────────────────
 
 function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => void }) {
@@ -144,47 +183,51 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
     staleTime: 0,
   })
 
-  // ── Re-send state ────────────────────────────────────────────────────────────
-  const [reenvioMode,    setReenvioMode]    = useState<'idle' | 'confirm' | 'sending' | 'done'>('idle')
-  const [reenvioResult,  setReenvioResult]  = useState<{ ok: boolean; started?: number; campaignId?: string; error?: string } | null>(null)
+  const [reenvioMode,   setReenvioMode]   = useState<'idle' | 'confirm' | 'sending' | 'done'>('idle')
+  const [reenvioResult, setReenvioResult] = useState<{ ok: boolean; started?: number; error?: string } | null>(null)
 
   function refresh() { setKey(k => k + 1); setReenvioMode('idle'); setReenvioResult(null) }
 
-  // ── CSV export ───────────────────────────────────────────────────────────────
   function exportCsv() {
     if (!data) return
     const { campaign: c, recipients } = data
-    const header = ['Nome', 'Telefone', 'Status', 'Motivo'].map(csvField).join(';')
-    const rows = recipients.map(r => [
-      r.firstName,
-      r.phone,
-      STATUS_LABEL[r.status] ?? r.status,
-      r.errorReason ?? (r.status === 'falhou' ? 'Erro desconhecido' : ''),
-    ].map(csvField).join(';'))
-    const csv = '﻿' + [header, ...rows].join('\r\n') // BOM + CRLF for Excel/Windows
+    const isCampanha = c.kind === 'campanha'
+    const headers = isCampanha
+      ? ['Nome', 'Telefone', 'Template', 'Status', 'Motivo']
+      : ['Nome', 'Telefone', 'Status', 'Motivo']
+    const header = headers.map(csvField).join(';')
+    const rows = recipients.map(r => {
+      const tpl = r.template ?? (isCampanha ? '' : c.template)
+      const base = [
+        r.firstName,
+        r.phone,
+        ...(isCampanha ? [tpl] : []),
+        STATUS_LABEL[r.status] ?? r.status,
+        r.errorReason ?? (r.status === 'falhou' ? 'Erro desconhecido' : ''),
+      ]
+      return base.map(csvField).join(';')
+    })
+    const csv = '﻿' + [header, ...rows].join('\r\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = `disparo-${c.template.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${campaignId.slice(0, 8)}.csv`
+    a.download = `disparo-${rowTitle(c).replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${campaignId.slice(0, 8)}.csv`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
 
-  // ── Re-send failed ───────────────────────────────────────────────────────────
   async function reenviar() {
     if (!data) return
     const { campaign: c, recipients } = data
     const failed = recipients.filter(r => r.status === 'falhou')
     if (failed.length === 0) return
-
     setReenvioMode('sending')
     try {
       const names: Record<string, string> = {}
       failed.forEach(r => { names[r.leadId] = r.firstName })
-
       const res  = await fetch('/api/sdr/leads/blast', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -195,7 +238,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
           names,
         }),
       })
-      const body = await res.json() as { ok: boolean; started?: number; campaignId?: string; error?: string }
+      const body = await res.json() as { ok: boolean; started?: number; error?: string }
       setReenvioResult(body)
       setReenvioMode('done')
     } catch (e) {
@@ -212,12 +255,13 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
       s, recipients.filter(r => r.status === s).length,
     ]),
   )
-  const failedCount   = bySt.falhou ?? 0
-  const showReenvio   = canDispatch && failedCount > 0 && c != null
+  const failedCount = bySt.falhou ?? 0
+  const showReenvio = canDispatch && failedCount > 0 && c?.kind === 'manual' && c != null
+  const isCampanha  = c?.kind === 'campanha'
 
   return (
     <div>
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="animate-slide-up delay-1" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <button
           onClick={onBack}
@@ -227,39 +271,22 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
         </button>
         <span style={{ color: 'var(--gray3)', fontWeight: 300 }}>/</span>
         <span style={{ fontSize: 13, color: 'var(--gray)', fontWeight: 600, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {isLoading ? '…' : (c?.template ?? 'Campanha')}
+          {isLoading ? '…' : (c ? rowTitle(c) : 'Campanha')}
         </span>
-
         <div style={{ flex: 1 }} />
-
-        <PillBtn
-          onClick={exportCsv}
-          icon={<Download size={12} />}
-          label="Exportar CSV"
-          disabled={!c || recipients.length === 0}
-        />
+        <PillBtn onClick={exportCsv} icon={<Download size={12} />} label="Exportar CSV" disabled={!c || recipients.length === 0} />
         {showReenvio && reenvioMode === 'idle' && (
-          <PillBtn
-            onClick={() => setReenvioMode('confirm')}
-            icon={<RotateCcw size={12} />}
-            label={`Reenviar falhas (${failedCount})`}
-          />
+          <PillBtn onClick={() => setReenvioMode('confirm')} icon={<RotateCcw size={12} />} label={`Reenviar falhas (${failedCount})`} />
         )}
-        <PillBtn
-          onClick={refresh}
-          icon={<RefreshCw size={12} />}
-          label="Atualizar"
-        />
+        <PillBtn onClick={refresh} icon={<RefreshCw size={12} />} label="Atualizar" />
       </div>
 
-      {/* ── Loading ──────────────────────────────────────────────────────────── */}
       {isLoading && (
         <div className="animate-slide-up delay-2" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[...Array(5)].map((_, i) => <Skeleton key={i} height={52} radius={10} />)}
         </div>
       )}
 
-      {/* ── Error ────────────────────────────────────────────────────────────── */}
       {isError && (
         <div className="animate-slide-up delay-2" style={{ padding: 24, textAlign: 'center', color: 'var(--red)', fontSize: 13 }}>
           Erro ao carregar.{' '}
@@ -271,30 +298,30 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
 
       {c && (
         <>
-          {/* ── Campaign summary ─────────────────────────────────────────────── */}
+          {/* Campaign summary */}
           <div className="animate-slide-up delay-2" style={{
             background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14,
             padding: '16px 20px', marginBottom: 18,
             display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center',
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>{c.template}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>{rowTitle(c)}</div>
               <div style={{ fontSize: 12, color: 'var(--gray2)' }}>
                 {fmtDate(c.createdAt)}{c.createdByName ? ` · por ${c.createdByName}` : ''}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-              <MetricPill label="Total"    value={total}          color="var(--ink)"          />
-              <MetricPill label="Enviado"  value={bySt.enviado}   color="#1d4ed8"              />
-              <MetricPill label="Entregue" value={bySt.entregue}  color="var(--primary-text)"  />
-              <MetricPill label="Lido"     value={bySt.lido}      color="var(--green)"         />
-              <MetricPill label="Falhou"   value={bySt.falhou}    color="var(--red)"           />
+              <MetricPill label="Total"    value={total}         color="var(--ink)"          />
+              <MetricPill label="Enviado"  value={bySt.enviado}  color="#1d4ed8"              />
+              <MetricPill label="Entregue" value={bySt.entregue} color="var(--primary-text)"  />
+              <MetricPill label="Lido"     value={bySt.lido}     color="var(--green)"         />
+              <MetricPill label="Falhou"   value={bySt.falhou}   color="var(--red)"           />
               {bySt.pendente > 0 && <MetricPill label="Pendente" value={bySt.pendente} color="var(--gray2)" />}
             </div>
             <CampaignStatusBadge status={c.status} />
           </div>
 
-          {/* ── Re-send confirm panel ─────────────────────────────────────────── */}
+          {/* Re-send confirm panel (manual only) */}
           {showReenvio && reenvioMode !== 'idle' && (
             <div className="animate-slide-up" style={{
               marginBottom: 18, padding: '14px 18px', borderRadius: 12,
@@ -326,23 +353,17 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
                   </div>
                 </>
               )}
-
               {reenvioMode === 'sending' && (
-                <div style={{ fontSize: 13, color: 'var(--gray2)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  Criando nova campanha…
-                </div>
+                <div style={{ fontSize: 13, color: 'var(--gray2)' }}>Criando nova campanha…</div>
               )}
-
               {reenvioMode === 'done' && reenvioResult?.ok && (
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>
-                  ✓ Nova campanha criada — {reenvioResult.started ?? failedCount} disparo{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''} iniciado{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''}.
-                  {' '}
+                  ✓ Nova campanha criada — {reenvioResult.started ?? failedCount} disparo{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''} iniciado{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''}.{' '}
                   <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: 0 }}>
                     Ver todos os disparos →
                   </button>
                 </div>
               )}
-
               {reenvioMode === 'done' && !reenvioResult?.ok && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
@@ -354,12 +375,12 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
             </div>
           )}
 
-          {/* ── Recipient table ───────────────────────────────────────────────── */}
+          {/* Recipient table */}
           <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--bg)' }}>
-                  {['Nome', 'Telefone', 'Status', 'Motivo / Detalhe'].map(h => (
+                  {['Nome', 'Telefone', ...(isCampanha ? ['Template'] : []), 'Status', 'Motivo / Detalhe'].map(h => (
                     <th key={h} style={{
                       padding: '9px 16px', textAlign: 'left', fontSize: 10,
                       fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase',
@@ -373,7 +394,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
               <tbody>
                 {recipients.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
+                    <td colSpan={isCampanha ? 5 : 4} style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
                       Nenhum destinatário
                     </td>
                   </tr>
@@ -386,15 +407,14 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
                       borderBottom: i < recipients.length - 1 ? '1px solid var(--gray3)' : 'none',
                     } as React.CSSProperties}
                   >
-                    <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>
-                      {r.firstName}
-                    </td>
-                    <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontSize: 12, color: 'var(--gray)' }}>
-                      {fmtPhone(r.phone)}
-                    </td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <StatusBadge status={r.status} />
-                    </td>
+                    <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{r.firstName}</td>
+                    <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontSize: 12, color: 'var(--gray)' }}>{fmtPhone(r.phone)}</td>
+                    {isCampanha && (
+                      <td style={{ padding: '11px 16px', fontSize: 12, color: r.template ? 'var(--gray)' : 'var(--gray3)', fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.template ?? '—'}
+                      </td>
+                    )}
+                    <td style={{ padding: '11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding: '11px 16px', fontSize: 12, color: r.errorReason ? 'var(--red)' : 'var(--gray2)', fontWeight: r.errorReason ? 600 : 400 }}>
                       {r.errorReason ?? (r.status === 'falhou' ? 'Erro desconhecido' : '—')}
                     </td>
@@ -409,7 +429,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
   )
 }
 
-// ─── List view ────────────────────────────────────────────────────────────────
+// ─── List row ─────────────────────────────────────────────────────────────────
 
 function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
   return (
@@ -425,7 +445,7 @@ function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {c.template}
+          {rowTitle(c)}
         </div>
         <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <span>{fmtDate(c.createdAt)}</span>
@@ -433,15 +453,13 @@ function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
           <CampaignStatusBadge status={c.status} />
         </div>
       </div>
-
       <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexShrink: 0 }}>
-        <MetricPill label="Total"    value={c.totalSolicitado} color="var(--ink)"          />
-        <MetricPill label="Enviado"  value={c.enviado}         color="#1d4ed8"              />
-        <MetricPill label="Entregue" value={c.entregue}        color="var(--primary-text)"  />
-        <MetricPill label="Lido"     value={c.lido}            color="var(--green)"         />
-        <MetricPill label="Falhou"   value={c.falhou}          color="var(--red)"           />
+        <MetricPill label="Total"    value={c.totalSolicitado} color="var(--ink)"         />
+        <MetricPill label="Enviado"  value={c.enviado}         color="#1d4ed8"             />
+        <MetricPill label="Entregue" value={c.entregue}        color="var(--primary-text)" />
+        <MetricPill label="Lido"     value={c.lido}            color="var(--green)"        />
+        <MetricPill label="Falhou"   value={c.falhou}          color="var(--red)"          />
       </div>
-
       <div style={{ fontSize: 12, color: 'var(--gray2)', flexShrink: 0 }}>›</div>
     </div>
   )
@@ -451,15 +469,23 @@ function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
 
 export default function DisparosPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [listKey,    setListKey]    = useState(0)
+  const [activeKind,  setActiveKind]  = useState<CampaignKind>('manual')
+  const [listKey,     setListKey]     = useState(0)
 
   const { data, isLoading, isError, refetch } = useQuery<{ campaigns: Campaign[] }>({
-    queryKey: ['blast-campaigns', listKey],
-    queryFn:  () => fetch('/api/sdr/blast/campaigns').then(r => r.json()),
+    queryKey: ['blast-campaigns', activeKind, listKey],
+    queryFn:  () => fetch(`/api/sdr/blast/campaigns?kind=${activeKind}`).then(r => r.json()),
     staleTime: 0,
   })
 
   const refresh = useCallback(() => setListKey(k => k + 1), [])
+
+  // When switching tabs, clear campaign selection
+  function handleKindChange(k: CampaignKind) {
+    setActiveKind(k)
+    setSelectedId(null)
+    setListKey(n => n + 1)
+  }
 
   if (selectedId) {
     return <DetailView campaignId={selectedId} onBack={() => setSelectedId(null)} />
@@ -482,12 +508,17 @@ export default function DisparosPage() {
         <PillBtn onClick={refresh} icon={<RefreshCw size={13} />} label="Atualizar" />
       </div>
 
+      {/* Tabs */}
+      <div className="animate-slide-up delay-1">
+        <TabBar active={activeKind} onChange={handleKindChange} />
+      </div>
+
       {/* List */}
       <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14, overflow: 'hidden' }}>
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {[...Array(5)].map((_, i) => (
-              <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '14px 16px', borderBottom: i < 4 ? '1px solid var(--gray3)' : 'none' }}>
+            {[...Array(4)].map((_, i) => (
+              <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '14px 16px', borderBottom: i < 3 ? '1px solid var(--gray3)' : 'none' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <Skeleton width="30%" height={13} />
                   <Skeleton width="20%" height={10} />
@@ -502,7 +533,7 @@ export default function DisparosPage() {
 
         {isError && (
           <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--red)' }}>
-            Erro ao carregar campanhas.{' '}
+            Erro ao carregar.{' '}
             <button onClick={() => refetch()} style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
               Tentar novamente
             </button>
@@ -511,7 +542,9 @@ export default function DisparosPage() {
 
         {!isLoading && !isError && campaigns.length === 0 && (
           <div style={{ padding: '48px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-            Nenhum disparo realizado ainda.
+            {activeKind === 'campanha'
+              ? 'Nenhum disparo da Campanha SDR registrado ainda.'
+              : 'Nenhum disparo manual realizado ainda.'}
           </div>
         )}
 

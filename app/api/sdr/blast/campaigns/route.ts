@@ -1,17 +1,17 @@
-// GET /api/sdr/blast/campaigns
+// GET /api/sdr/blast/campaigns[?kind=manual|campanha]
 //
-// Reconciles delivery statuses for the tenant, then returns all blast campaigns
+// Reconciles delivery statuses for the tenant, then returns blast campaigns
 // with per-status recipient counts and creator name.
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { blastCampaigns, blastRecipients, users } from '@/lib/db/schema'
-import { eq, sql, desc } from 'drizzle-orm'
+import { and, eq, sql, desc } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 import { reconcile } from '@/lib/blast/reconcile'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -19,12 +19,16 @@ export async function GET() {
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
   if (denied) return denied
 
+  const kindFilter = req.nextUrl.searchParams.get('kind') ?? null
+  const validKind = kindFilter === 'manual' || kindFilter === 'campanha' ? kindFilter : null
+
   // Reconcile all campaigns for this tenant before returning
   await reconcile(tenantId).catch(err => console.error('[blast campaigns reconcile]', err))
 
   const rows = await db
     .select({
       id:              blastCampaigns.id,
+      kind:            blastCampaigns.kind,
       template:        blastCampaigns.template,
       totalSolicitado: blastCampaigns.totalSolicitado,
       skipped:         blastCampaigns.skipped,
@@ -41,16 +45,22 @@ export async function GET() {
     .from(blastCampaigns)
     .leftJoin(users, eq(blastCampaigns.createdBy, users.id))
     .leftJoin(blastRecipients, eq(blastRecipients.campaignId, blastCampaigns.id))
-    .where(eq(blastCampaigns.tenantId, tenantId))
+    .where(
+      validKind
+        ? and(eq(blastCampaigns.tenantId, tenantId), eq(blastCampaigns.kind, validKind))
+        : eq(blastCampaigns.tenantId, tenantId),
+    )
     .groupBy(blastCampaigns.id)
     .orderBy(desc(blastCampaigns.createdAt))
 
-  return NextResponse.json({ campaigns: rows.map(r => ({
-    ...r,
-    pendente: Number(r.pendente ?? 0),
-    enviado:  Number(r.enviado  ?? 0),
-    entregue: Number(r.entregue ?? 0),
-    lido:     Number(r.lido     ?? 0),
-    falhou:   Number(r.falhou   ?? 0),
-  })) })
+  return NextResponse.json({
+    campaigns: rows.map(r => ({
+      ...r,
+      pendente: Number(r.pendente ?? 0),
+      enviado:  Number(r.enviado  ?? 0),
+      entregue: Number(r.entregue ?? 0),
+      lido:     Number(r.lido     ?? 0),
+      falhou:   Number(r.falhou   ?? 0),
+    })),
+  })
 }
