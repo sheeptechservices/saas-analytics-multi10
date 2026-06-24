@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Clock, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -212,8 +213,8 @@ export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }
                 <div style={{ fontWeight: 700, marginBottom: 1, opacity: 0.7, fontSize: 10 }}>{segs[hov].name}</div>
                 <div>{segs[hov].count} {unit}{segs[hov].count !== 1 ? 's' : ''}</div>
                 {segs[hov].avgDays != null && (
-                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.75, marginTop: 2 }}>
-                    ⏱ {segs[hov].avgDays} dias médios
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.75, marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Clock size={11} /> {segs[hov].avgDays} dias médios
                   </div>
                 )}
               </div>
@@ -226,7 +227,7 @@ export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }
                 : seg.dropPct < 0 ? 'var(--red)'
                 : seg.dropPct > 0 ? 'var(--green)'
                 : 'var(--gray2)'
-              const dropArrow = seg.dropPct === null || seg.dropPct === 0 ? '→' : seg.dropPct > 0 ? '↑' : '↓'
+              const DropArrow = seg.dropPct === null || seg.dropPct === 0 ? ArrowRight : seg.dropPct > 0 ? ArrowUp : ArrowDown
               const badgeBg   = seg.dropPct === null ? 'transparent'
                 : seg.dropPct < 0 ? 'rgba(217,48,37,0.08)'
                 : seg.dropPct > 0 ? 'rgba(30,138,62,0.08)'
@@ -276,7 +277,7 @@ export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }
                       opacity: showPct ? 1 : 0,
                       transition: 'opacity 0.2s ease',
                     }}>
-                      {dropArrow} {Math.abs(seg.dropPct ?? 0)}%
+                      <DropArrow size={8} /> {Math.abs(seg.dropPct ?? 0)}%
                     </span>
                   </div>
 
@@ -287,8 +288,9 @@ export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }
                       transition: 'color 0.15s',
                       marginTop: 1,
                       textAlign: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
                     }}>
-                      ⏱ {seg.avgDays}d
+                      <Clock size={10} /> {seg.avgDays}d
                     </div>
                   )}
                 </div>

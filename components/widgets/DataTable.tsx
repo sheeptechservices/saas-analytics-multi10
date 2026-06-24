@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -89,9 +90,9 @@ export function DataTable({
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexDirection: align === 'right' ? 'row-reverse' : 'row' }}>
                 {col.label}
                 {col.sortable !== false && (
-                  <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 1, opacity: active ? 1 : 0.3, transition: 'opacity .15s' }}>
-                    <span style={{ fontSize: 7, lineHeight: 1, color: active && sortDir === 'asc' ? 'var(--primary-text)' : 'currentColor' }}>▲</span>
-                    <span style={{ fontSize: 7, lineHeight: 1, color: active && sortDir === 'desc' ? 'var(--primary-text)' : 'currentColor' }}>▼</span>
+                  <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 0, opacity: active ? 1 : 0.3, transition: 'opacity .15s' }}>
+                    <ChevronUp size={9} style={{ display: 'block', color: active && sortDir === 'asc' ? 'var(--primary-text)' : 'currentColor' }} />
+                    <ChevronDown size={9} style={{ display: 'block', color: active && sortDir === 'desc' ? 'var(--primary-text)' : 'currentColor' }} />
                   </span>
                 )}
               </span>
@@ -158,7 +159,7 @@ export function DataTable({
                   }}
                 >
                   {col.label}
-                  {active && <span style={{ fontSize: 9 }}>{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                  {active && (sortDir === 'asc' ? <ChevronUp size={9} /> : <ChevronDown size={9} />)}
                 </button>
               )
             })}
@@ -183,7 +184,7 @@ export function DataTable({
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               style={{
                 '--row-delay': `${Math.min(i, 9) * 40}ms`,
-                background: 'var(--white)', border: '1px solid #ECECE9',
+                background: 'var(--white)', border: '1px solid var(--line)',
                 borderRadius: 12, padding: 14, marginBottom: 10,
                 boxShadow: 'var(--shadow-md)',
                 cursor: onRowClick ? 'pointer' : 'default',
