@@ -15,13 +15,14 @@ const PRESET_COLORS = [
   '#7C3AED', '#DB2777', '#0891B2', '#059669',
 ]
 
-type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe'
+type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe' | 'auditoria'
 type IntegStatus = 'loading' | 'connected' | 'disconnected' | 'error' | 'pending'
 const TABS: { id: TabKey; label: string; adminOnly?: boolean }[] = [
   { id: 'integracoes', label: 'Integrações' },
   { id: 'equipe',      label: 'Equipe' },
   { id: 'perfil',      label: 'Perfil' },
-  { id: 'marca',       label: 'Marca', adminOnly: true },
+  { id: 'marca',       label: 'Marca',      adminOnly: true },
+  { id: 'auditoria',   label: 'Auditoria',  adminOnly: true },
 ]
 
 // ─── Integration icons ────────────────────────────────────────────────────────
@@ -638,6 +639,13 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* ── Auditoria ──────────────────────────────────────────────────────── */}
+      {tab === 'auditoria' && isAdmin && (
+        <div className="animate-slide-up delay-2">
+          <AuditSection />
+        </div>
+      )}
+
       {/* ── Equipe ─────────────────────────────────────────────────────────── */}
       {tab === 'equipe' && (
         <div className="animate-slide-up delay-2">
@@ -1049,6 +1057,220 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
         </Overlay>
       )}
     </>
+  )
+}
+
+// ─── AuditSection ─────────────────────────────────────────────────────────────
+
+const ACTION_LABELS: Record<string, string> = {
+  'disparo.manual':    'Disparo manual',
+  'disparo.campanha':  'Disparo (campanha)',
+  'enroll':            'Adição à campanha',
+  'settings.update':   'Alterou configurações',
+  'leads.import':      'Importou leads',
+  'user.create':       'Criou usuário',
+  'user.update':       'Editou usuário',
+  'user.delete':       'Removeu usuário',
+  'whitelabel.update': 'Alterou marca',
+}
+
+type AuditLog = {
+  id: string
+  createdAt: string
+  actorName: string | null
+  actorEmail: string | null
+  actorRole: string | null
+  action: string
+  entityType: string | null
+  entityId: string | null
+  metadata: Record<string, unknown>
+  ip: string | null
+}
+
+function fmtDateTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch { return '—' }
+}
+
+function fmtDetail(action: string, entityType: string | null, entityId: string | null, meta: Record<string, unknown>): string {
+  const parts: string[] = []
+  if (entityId) parts.push(`#${String(entityId).slice(0, 8)}`)
+  switch (action) {
+    case 'disparo.manual':
+      if (meta.template) parts.push(`tmpl: ${meta.template}`)
+      if (meta.totalSolicitado !== undefined) parts.push(`${meta.totalSolicitado} leads`)
+      if (meta.skipped) parts.push(`${meta.skipped} pulados`)
+      break
+    case 'disparo.campanha':
+      parts.push(`limite: ${meta.limiteDiario ?? '—'}`)
+      break
+    case 'enroll':
+      if (meta.leadCount !== undefined) parts.push(`${meta.leadCount} leads`)
+      if (meta.fase) parts.push(String(meta.fase))
+      break
+    case 'settings.update':
+      if (Array.isArray(meta.changedKeys) && meta.changedKeys.length) parts.push(meta.changedKeys.join(', '))
+      if (meta.status) parts.push(String(meta.status))
+      break
+    case 'leads.import':
+      if (meta.inserted !== undefined) parts.push(`${meta.inserted} novos`)
+      if (meta.updated !== undefined) parts.push(`${meta.updated} atualizados`)
+      if (meta.skipped !== undefined) parts.push(`${meta.skipped} pulados`)
+      break
+    case 'user.create':
+      if (meta.email) parts.push(String(meta.email))
+      if (meta.role) parts.push(String(meta.role))
+      break
+    case 'user.update': {
+      const ch = meta.changes as Record<string, unknown> | undefined
+      if (ch && typeof ch === 'object') {
+        const pairs = Object.entries(ch).map(([k, v]) => `${k}: ${v}`).join(', ')
+        if (pairs) parts.push(pairs)
+      }
+      break
+    }
+    case 'whitelabel.update':
+      if (Array.isArray(meta.changedKeys) && meta.changedKeys.length) parts.push(meta.changedKeys.join(', '))
+      break
+  }
+  return parts.join(' · ') || '—'
+}
+
+const LIMIT = 50
+
+function AuditSection() {
+  const [actionFilter, setActionFilter] = useState('')
+  const [logs, setLogs] = useState<AuditLog[]>([])
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState('')
+
+  async function load(newOffset: number, newAction: string, append: boolean) {
+    if (newOffset === 0) setLoading(true); else setLoadingMore(true)
+    setError('')
+    try {
+      const qs = new URLSearchParams({ limit: String(LIMIT), offset: String(newOffset), ...(newAction ? { action: newAction } : {}) })
+      const res = await fetch(`/api/audit-logs?${qs}`)
+      if (!res.ok) { setError('Erro ao carregar logs.'); return }
+      const data = await res.json() as { logs: AuditLog[]; total: number }
+      setLogs(prev => append ? [...prev, ...data.logs] : data.logs)
+      setTotal(data.total)
+      setOffset(newOffset)
+    } catch { setError('Erro ao carregar logs.') }
+    finally { setLoading(false); setLoadingMore(false) }
+  }
+
+  useEffect(() => {
+    load(0, actionFilter, false)
+  }, [actionFilter])
+
+  const hasMore = logs.length < total
+
+  const thStyle: React.CSSProperties = { padding: '8px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--gray2)', letterSpacing: '0.06em', borderBottom: '1px solid var(--gray3)', whiteSpace: 'nowrap' }
+  const tdStyle: React.CSSProperties = { padding: '10px 14px', fontSize: 12, color: 'var(--gray)', verticalAlign: 'top' }
+
+  return (
+    <div>
+      {/* Filter bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', flexShrink: 0 }}>
+          Auditoria
+        </div>
+        <select
+          value={actionFilter}
+          onChange={e => { setActionFilter(e.target.value); setOffset(0) }}
+          style={{ padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none', cursor: 'pointer' }}
+        >
+          <option value="">Todas as ações</option>
+          {Object.entries(ACTION_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+        {total > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>{total} registro{total !== 1 ? 's' : ''}</span>
+        )}
+      </div>
+
+      {/* Skeleton */}
+      {loading && (
+        <div style={{ padding: '24px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="shimmer-bar" style={{ height: 36, borderRadius: 6, background: 'var(--gray3)' }} />
+          ))}
+        </div>
+      )}
+
+      {/* Error */}
+      {!loading && error && (
+        <div style={{ padding: '24px 14px' }}>
+          <ErrorBanner msg={error} />
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && logs.length === 0 && (
+        <div style={{ padding: '40px 14px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
+          Nenhum registro de auditoria encontrado.
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && !error && logs.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+            <thead>
+              <tr style={{ background: 'var(--bg)' }}>
+                <th style={thStyle}>Quando</th>
+                <th style={thStyle}>Quem</th>
+                <th style={thStyle}>Ação</th>
+                <th style={thStyle}>Detalhe</th>
+                <th style={thStyle}>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log, i) => (
+                <tr key={log.id} style={{ borderBottom: i < logs.length - 1 ? '1px solid var(--gray3)' : 'none' }}>
+                  <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: 'var(--black)', fontWeight: 500 }}>
+                    {fmtDateTime(log.createdAt)}
+                  </td>
+                  <td style={{ ...tdStyle, minWidth: 140 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--black)', fontSize: 12 }}>{log.actorName ?? '—'}</div>
+                    <div style={{ color: 'var(--gray2)', fontSize: 11 }}>{log.actorEmail ?? ''}</div>
+                  </td>
+                  <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)' }}>
+                      {ACTION_LABELS[log.action] ?? log.action}
+                    </span>
+                  </td>
+                  <td style={{ ...tdStyle, maxWidth: 320, wordBreak: 'break-word' }}>
+                    {fmtDetail(log.action, log.entityType, log.entityId, log.metadata)}
+                  </td>
+                  <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>
+                    {log.ip ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Load more */}
+      {!loading && !error && hasMore && (
+        <div style={{ padding: '16px 14px', textAlign: 'center' }}>
+          <button
+            onClick={() => load(offset + LIMIT, actionFilter, true)}
+            disabled={loadingMore}
+            style={{ padding: '8px 24px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: loadingMore ? 'var(--gray3)' : 'var(--bg)', color: loadingMore ? 'var(--gray)' : 'var(--black)', border: '1px solid var(--gray3)', borderRadius: 100, cursor: loadingMore ? 'not-allowed' : 'pointer' }}
+          >
+            {loadingMore ? 'Carregando…' : `Carregar mais (${total - logs.length} restantes)`}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
