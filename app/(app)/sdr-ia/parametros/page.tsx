@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ChevronDown, ExternalLink } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Info } from 'lucide-react'
 import { SkeletonForm, SkeletonBlock } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 
@@ -69,7 +69,7 @@ const TOM_DESC: Record<Tom, string> = {
 }
 
 const AREAS_KEY     = 'sdr-parametros-areas'
-const AREA_DEFAULT: AreaId[] = ['campanha']
+const AREA_DEFAULT: AreaId[] = ['campanha', 'ia-conteudo']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -164,6 +164,7 @@ function CollapsibleArea({
 export default function ParametrosPage() {
   const [settings,        setSettings]        = useState<Settings>(DEFAULTS)
   const [status,          setStatus]          = useState<Status>('draft')
+  const [baseline,        setBaseline]        = useState<{ settings: Settings; status: Status } | null>(null)
   const [preservedN8nUrls, setPreservedN8nUrls] = useState<Record<string, string>>({})
   const [remetenteError,  setRemetenteError]  = useState<string | null>(null)
   const [loading,            setLoading]            = useState(true)
@@ -228,8 +229,10 @@ export default function ParametrosPage() {
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ApiData) => {
         const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, n8nImportUrl: importUrl, n8nBlastUrl: blastUrl, ...coreSettings } = d.settings
-        setSettings({ ...DEFAULTS, ...coreSettings })
+        const coreWithDefaults = { ...DEFAULTS, ...coreSettings }
+        setSettings(coreWithDefaults)
         setStatus(d.status)
+        setBaseline({ settings: coreWithDefaults, status: d.status })
         const urls: Record<string, string> = {}
         if (webhookUrl) urls.n8nWebhookUrl = webhookUrl
         if (dispatchUrl) urls.n8nDispatchUrl = dispatchUrl
@@ -249,23 +252,26 @@ export default function ParametrosPage() {
       setSaveError('Remetente inválido — use formato E.164 (ex: +5511999990000)')
       return
     }
+    const savedSettings = { ...settings }
+    const savedStatus   = status
     setSaving(true)
     setSaved(false)
     setSaveError(null)
     setN8nDelivery(undefined)
     try {
       const settingsPayload = {
-        ...settings,
+        ...savedSettings,
         ...preservedN8nUrls,
       }
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: settingsPayload, status }),
+        body: JSON.stringify({ settings: settingsPayload, status: savedStatus }),
       })
       if (!res.ok) throw new Error('Falha ao salvar')
       const data = await res.json() as { ok: boolean; n8nDelivery: N8nDelivery }
       setN8nDelivery(data.n8nDelivery)
+      setBaseline({ settings: savedSettings, status: savedStatus })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (e) {
@@ -331,8 +337,13 @@ export default function ParametrosPage() {
     )
   }
 
-  const hasTemplates = settings.templates.length > 0
-  const hasWebhook   = !!preservedN8nUrls.n8nWebhookUrl
+  const hasTemplates  = settings.templates.length > 0
+  const hasIntegration = !!(preservedN8nUrls.n8nWebhookUrl || preservedN8nUrls.n8nDispatchUrl)
+  const hasWebhook     = hasIntegration
+  const isDirty = baseline !== null && (
+    JSON.stringify(settings) !== JSON.stringify(baseline.settings) ||
+    status !== baseline.status
+  )
 
   return (
     <div>
@@ -347,20 +358,33 @@ export default function ParametrosPage() {
         </Link>
       </div>
 
-      {/* ── Banner — sempre visível ──────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', gap: 12,
-        background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.30)',
-        borderRadius: 12, padding: '14px 18px', marginBottom: 16,
-      }}>
-        <AlertTriangle size={15} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
-        <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.55 }}>
-          {hasWebhook
-            ? <>As configurações são <strong>salvas no sistema</strong> e <strong>enviadas automaticamente à integração</strong> configurada a cada salvamento.</>
-            : <>As configurações são <strong>salvas no sistema</strong>. Configure as credenciais de integração em <strong>Configurações → Credenciais</strong> para ativar o envio automático à campanha.</>
-          }
+      {/* ── Nota de integração ───────────────────────────────────── */}
+      {hasIntegration ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--bg)', border: '1px solid var(--gray3)',
+          borderRadius: 10, padding: '9px 14px', marginBottom: 16,
+          fontSize: 12, color: 'var(--gray)', fontWeight: 500,
+        }}>
+          <Info size={13} style={{ flexShrink: 0, color: 'var(--gray2)' }} />
+          Salva e sincroniza com a integração a cada salvamento.
         </div>
-      </div>
+      ) : (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+          background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.30)',
+          borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+        }}>
+          <AlertTriangle size={14} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
+          <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.5 }}>
+            Configure as credenciais de integração em{' '}
+            <Link href="/settings/integrations/credenciais" style={{ fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'underline' }}>
+              Configurações → Credenciais
+            </Link>{' '}
+            para ativar o envio automático à campanha.
+          </div>
+        </div>
+      )}
 
       {/* ━━━ Área 1: Campanha ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <CollapsibleArea
@@ -493,38 +517,12 @@ export default function ParametrosPage() {
 
           {/* Cadência e horário */}
           <SectionCard title="Cadência e horário">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
-              <div>
-                <FieldLabel>
-                  Intervalo entre contatos{' '}
-                  <span style={{ fontWeight: 500, color: 'var(--gray2)' }}>(legado — em horas, não usado pela campanha)</span>
-                </FieldLabel>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
-                    type="number"
-                    min={1} max={168}
-                    value={settings.delay}
-                    onChange={e => upd('delay', Math.max(1, Math.min(168, Number(e.target.value))))}
-                    style={{
-                      width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
-                      background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                      textAlign: 'center', transition: 'border-color .15s', opacity: 0.5,
-                    }}
-                    onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                    onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-                  />
-                  <span style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>horas</span>
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel>Horário ativo</FieldLabel>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <TimeInput value={settings.horario.inicio} onChange={v => upd('horario', { ...settings.horario, inicio: v })} />
-                  <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>até</span>
-                  <TimeInput value={settings.horario.fim} onChange={v => upd('horario', { ...settings.horario, fim: v })} />
-                </div>
+            <div style={{ marginBottom: 24 }}>
+              <FieldLabel>Horário ativo</FieldLabel>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <TimeInput value={settings.horario.inicio} onChange={v => upd('horario', { ...settings.horario, inicio: v })} />
+                <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>até</span>
+                <TimeInput value={settings.horario.fim} onChange={v => upd('horario', { ...settings.horario, fim: v })} />
               </div>
             </div>
 
@@ -847,6 +845,27 @@ export default function ParametrosPage() {
         open={openAreas.has('avancado')}
         onToggle={() => toggleArea('avancado')}
       >
+        <SectionCard title="Integração">
+          {hasIntegration ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#15803d', flexWrap: 'wrap' as const }}>
+              <Check size={14} style={{ flexShrink: 0 }} />
+              Integração configurada
+              <span style={{ color: 'var(--gray3)' }}>·</span>
+              <Link href="/settings/integrations/credenciais" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
+                gerenciar em Credenciais
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--gray)', flexWrap: 'wrap' as const }}>
+              <span style={{ fontWeight: 500 }}>Não configurada</span>
+              <span style={{ color: 'var(--gray3)' }}>·</span>
+              <Link href="/settings/integrations/credenciais" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
+                configurar em Credenciais
+              </Link>
+            </div>
+          )}
+        </SectionCard>
+
         <SectionCard title="Fonte de dados">
           <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 16 }}>
             A conexão com a fonte de dados e a integração são configuradas separadamente.
@@ -870,14 +889,20 @@ export default function ParametrosPage() {
             variant="primary"
             size="lg"
             onClick={save}
-            disabled={saving}
+            disabled={saving || (baseline !== null && !isDirty)}
           >
             {saving ? 'Salvando...' : 'Salvar alterações'}
           </Button>
 
+          {isDirty && !saving && !saved && !saveError && (
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ color: 'var(--primary-text)', fontSize: 10 }}>●</span>
+              Alterações não salvas
+            </span>
+          )}
           {saved && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', animation: 'ai-step 0.2s ease both' }}>
-              ✓ Salvo com sucesso
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 700, color: 'var(--green)', animation: 'ai-step 0.2s ease both' }}>
+              <Check size={14} /> Salvo com sucesso
             </span>
           )}
           {saveError && !saved && (
