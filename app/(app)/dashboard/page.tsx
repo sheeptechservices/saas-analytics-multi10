@@ -46,7 +46,7 @@ interface SdrBiData {
   }
   funnel: { stageKey: string; stageName: string; count: number; order: number }[]
   sentiment: { id: string; label: string; color: string; count: number }[]
-  recent: { sessionId: string; source: string; lastContact: number | null; msgs: number; name: string | null }[]
+  recent: { sessionId: string; source: string; lastContact: number | null; msgs: number; name: string | null; status: 'respondeu' | 'aguardando' | 'fria' }[]
   sourceConfigured: boolean
   whatsapp?: WaBlock
   lastSyncAt: number | null
@@ -147,6 +147,26 @@ function PeriodFilter({ value, onChange }: { value: Period; onChange: (p: Period
   )
 }
 
+function StatusBadge({ status }: { status: 'respondeu' | 'aguardando' | 'fria' }) {
+  const cfg = {
+    respondeu:  { label: 'Respondeu',  color: '#15803d', bg: 'rgba(34,197,94,0.10)',  border: 'rgba(34,197,94,0.25)'  },
+    aguardando: { label: 'Aguardando', color: '#b45309', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.30)' },
+    fria:       { label: 'Fria',       color: 'var(--gray2)', bg: 'rgba(170,170,170,0.10)', border: 'rgba(170,170,170,0.25)' },
+  }[status]
+  return (
+    <span style={{
+      display: 'inline-block',
+      fontSize: 10, fontWeight: 700,
+      padding: '2px 8px', borderRadius: 100,
+      background: cfg.bg, color: cfg.color,
+      border: `1px solid ${cfg.border}`,
+      whiteSpace: 'nowrap' as const,
+    }}>
+      {cfg.label}
+    </span>
+  )
+}
+
 function SourceBadge({ source }: { source: string }) {
   const isWa = source === 'ycloud-whatsapp'
   return (
@@ -181,6 +201,12 @@ const TABLE_COLS: DataTableColumn[] = [
     label: 'Origem',
     sortable: false,
     format: (v) => <SourceBadge source={v as string} />,
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    sortable: true,
+    format: (v) => <StatusBadge status={v as 'respondeu' | 'aguardando' | 'fria'} />,
   },
   {
     key: 'sessionLabel',
@@ -351,6 +377,7 @@ export default function DashboardPage() {
     sessionId:    r.sessionId,
     msgs:         r.msgs,
     lastContact:  r.lastContact ?? 0,
+    status:       r.status,
   }))
 
   // WhatsApp derived data — fallback to zeros so section never crashes
