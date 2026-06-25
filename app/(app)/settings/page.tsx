@@ -16,14 +16,15 @@ const PRESET_COLORS = [
   '#7C3AED', '#DB2777', '#0891B2', '#059669',
 ]
 
-type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe' | 'auditoria'
+type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe' | 'auditoria' | 'campanha-sdr'
 type IntegStatus = 'loading' | 'connected' | 'disconnected' | 'error' | 'pending'
-const TABS: { id: TabKey; label: string; adminOnly?: boolean }[] = [
-  { id: 'integracoes', label: 'Integrações' },
-  { id: 'equipe',      label: 'Equipe' },
-  { id: 'perfil',      label: 'Perfil' },
-  { id: 'marca',       label: 'Marca',      adminOnly: true },
-  { id: 'auditoria',   label: 'Auditoria',  adminOnly: true },
+const TABS: { id: TabKey; label: string; adminOnly?: boolean; moduleGate?: string }[] = [
+  { id: 'integracoes',  label: 'Integrações' },
+  { id: 'campanha-sdr', label: 'Campanha SDR', moduleGate: 'sdr.parametros' },
+  { id: 'equipe',       label: 'Equipe' },
+  { id: 'perfil',       label: 'Perfil' },
+  { id: 'marca',        label: 'Marca',     adminOnly: true },
+  { id: 'auditoria',    label: 'Auditoria', adminOnly: true },
 ]
 
 // ─── Integration icons ────────────────────────────────────────────────────────
@@ -321,7 +322,10 @@ export default function SettingsPage() {
   const users = data?.users ?? []
   const me = meData?.user
   const isAdmin = me?.role === 'admin' || me?.role === 'master'
-  const visibleTabs = TABS.filter(t => !t.adminOnly || isAdmin)
+  const visibleTabs = TABS.filter(t =>
+    (!t.adminOnly || isAdmin) &&
+    (!t.moduleGate || modules.includes(t.moduleGate))
+  )
   const equipeQ = equipeSearch.trim().toLowerCase()
   const filteredEquipeUsers: any[] = equipeQ
     ? users.filter((u: any) => u.name?.toLowerCase().includes(equipeQ) || u.email?.toLowerCase().includes(equipeQ))
@@ -641,6 +645,28 @@ export default function SettingsPage() {
       )}
 
       {/* ── Auditoria ──────────────────────────────────────────────────────── */}
+      {tab === 'campanha-sdr' && (
+        <div className="animate-slide-up delay-2">
+          <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)', maxWidth: 520 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--black)', marginBottom: 8 }}>Campanha SDR</div>
+            <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 20 }}>
+              Configure o agente de prospecção: tom, objetivo, horários, templates e limites de disparo.
+            </div>
+            <Link
+              href="/sdr-ia/parametros"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 22px', borderRadius: 100,
+                background: 'var(--primary)', color: '#fff',
+                fontSize: 13, fontWeight: 700, textDecoration: 'none',
+              }}
+            >
+              Abrir configuração da campanha
+            </Link>
+          </div>
+        </div>
+      )}
+
       {tab === 'auditoria' && isAdmin && (
         <div className="animate-slide-up delay-2">
           <AuditSection />

@@ -337,6 +337,16 @@ export default function ParametrosPage() {
   return (
     <div>
 
+      {/* ── Breadcrumb ───────────────────────────────────────────── */}
+      <div style={{ marginBottom: 16 }}>
+        <Link
+          href="/settings?tab=campanha-sdr"
+          style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+          ← Voltar para Configurações
+        </Link>
+      </div>
+
       {/* ── Banner — sempre visível ──────────────────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: 12,
