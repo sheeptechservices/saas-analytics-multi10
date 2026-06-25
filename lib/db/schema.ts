@@ -369,6 +369,25 @@ export const blastRecipients = sqliteTable('blast_recipients', {
   ycloudMessageIdx: index('blast_recipients_ycloud_message_idx').on(t.ycloudMessageId),
 }))
 
+// Immutable audit trail — one row per significant action. Never updated or deleted.
+export const auditLogs = sqliteTable('audit_logs', {
+  id:          text('id').primaryKey(),
+  tenantId:    text('tenant_id'),                                // nullable: master ops may have no tenant
+  actorId:     text('actor_id').references(() => users.id),     // nullable: no cascade
+  actorEmail:  text('actor_email'),
+  actorName:   text('actor_name'),
+  actorRole:   text('actor_role'),
+  action:      text('action').notNull(),                        // e.g. 'disparo.manual'
+  entityType:  text('entity_type'),
+  entityId:    text('entity_id'),
+  metadata:    text('metadata').notNull().default('{}'),        // JSON
+  ip:          text('ip'),
+  userAgent:   text('user_agent'),
+  createdAt:   integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  tenantCreatedAtIdx: index('audit_logs_tenant_created_at_idx').on(t.tenantId, t.createdAt),
+}))
+
 // Campaign / parameters config per tenant (the "Parâmetros" tab). Passive-persisted,
 // modelled with status + version for future write-back to n8n.
 export const campaignSettings = sqliteTable('campaign_settings', {
