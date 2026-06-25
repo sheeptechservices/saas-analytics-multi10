@@ -33,9 +33,17 @@ interface WaRates  { entrega: number; leitura: number }
 interface WaDay    { date: string; sent: number; delivered: number; read: number; failed: number; inbound: number }
 interface WaBlock  { totals: WaTotals; rates: WaRates; daily: WaDay[] }
 
+type Trend = 'up' | 'down' | 'flat'
+
 interface SdrBiData {
   period: string
   kpis: { contatos: number; taxaResposta: number; reunioes: number; conversao: number }
+  kpisChange?: {
+    contatos?:     { pct: number; trend: Trend } | null
+    taxaResposta?: { pp: number;  trend: Trend } | null
+    reunioes?:     { pct: number; trend: Trend } | null
+    conversao?:    { pp: number;  trend: Trend } | null
+  }
   funnel: { stageKey: string; stageName: string; count: number; order: number }[]
   sentiment: { id: string; label: string; color: string; count: number }[]
   recent: { sessionId: string; source: string; lastContact: number | null; msgs: number; name: string | null }[]
@@ -430,6 +438,8 @@ export default function DashboardPage() {
               value={data!.kpis.contatos}
               accent="var(--primary-text)"
               sub={`de ${(data?.funnel.find(f => f.stageKey === 'leads')?.count ?? 0).toLocaleString('pt-BR')} leads recebidos`}
+              change={data?.kpisChange?.contatos?.pct ?? null}
+              changeUnit="%"
             />
             <KpiCard
               className="animate-slide-up delay-3"
@@ -438,6 +448,8 @@ export default function DashboardPage() {
               format={v => `${v}%`}
               accent="#2563EB"
               sub="leads que responderam"
+              change={data?.kpisChange?.taxaResposta?.pp ?? null}
+              changeUnit="pp"
             />
             <KpiCard
               className="animate-slide-up delay-4"
@@ -445,6 +457,8 @@ export default function DashboardPage() {
               value={data!.kpis.reunioes}
               accent="var(--green)"
               sub="com closer neste período"
+              change={data?.kpisChange?.reunioes?.pct ?? null}
+              changeUnit="%"
             />
             <KpiCard
               className="animate-slide-up delay-5"
@@ -453,6 +467,8 @@ export default function DashboardPage() {
               format={v => `${v}%`}
               accent="var(--green)"
               sub="do total de leads"
+              change={data?.kpisChange?.conversao?.pp ?? null}
+              changeUnit="pp"
             />
           </div>
 
