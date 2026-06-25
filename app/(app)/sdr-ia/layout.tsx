@@ -3,17 +3,37 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useModules } from '@/components/ModulesProvider'
 
-const TABS = [
-  { href: '/sdr-ia/parametros', label: 'Parâmetros', moduleKey: 'sdr.parametros'              },
-  { href: '/sdr-ia/leads',      label: 'Leads',      moduleKey: 'sdr.parametros'              },
-  { href: '/sdr-ia/contatos',   label: 'Contatos',   moduleKey: 'integration.ycloud-whatsapp' },
-  { href: '/sdr-ia/conversas',  label: 'Conversas',  moduleKey: 'integration.ycloud-whatsapp' },
+type Tab = { href: string; label: string; isVisible: (mods: string[]) => boolean }
+
+// Sub-nav shown when in the Conversas context (/sdr-ia/conversas or /sdr-ia/contatos)
+const CONV_TABS: Tab[] = [
+  { href: '/sdr-ia/conversas', label: 'Conversas', isVisible: m => m.includes('integration.ycloud-whatsapp') },
+  { href: '/sdr-ia/contatos',  label: 'Contatos',  isVisible: m => m.includes('integration.ycloud-whatsapp') },
 ]
+
+// Sub-nav shown when in the Disparos context (/sdr-ia/disparos or /sdr-ia/leads)
+const DISPAR_TABS: Tab[] = [
+  { href: '/sdr-ia/leads',    label: 'Leads',     isVisible: m => m.includes('sdr.parametros') },
+  { href: '/sdr-ia/disparos', label: 'Histórico', isVisible: m => m.includes('sdr.dashboard') || m.includes('sdr.parametros') },
+]
+
+function inConvContext(p: string) {
+  return p.startsWith('/sdr-ia/conversas') || p.startsWith('/sdr-ia/contatos')
+}
+
+function inDisparContext(p: string) {
+  return p.startsWith('/sdr-ia/disparos') || p.startsWith('/sdr-ia/leads')
+}
 
 export default function SdrIaLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const modules  = useModules()
-  const visibleTabs = TABS.filter(t => modules.includes(t.moduleKey))
+
+  const contextTabs = inConvContext(pathname) ? CONV_TABS
+    : inDisparContext(pathname) ? DISPAR_TABS
+    : []
+
+  const visibleTabs = contextTabs.filter(t => t.isVisible(modules))
 
   return (
     <div>
