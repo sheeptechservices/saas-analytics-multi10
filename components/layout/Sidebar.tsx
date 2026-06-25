@@ -26,7 +26,7 @@ const navItems: NavGroup[] = [
     section: 'Principal',
     items: [
       {
-        href: '/dashboard', label: 'Visão geral',
+        href: '/dashboard', label: 'Dashboard',
         icon: <LayoutGrid size={16} />,
         isActive: (p) => p.startsWith('/dashboard'),
       },
