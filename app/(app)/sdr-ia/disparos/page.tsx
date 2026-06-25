@@ -19,7 +19,7 @@ interface Campaign {
   skipped:         number
   started:         number
   status:          'enviando' | 'concluido' | 'erro'
-  createdAt:       number | null
+  createdAt:       string | number | null
   createdByName:   string | null
   pendente:        number
   enviado:         number
@@ -38,7 +38,7 @@ interface Recipient {
   ycloudMessageId: string | null
   errorCode:       string | null
   errorReason:     string | null
-  lastStatusAt:    number | null
+  lastStatusAt:    string | number | null
 }
 
 interface DetailResponse {
@@ -48,16 +48,27 @@ interface DetailResponse {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtDate(ts: number | null): string {
-  if (!ts) return '—'
-  return new Date(ts * 1000).toLocaleString('pt-BR', {
+// Aceita ISO string (o que a API serializa de um Date), número em ms ou em segundos.
+// Nunca devolve "Invalid Date": valor inválido vira null.
+function toMs(ts: string | number | null | undefined): number | null {
+  if (ts == null || ts === '') return null
+  if (typeof ts === 'number') return ts < 1e12 ? ts * 1000 : ts   // segundos → ms
+  const t = Date.parse(ts)                                        // string ISO
+  return Number.isNaN(t) ? null : t
+}
+
+function fmtDate(ts: string | number | null): string {
+  const ms = toMs(ts)
+  if (ms == null) return '—'
+  return new Date(ms).toLocaleString('pt-BR', {
     day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
   })
 }
 
-function fmtDayShort(ts: number | null): string {
-  if (!ts) return '—'
-  return new Date(ts * 1000).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+function fmtDayShort(ts: string | number | null): string {
+  const ms = toMs(ts)
+  if (ms == null) return '—'
+  return new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
 function fmtPhone(phone: string): string {
