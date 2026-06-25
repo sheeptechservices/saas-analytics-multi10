@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { getEnabledModuleKeys } from '@/lib/entitlements'
 import { TenantEditor } from './TenantEditor'
+import { fmtDateBr } from '@/lib/date'
 
 type Props = { params: Promise<{ tenantId: string }> }
 
@@ -44,9 +45,6 @@ export default async function TenantDetailPage({ params }: Props) {
     modules: modulesByPlan.get(p.id) ?? [],
   }))
 
-  const createdAtDate = tenant.createdAt instanceof Date
-    ? tenant.createdAt
-    : new Date((tenant.createdAt as number) * 1000)
 
   return (
     <div style={{ padding: '40px 48px', maxWidth: 1100 }}>
@@ -75,7 +73,7 @@ export default async function TenantDetailPage({ params }: Props) {
           {tenant.slug}
         </span>
         <span style={{ fontSize: 12, color: '#aaa' }}>
-          Criado em {createdAtDate.toLocaleDateString('pt-BR')}
+          Criado em {fmtDateBr(tenant.createdAt)}
         </span>
       </div>
 
@@ -113,9 +111,6 @@ export default async function TenantDetailPage({ params }: Props) {
           <tbody>
             {tenantUsers.map((u, i) => {
               const badge = ROLE_BADGE[u.role] ?? ROLE_BADGE.user
-              const uDate = u.createdAt instanceof Date
-                ? u.createdAt
-                : new Date((u.createdAt as number) * 1000)
               return (
                 <tr key={u.id} style={{ borderBottom: i < tenantUsers.length - 1 ? '1px solid #f0f0ee' : 'none' }}>
                   <td style={{ padding: '14px 20px', fontSize: 13, fontWeight: 700, color: '#121316' }}>
@@ -135,7 +130,7 @@ export default async function TenantDetailPage({ params }: Props) {
                     </span>
                   </td>
                   <td style={{ padding: '14px 20px', fontSize: 12, color: '#888' }}>
-                    {uDate.toLocaleDateString('pt-BR')}
+                    {fmtDateBr(u.createdAt)}
                   </td>
                 </tr>
               )

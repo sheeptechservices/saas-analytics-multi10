@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useQuery } from '@tanstack/react-query'
 import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
+import { toMs } from '@/lib/date'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,15 +48,6 @@ interface DetailResponse {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-// Aceita ISO string (o que a API serializa de um Date), número em ms ou em segundos.
-// Nunca devolve "Invalid Date": valor inválido vira null.
-function toMs(ts: string | number | null | undefined): number | null {
-  if (ts == null || ts === '') return null
-  if (typeof ts === 'number') return ts < 1e12 ? ts * 1000 : ts   // segundos → ms
-  const t = Date.parse(ts)                                        // string ISO
-  return Number.isNaN(t) ? null : t
-}
 
 function fmtDate(ts: string | number | null): string {
   const ms = toMs(ts)

@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
 import { initials } from '@/lib/utils'
+import { fmtDateBr } from '@/lib/date'
 import { Pencil, Trash2, Clock, Search, Check, Database, KeyRound } from 'lucide-react'
 import { ACTION_LABELS, fmtDateTime, fmtDetail } from '@/lib/audit-format'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
@@ -797,10 +798,7 @@ function textOn(hex: string) {
 }
 
 function fmtDate(d: string | number) {
-  try {
-    const dt = typeof d === 'number' ? new Date(d * 1000) : new Date(d)
-    return dt.toLocaleDateString('pt-BR')
-  } catch { return '—' }
+  return fmtDateBr(d)
 }
 
 function Field({ value, onChange, type = 'text', placeholder, disabled }: React.InputHTMLAttributes<HTMLInputElement>) {

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { formatCurrency, daysAgo } from '@/lib/utils'
+import { toDate } from '@/lib/date'
 
 type Priority = 'high' | 'normal' | 'low'
 
@@ -410,7 +411,8 @@ export default function PipelinePage() {
 
               {/* Cards */}
               {stage.leads.map(lead => {
-                const age = lead.updatedAt ? daysAgo(new Date(lead.updatedAt * 1000)) : 0
+                const _upd = toDate(lead.updatedAt)
+                const age = _upd ? daysAgo(_upd) : 0
                 const hasAlert = age > 7
                 const isDragging = draggingLeadId === lead.id
                 return (
