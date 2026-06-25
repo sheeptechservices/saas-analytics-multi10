@@ -11,6 +11,7 @@ import { Pencil, Trash2, Clock, Search, Check, Database, KeyRound } from 'lucide
 import { ACTION_LABELS, fmtDateTime, fmtDetail } from '@/lib/audit-format'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { useModules } from '@/components/ModulesProvider'
+import { CampaignConfig } from '@/app/(app)/sdr-ia/parametros/CampaignConfig'
 
 const PRESET_COLORS = [
   '#FFB400', '#2563eb', '#1E8A3E', '#D93025',
@@ -648,23 +649,7 @@ export default function SettingsPage() {
       {/* ── Auditoria ──────────────────────────────────────────────────────── */}
       {tab === 'campanha-sdr' && (
         <div className="animate-slide-up delay-2">
-          <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 28, boxShadow: 'var(--shadow)', maxWidth: 520 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--black)', marginBottom: 8 }}>Campanha SDR</div>
-            <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 20 }}>
-              Configure o agente de prospecção: tom, objetivo, horários, templates e limites de disparo.
-            </div>
-            <Link
-              href="/sdr-ia/parametros"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '10px 22px', borderRadius: 100,
-                background: 'var(--primary)', color: '#fff',
-                fontSize: 13, fontWeight: 700, textDecoration: 'none',
-              }}
-            >
-              Abrir configuração da campanha
-            </Link>
-          </div>
+          <CampaignConfig />
         </div>
       )}
 
