@@ -2,9 +2,10 @@
 import { usePathname } from 'next/navigation'
 
 const NAV = [
-  { href: '/master', label: 'Dashboard' },
-  { href: '/master/tenants', label: 'Tenants' },
-  { href: '/master/plans', label: 'Planos' },
+  { href: '/master',           label: 'Dashboard' },
+  { href: '/master/tenants',   label: 'Tenants' },
+  { href: '/master/plans',     label: 'Planos' },
+  { href: '/master/auditoria', label: 'Auditoria' },
 ]
 
 type Props = {
