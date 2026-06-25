@@ -121,6 +121,7 @@ export async function GET(request: Request) {
       source:     conversations.source,
       sessionId:  conversations.sessionId,
       occurredAt: conversations.occurredAt,
+      role:       conversations.role,
     })
     .from(conversations)
     .where(and(
@@ -257,22 +258,34 @@ export async function GET(request: Request) {
 
   // ── Recent sessions: dedup by (source, sessionId); top 50 by recência ────
   //    Key = `${source}:${sessionId}` so same phone in YCloud and SDR don't collapse
-  const sessionMap = new Map<string, { source: string; sessionId: string; lastContact: number | null; msgs: number }>()
+  const COLD_MS = 7 * DAY
+  const sessionMap = new Map<string, { source: string; sessionId: string; lastContact: number | null; msgs: number; lastRole: string | null }>()
   for (const row of convRows) {
     const key = `${row.source}:${row.sessionId}`
     const ms  = row.occurredAt instanceof Date ? row.occurredAt.getTime() : null
     const ex  = sessionMap.get(key)
     if (!ex) {
-      sessionMap.set(key, { source: row.source, sessionId: row.sessionId, lastContact: ms, msgs: 1 })
+      // First row is the most recent (DESC order) — captures lastRole and lastContact
+      sessionMap.set(key, { source: row.source, sessionId: row.sessionId, lastContact: ms, msgs: 1, lastRole: row.role })
     } else {
       ex.msgs++
-      if (ms && (!ex.lastContact || ms > ex.lastContact)) ex.lastContact = ms
+      if (ms && (!ex.lastContact || ms > ex.lastContact)) {
+        ex.lastContact = ms
+        ex.lastRole    = row.role
+      }
     }
   }
+  const nowMs = now.getTime()
   const recent = Array.from(sessionMap.values())
     .sort((a, b) => (b.lastContact ?? 0) - (a.lastContact ?? 0))
     .slice(0, 50)
-    .map(({ source, sessionId, lastContact, msgs }) => ({ sessionId, source, lastContact, msgs }))
+    .map(({ source, sessionId, lastContact, msgs, lastRole }) => {
+      const status: 'respondeu' | 'aguardando' | 'fria' =
+        lastContact !== null && nowMs - lastContact > COLD_MS ? 'fria'
+        : lastRole === 'human' ? 'respondeu'
+        : 'aguardando'
+      return { sessionId, source, lastContact, msgs, status }
+    })
 
   // ── Name lookup: match recent sessionIds against contacts ─────────────────
   // supabase-n8n sessionIds are plain digits (no '+'); YCloud contacts store
