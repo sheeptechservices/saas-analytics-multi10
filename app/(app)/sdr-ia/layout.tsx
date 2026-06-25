@@ -13,7 +13,7 @@ const CONV_TABS: Tab[] = [
 
 // Sub-nav shown when in the Disparos context (/sdr-ia/disparos or /sdr-ia/leads)
 const DISPAR_TABS: Tab[] = [
-  { href: '/sdr-ia/leads',    label: 'Leads',     isVisible: m => m.includes('sdr.parametros') },
+  { href: '/sdr-ia/leads',    label: 'Novo disparo', isVisible: m => m.includes('sdr.parametros') },
   { href: '/sdr-ia/disparos', label: 'Histórico', isVisible: m => m.includes('sdr.dashboard') || m.includes('sdr.parametros') },
 ]
 
