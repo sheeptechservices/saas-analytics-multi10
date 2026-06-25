@@ -14,6 +14,7 @@ interface NavItem {
   icon:         React.ReactNode
   activePrefix?: string
   isActive?:    (pathname: string) => boolean
+  hrefFor?:     (modules: string[]) => string   // destino dinâmico por módulo do tenant
 }
 
 interface NavGroup {
@@ -38,6 +39,8 @@ const navItems: NavGroup[] = [
       {
         href: '/sdr-ia/disparos', label: 'Disparos',
         icon: <Send size={16} />,
+        // abre no "Novo disparo" (ação) se o tenant pode disparar; senão no Histórico
+        hrefFor: (m) => m.includes('sdr.parametros') ? '/sdr-ia/leads' : '/sdr-ia/disparos',
         isActive: (p) => p.startsWith('/sdr-ia/disparos') || p.startsWith('/sdr-ia/leads'),
       },
       {
@@ -111,6 +114,7 @@ export function Sidebar() {
             {group.section}
           </div>
           {visibleItems.map(item => {
+            const href = item.hrefFor ? item.hrefFor(modules) : item.href
             const active = item.isActive
               ? item.isActive(pathname)
               : item.activePrefix
@@ -119,7 +123,7 @@ export function Sidebar() {
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 onClick={() => { if (overlay) setOpen(false) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
