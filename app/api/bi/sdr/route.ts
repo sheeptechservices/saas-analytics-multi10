@@ -60,6 +60,11 @@ export async function GET(request: Request) {
   const startMonth = toYearMonth(periodStart)
   const endMonth = toYearMonth(now)
 
+  // Prior period of equal length for KPI trend comparison
+  const priorStart = new Date(now.getTime() - 2 * days * DAY)
+  const priorStartMonth = toYearMonth(priorStart)
+  const priorEndMonth   = toYearMonth(periodStart)
+
   // ── Funnel snapshots: aggregate by stageKey over the period range ─────────
   const funnelRows = await db
     .select({
@@ -77,6 +82,21 @@ export async function GET(request: Request) {
     ))
     .groupBy(funnelSnapshots.stageKey, funnelSnapshots.stageName)
     .orderBy(sql`min(${funnelSnapshots.order})`)
+
+  // ── Prior-period funnel snapshot (same shape, previous window) ────────────
+  const priorFunnelRows = await db
+    .select({
+      stageKey: funnelSnapshots.stageKey,
+      count:    sql<number>`sum(${funnelSnapshots.count})`,
+    })
+    .from(funnelSnapshots)
+    .where(and(
+      eq(funnelSnapshots.tenantId, tenantId),
+      eq(funnelSnapshots.source, 'supabase-n8n'),
+      gte(funnelSnapshots.period, priorStartMonth),
+      lte(funnelSnapshots.period, priorEndMonth),
+    ))
+    .groupBy(funnelSnapshots.stageKey)
 
   // ── Events: sentiment (supabase-n8n only — YCloud events have null sentiment) ─
   const sentimentRows = await db
@@ -189,6 +209,38 @@ export async function GET(request: Request) {
     ? Math.round((responsesCount / contactedCount) * 100) : 0
   const conversao = leadsCount > 0
     ? Math.round((meetingsCount / leadsCount) * 100) : 0
+
+  // ── Prior-period KPIs and change computation ──────────────────────────────
+  type Trend = 'up' | 'down' | 'flat'
+  function trend(v: number): Trend { return v > 0 ? 'up' : v < 0 ? 'down' : 'flat' }
+
+  const priorMap = new Map(priorFunnelRows.map(r => [r.stageKey, Number(r.count)]))
+  const priorLeads     = priorMap.get('leads')     ?? 0
+  const priorContacted = priorMap.get('contacted') ?? 0
+  const priorResponses = priorMap.get('responses') ?? 0
+  const priorMeetings  = priorMap.get('meetings')  ?? 0
+
+  const priorTaxaResposta = priorContacted > 0
+    ? Math.round((priorResponses / priorContacted) * 100) : 0
+  const priorConversao = priorLeads > 0
+    ? Math.round((priorMeetings / priorLeads) * 100) : 0
+
+  const kpisChange = {
+    // Counts → % change; null when prior is 0 (no base for comparison)
+    contatos: priorContacted > 0
+      ? (() => { const pct = Math.round(((contactedCount - priorContacted) / priorContacted) * 100); return { pct, trend: trend(pct) } })()
+      : null,
+    reunioes: priorMeetings > 0
+      ? (() => { const pct = Math.round(((meetingsCount - priorMeetings) / priorMeetings) * 100); return { pct, trend: trend(pct) } })()
+      : null,
+    // Rates → pp diff; null when prior denominator was 0 (rate is not meaningful)
+    taxaResposta: priorContacted > 0
+      ? (() => { const pp = taxaResposta - priorTaxaResposta; return { pp, trend: trend(pp) } })()
+      : null,
+    conversao: priorLeads > 0
+      ? (() => { const pp = conversao - priorConversao; return { pp, trend: trend(pp) } })()
+      : null,
+  }
 
   // ── Sentiment donut ───────────────────────────────────────────────────────
   const sentMap = new Map<string, number>()
@@ -307,6 +359,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     period,
     kpis: { contatos: contactedCount, taxaResposta, reunioes: meetingsCount, conversao },
+    kpisChange,
     funnel: funnelRows.map(r => ({
       stageKey:  r.stageKey,
       stageName: r.stageName,

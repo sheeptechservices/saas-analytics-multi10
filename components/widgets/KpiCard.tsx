@@ -31,7 +31,7 @@ export function useCountUp(target: number, duration = 750, delay = 0): number {
 
 // ─── ChangeBadge ─────────────────────────────────────────────────────────────
 
-export function ChangeBadge({ value }: { value: number | null }) {
+export function ChangeBadge({ value, unit = '%' }: { value: number | null; unit?: '%' | 'pp' }) {
   if (value === null || value === undefined) return null
   const positive = value > 0
   const zero = value === 0
@@ -48,7 +48,7 @@ export function ChangeBadge({ value }: { value: number | null }) {
       padding: '2px 8px',
       marginTop: 8,
     }}>
-      <Arrow size={11} /> {Math.abs(value)}% <span style={{ fontWeight: 500, opacity: 0.7 }}>vs ant.</span>
+      <Arrow size={11} /> {Math.abs(value)}{unit} <span style={{ fontWeight: 500, opacity: 0.7 }}>vs ant.</span>
     </span>
   )
 }
@@ -63,11 +63,12 @@ export interface KpiCardProps {
   sub?: string
   delay?: number
   change?: number | null
+  changeUnit?: '%' | 'pp'
   className?: string
 }
 
 export function KpiCard({
-  label, value, format, accent = 'var(--primary)', sub, delay = 0, change, className,
+  label, value, format, accent = 'var(--primary)', sub, delay = 0, change, changeUnit = '%', className,
 }: KpiCardProps) {
   const [hov, setHov] = useState(false)
   const counted = useCountUp(value, 750, delay)
@@ -105,7 +106,7 @@ export function KpiCard({
         wordBreak: 'break-all',
       }}>{display}</div>
       {sub && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5, fontWeight: 500 }}>{sub}</div>}
-      <ChangeBadge value={change ?? null} />
+      <ChangeBadge value={change ?? null} unit={changeUnit} />
     </div>
   )
 }
