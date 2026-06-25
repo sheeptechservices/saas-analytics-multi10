@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, BarChart3, Sparkles, Settings, Radio } from 'lucide-react'
+import { LayoutGrid, BarChart3, MessageSquare, Settings, Send } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
 import { useModules } from '@/components/ModulesProvider'
 import { useIsMobile } from '@/lib/hooks/useMediaQuery'
@@ -26,22 +26,23 @@ const navItems: NavGroup[] = [
     section: 'Principal',
     items: [
       {
-        href: '/dashboard', label: 'Dashboard',
+        href: '/dashboard', label: 'Visão geral',
         icon: <LayoutGrid size={16} />,
+        isActive: (p) => p.startsWith('/dashboard'),
+      },
+      {
+        href: '/sdr-ia/conversas', label: 'Conversas',
+        icon: <MessageSquare size={16} />,
+        isActive: (p) => p.startsWith('/sdr-ia/conversas') || p.startsWith('/sdr-ia/contatos'),
+      },
+      {
+        href: '/sdr-ia/disparos', label: 'Disparos',
+        icon: <Send size={16} />,
+        isActive: (p) => p.startsWith('/sdr-ia/disparos') || p.startsWith('/sdr-ia/leads'),
       },
       {
         href: '/pipeline', label: 'Pipeline',
         icon: <BarChart3 size={16} />,
-      },
-      {
-        href: '/sdr-ia/parametros', label: 'SDR IA',
-        icon: <Sparkles size={16} />,
-        isActive: (p) => p.startsWith('/sdr-ia') && !p.startsWith('/sdr-ia/disparos'),
-      },
-      {
-        href: '/sdr-ia/disparos', label: 'Disparos',
-        icon: <Radio size={16} />,
-        isActive: (p) => p.startsWith('/sdr-ia/disparos'),
       },
     ],
   },
@@ -66,10 +67,10 @@ export function Sidebar() {
   const overlay = !pinned || isMobile
 
   function isItemVisible(href: string): boolean {
-    if (href === '/settings')      return true
-    if (href === '/dashboard')     return modules.some(k => k.startsWith('dashboard.'))
-    if (href === '/pipeline')      return modules.includes('pipeline')
-    if (href === '/sdr-ia/parametros') return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
+    if (href === '/settings')          return true
+    if (href === '/dashboard')         return modules.some(k => k.startsWith('dashboard.'))
+    if (href === '/pipeline')          return modules.includes('pipeline')
+    if (href === '/sdr-ia/conversas')  return modules.includes('integration.ycloud-whatsapp')
     if (href === '/sdr-ia/disparos')   return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
     return true
   }

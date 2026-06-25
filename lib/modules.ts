@@ -62,7 +62,7 @@ export function firstAllowedPath(modules: string[]): string {
   const dashTabs = ['dashboard.overview', 'dashboard.ranking', 'dashboard.marketing']
   const firstDash = MODULES.find(m => dashTabs.includes(m.key) && modules.includes(m.key))
   if (firstDash) return firstDash.path
-  if (modules.includes('sdr.dashboard')) return '/sdr-ia/dashboard'
+  if (modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')) return '/sdr-ia/disparos'
   if (modules.includes('pipeline')) return '/pipeline'
   return '/settings'
 }
