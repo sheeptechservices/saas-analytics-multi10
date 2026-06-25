@@ -10,7 +10,7 @@ export interface ModuleDef {
 export const MODULES: ModuleDef[] = [
   { key: 'pipeline',               label: 'Pipeline',          type: 'sidebar',       path: '/pipeline' },
   { key: 'sdr.dashboard',          label: 'SDR / Disparos',    type: 'sidebar',       path: '/sdr-ia/disparos' },
-  { key: 'sdr.parametros',         label: 'Parâmetros SDR',    type: 'sidebar',       path: '/sdr-ia/parametros' },
+  { key: 'sdr.parametros',         label: 'Parâmetros SDR',    type: 'sidebar',       path: '/settings?tab=campanha-sdr' },
   { key: 'dashboard.overview',     label: 'Visão Geral',       type: 'dashboard-tab', path: '/dashboard' },
   { key: 'dashboard.ranking',      label: 'Ranking',           type: 'dashboard-tab', path: '/dashboard/ranking' },
   { key: 'dashboard.marketing',    label: 'Marketing',         type: 'dashboard-tab', path: '/dashboard/marketing' },
