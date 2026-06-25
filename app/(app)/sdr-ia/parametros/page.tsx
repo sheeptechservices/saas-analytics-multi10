@@ -182,6 +182,7 @@ export default function ParametrosPage() {
   const [testSending,      setTestSending]      = useState(false)
   const [testResults,      setTestResults]      = useState<Array<{ to: string; ok: boolean; id?: string; status?: string; error?: string }> | null>(null)
   const [testError,        setTestError]        = useState<string | null>(null)
+  const [ferramentasOpen,  setFerramentasOpen]  = useState(false)
 
   // ── Áreas colapsáveis — persistidas em localStorage ──────────────────────────
   const [openAreas, setOpenAreas] = useState<Set<AreaId>>(() => {
@@ -617,60 +618,63 @@ export default function ParametrosPage() {
 
         {/* Templates de mensagem */}
         <SectionCard title="Templates de mensagem">
-          <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16, lineHeight: 1.5 }}>
-            Use{' '}
-            <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, color: 'var(--primary-text)' }}>
-              {'{{nome}}'}
-            </code>
-            {' '}e{' '}
-            <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, color: 'var(--primary-text)' }}>
-              {'{{empresa}}'}
-            </code>
-            {' '}como variáveis que serão substituídas em cada envio.
-          </div>
-
           {hasTemplates && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 12 }}>
-              {settings.templates.map((tmpl, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 6 }}>
-                    Mensagem {i + 1}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <textarea
-                      value={tmpl}
-                      onChange={e => updTemplate(i, e.target.value)}
-                      rows={4}
-                      placeholder={`Mensagem ${i + 1}...`}
-                      style={{
-                        flex: 1, minWidth: 0, fontFamily: 'inherit', fontSize: 13,
-                        resize: 'vertical', lineHeight: 1.55,
-                        border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-                        background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                        boxSizing: 'border-box', transition: 'border-color .15s',
-                      }}
-                      onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                      onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-                    />
-                    {settings.templates.length > 1 && (
-                      <button
-                        onClick={() => upd('templates', settings.templates.filter((_, idx) => idx !== i))}
-                        title="Remover template"
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginBottom: 14 }}>
+              {settings.templates.map((tmpl, i) => {
+                const dia   = 1 + i * settings.intervaloDias
+                const empty = !tmpl.trim()
+                return (
+                  <div key={i}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>
+                        Toque {i + 1} · dia {dia}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--gray2)', fontWeight: 500 }}>
+                        {'{{nome}}'} · {'{{empresa}}'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <textarea
+                        value={tmpl}
+                        onChange={e => updTemplate(i, e.target.value)}
+                        rows={4}
+                        placeholder={`Mensagem do toque ${i + 1}...`}
                         style={{
-                          padding: '7px 10px', borderRadius: 8, fontFamily: 'inherit',
-                          fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                          border: '1px solid var(--gray3)', background: 'transparent',
-                          color: 'var(--gray2)', transition: 'all .15s', lineHeight: 1, flexShrink: 0,
+                          flex: 1, minWidth: 0, fontFamily: 'inherit', fontSize: 13,
+                          resize: 'vertical', lineHeight: 1.55,
+                          border: `1px solid ${empty ? 'rgba(239,68,68,0.5)' : 'var(--gray3)'}`,
+                          borderRadius: 10, padding: '10px 14px',
+                          background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                          boxSizing: 'border-box', transition: 'border-color .15s',
                         }}
-                        onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--red)'; b.style.color = 'var(--red)' }}
-                        onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
-                      >
-                        ×
-                      </button>
+                        onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                        onBlur={e  => (e.currentTarget.style.borderColor = empty ? 'rgba(239,68,68,0.5)' : 'var(--gray3)')}
+                      />
+                      {settings.templates.length > 1 && (
+                        <button
+                          onClick={() => upd('templates', settings.templates.filter((_, idx) => idx !== i))}
+                          title="Remover template"
+                          style={{
+                            padding: '7px 10px', borderRadius: 8, fontFamily: 'inherit',
+                            fontSize: 16, fontWeight: 700, cursor: 'pointer',
+                            border: '1px solid var(--gray3)', background: 'transparent',
+                            color: 'var(--gray2)', transition: 'all .15s', lineHeight: 1, flexShrink: 0,
+                          }}
+                          onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--red)'; b.style.color = 'var(--red)' }}
+                          onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    {empty && (
+                      <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginTop: 4 }}>
+                        Vazio — preencha ou remova este toque.
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -687,152 +691,10 @@ export default function ParametrosPage() {
           >
             + Adicionar template
           </button>
-        </SectionCard>
-      </CollapsibleArea>
 
-      {/* ━━━ Área 3: Teste de disparo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <CollapsibleArea
-        id="teste-disparo"
-        title="Teste de disparo"
-        open={openAreas.has('teste-disparo')}
-        onToggle={() => toggleArea('teste-disparo')}
-      >
-        <SectionCard title="Teste de disparo (números selecionados)">
-          <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 10,
-            background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.22)',
-            borderRadius: 10, padding: '10px 14px', marginBottom: 20,
-            fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
-          }}>
-            ⚠ Envia mensagem <strong style={{ fontWeight: 800 }}>real</strong> (com custo) diretamente via WhatsApp, somente para os números informados — não usa a sequência da campanha.
-          </div>
-
-          <FieldLabel>Template</FieldLabel>
-          {testTemplates.length > 0 && (
-            <select
-              value={testTemplateName}
-              onChange={e => setTestTemplateName(e.target.value)}
-              style={{
-                width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 8,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">— escolha um template aprovado —</option>
-              {testTemplates.map(t => (
-                <option key={`${t.name}:${t.language}`} value={t.name}>{t.name} ({t.language})</option>
-              ))}
-            </select>
-          )}
-          <input
-            type="text"
-            value={testTemplateName}
-            onChange={e => setTestTemplateName(e.target.value)}
-            placeholder="nome_do_template (ou digite manualmente)"
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16, marginBottom: 20 }}>
-            <div>
-              <FieldLabel>Idioma</FieldLabel>
-              <input
-                type="text"
-                value={testLangCode}
-                onChange={e => setTestLangCode(e.target.value)}
-                placeholder="pt_BR"
-                style={{
-                  width: '100%', fontFamily: 'inherit', fontSize: 13,
-                  border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                  boxSizing: 'border-box', transition: 'border-color .15s',
-                }}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-              />
-            </div>
-            <div>
-              <FieldLabel>Variáveis (separadas por vírgula)</FieldLabel>
-              <input
-                type="text"
-                value={testVarsCsv}
-                onChange={e => setTestVarsCsv(e.target.value)}
-                placeholder="João Silva, Empresa Ltda"
-                style={{
-                  width: '100%', fontFamily: 'inherit', fontSize: 13,
-                  border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                  boxSizing: 'border-box', transition: 'border-color .15s',
-                }}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-              />
-              <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 5 }}>
-                Preencha conforme as variáveis do template; a maioria usa 1 (nome).
-              </div>
-            </div>
-          </div>
-
-          <FieldLabel>Números — 1 por linha (E.164)</FieldLabel>
-          <textarea
-            value={testNumbers}
-            onChange={e => setTestNumbers(e.target.value)}
-            rows={4}
-            placeholder={'+5554999990000\n+5551988880000'}
-            style={{
-              width: '100%', fontFamily: 'monospace', fontSize: 13,
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6,
-              transition: 'border-color .15s', marginBottom: 4,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-          <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginBottom: 18 }}>
-            Máximo de 10 números por teste.
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' as const }}>
-            <Button
-              variant="primary"
-              onClick={testSend}
-              disabled={testSending}
-            >
-              {testSending ? 'Enviando...' : 'Enviar teste'}
-            </Button>
-            {testError && (
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
-            )}
-          </div>
-
-          {testResults && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {testResults.map((r, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-                  border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-                  borderRadius: 10, padding: '8px 14px',
-                }}>
-                  <span style={{ fontWeight: 800, color: r.ok ? 'var(--green)' : 'var(--red)', flexShrink: 0, fontSize: 14 }}>
-                    {r.ok ? '✓' : '✗'}
-                  </span>
-                  <code style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--black)', flexShrink: 0 }}>{r.to}</code>
-                  {r.ok
-                    ? <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>id: {r.id}</span>
-                    : <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>{r.error}</span>
-                  }
-                </div>
-              ))}
+          {settings.templates.length !== settings.numToques && (
+            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 12 }}>
+              {settings.templates.length} template{settings.templates.length !== 1 ? 's' : ''} configurado{settings.templates.length !== 1 ? 's' : ''} para {settings.numToques} toque{settings.numToques !== 1 ? 's' : ''} — os toques restantes não terão conteúdo.
             </div>
           )}
         </SectionCard>
@@ -948,6 +810,171 @@ export default function ParametrosPage() {
             )}
             <span style={{ fontWeight: 400, opacity: 0.7 }}>(settings salvas)</span>
           </div>
+        )}
+      </div>
+
+      {/* ── Ferramentas ─────────────────────────────────────────── */}
+      <div style={{ marginTop: 40, borderTop: '1.5px solid var(--gray3)', paddingTop: 28, paddingBottom: 48 }}>
+        <button
+          onClick={() => setFerramentasOpen(o => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'none', border: 'none', cursor: 'pointer',
+            padding: 0, fontFamily: 'inherit', marginBottom: ferramentasOpen ? 20 : 0,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>Ferramentas</span>
+          <ChevronDown
+            size={14}
+            style={{
+              color: 'var(--gray2)',
+              transform: ferramentasOpen ? 'rotate(180deg)' : 'none',
+              transition: 'transform .2s',
+            }}
+          />
+        </button>
+
+        {ferramentasOpen && (
+          <SectionCard title="Teste de disparo (números selecionados)">
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.22)',
+              borderRadius: 10, padding: '10px 14px', marginBottom: 20,
+              fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
+            }}>
+              <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+              Envia mensagem <strong style={{ fontWeight: 800 }}>real</strong> (com custo) diretamente via WhatsApp, somente para os números informados — não usa a sequência da campanha.
+            </div>
+
+            <FieldLabel>Template</FieldLabel>
+            {testTemplates.length > 0 && (
+              <select
+                value={testTemplateName}
+                onChange={e => setTestTemplateName(e.target.value)}
+                style={{
+                  width: '100%', fontFamily: 'inherit', fontSize: 13,
+                  border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                  boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 8,
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="">— escolha um template aprovado —</option>
+                {testTemplates.map(t => (
+                  <option key={`${t.name}:${t.language}`} value={t.name}>{t.name} ({t.language})</option>
+                ))}
+              </select>
+            )}
+            <input
+              type="text"
+              value={testTemplateName}
+              onChange={e => setTestTemplateName(e.target.value)}
+              placeholder="nome_do_template (ou digite manualmente)"
+              style={{
+                width: '100%', fontFamily: 'inherit', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16, marginBottom: 20 }}>
+              <div>
+                <FieldLabel>Idioma</FieldLabel>
+                <input
+                  type="text"
+                  value={testLangCode}
+                  onChange={e => setTestLangCode(e.target.value)}
+                  placeholder="pt_BR"
+                  style={{
+                    width: '100%', fontFamily: 'inherit', fontSize: 13,
+                    border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                    background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                    boxSizing: 'border-box', transition: 'border-color .15s',
+                  }}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+                />
+              </div>
+              <div>
+                <FieldLabel>Variáveis (separadas por vírgula)</FieldLabel>
+                <input
+                  type="text"
+                  value={testVarsCsv}
+                  onChange={e => setTestVarsCsv(e.target.value)}
+                  placeholder="João Silva, Empresa Ltda"
+                  style={{
+                    width: '100%', fontFamily: 'inherit', fontSize: 13,
+                    border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                    background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                    boxSizing: 'border-box', transition: 'border-color .15s',
+                  }}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+                />
+                <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 5 }}>
+                  Preencha conforme as variáveis do template; a maioria usa 1 (nome).
+                </div>
+              </div>
+            </div>
+
+            <FieldLabel>Números — 1 por linha (E.164)</FieldLabel>
+            <textarea
+              value={testNumbers}
+              onChange={e => setTestNumbers(e.target.value)}
+              rows={4}
+              placeholder={'+5554999990000\n+5551988880000'}
+              style={{
+                width: '100%', fontFamily: 'monospace', fontSize: 13,
+                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6,
+                transition: 'border-color .15s', marginBottom: 4,
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+            />
+            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginBottom: 18 }}>
+              Máximo de 10 números por teste.
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' as const }}>
+              <Button
+                variant="primary"
+                onClick={testSend}
+                disabled={testSending}
+              >
+                {testSending ? 'Enviando...' : 'Enviar teste'}
+              </Button>
+              {testError && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
+              )}
+            </div>
+
+            {testResults && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {testResults.map((r, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                    border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                    borderRadius: 10, padding: '8px 14px',
+                  }}>
+                    <span style={{ fontWeight: 800, color: r.ok ? 'var(--green)' : 'var(--red)', flexShrink: 0, fontSize: 14 }}>
+                      {r.ok ? '✓' : '✗'}
+                    </span>
+                    <code style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--black)', flexShrink: 0 }}>{r.to}</code>
+                    {r.ok
+                      ? <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>id: {r.id}</span>
+                      : <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>{r.error}</span>
+                    }
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
         )}
       </div>
     </div>
