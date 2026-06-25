@@ -135,7 +135,10 @@ export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }
     const dropPct = next
       ? Math.round(((next.count - stage.count) / Math.max(stage.count, 1)) * 100)
       : null
-    return { ...stage, i, x, lt, lb, rt, rb, dropPct }
+    const convPct = next
+      ? Math.round((next.count / Math.max(stage.count, 1)) * 100)
+      : null
+    return { ...stage, i, x, lt, lb, rt, rb, dropPct, convPct }
   })
 
   const hiddenCount = allStages.length - visible.size
@@ -280,6 +283,18 @@ export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }
                       <DropArrow size={8} /> {Math.abs(seg.dropPct ?? 0)}%
                     </span>
                   </div>
+
+                  {seg.convPct !== null && i < filteredStages.length - 1 && (
+                    <div style={{
+                      fontSize: 9, fontWeight: 600,
+                      color: 'var(--gray2)',
+                      marginTop: 2,
+                      textAlign: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
+                    }}>
+                      <ArrowRight size={8} /> {seg.convPct}% avançaram
+                    </div>
+                  )}
 
                   {seg.avgDays != null && (
                     <div style={{
