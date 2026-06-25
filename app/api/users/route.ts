@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 import { users, passwordResetTokens } from '@/lib/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
 
   await sendInviteEmail({ to: email, userName: name, brandName, inviteLink })
 
+  await logAudit({ req, session, action: 'user.create', entityType: 'user', entityId: id, metadata: { email: email.toLowerCase().trim(), role }, tenantId })
   return NextResponse.json({ id, name: name.trim(), email: email.toLowerCase().trim(), role, createdAt: now }, { status: 201 })
 }
 

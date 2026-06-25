@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 import { tenants, users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
@@ -43,5 +44,7 @@ export async function PUT(req: NextRequest) {
     })
     .where(eq(tenants.id, session.user.tenantId))
 
+  const changedKeys = Object.entries({ primaryColor, logoUrl, name }).filter(([, v]) => v !== undefined).map(([k]) => k)
+  await logAudit({ req, session, action: 'whitelabel.update', metadata: { changedKeys } })
   return NextResponse.json({ ok: true })
 }

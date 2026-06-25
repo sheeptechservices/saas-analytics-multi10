@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
       else if (Array.isArray(data.created))       enrolled = data.created.length
     } catch { /* n8n response not JSON or no count field */ }
 
+    if (res.ok) await logAudit({ req: request, session, action: 'enroll', metadata: { leadCount: leadIds.length, fase, agendarPara } })
     return NextResponse.json({ ok: res.ok, status: res.status, enrolled })
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)

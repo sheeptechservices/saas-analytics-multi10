@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 import { dataSources, campaignSettings, blastCampaigns, blastRecipients } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
@@ -229,6 +230,8 @@ export async function POST(request: Request) {
     createdAt: now,
   }))
   await db.insert(blastRecipients).values(recipientRows)
+
+  await logAudit({ req: request, session, action: 'disparo.manual', entityType: 'campaign', entityId: campaignId, metadata: { template, totalSolicitado: leadIds.length, skipped } })
 
   // Build enriched payload for n8n (add campaignId + recipientId per item)
   const enrichedRecipients = recipientRows.map((row, i) => ({

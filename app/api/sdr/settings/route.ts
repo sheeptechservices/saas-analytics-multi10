@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
@@ -133,6 +134,7 @@ export async function PUT(request: Request) {
   const rawSettings = (typeof body.settings === 'object' && body.settings !== null
     ? body.settings
     : {}) as Record<string, unknown>
+  const payloadKeys = Object.keys(rawSettings)
 
   // Validate webhook URL if provided (empty string = not configured, skip)
   if (rawSettings.n8nWebhookUrl !== undefined && rawSettings.n8nWebhookUrl !== '') {
@@ -260,6 +262,8 @@ export async function PUT(request: Request) {
       updatedAt: now,
     })
   }
+
+  await logAudit({ req: request, session, action: 'settings.update', metadata: { changedKeys: payloadKeys, status } })
 
   // Deliver to n8n webhook if a valid URL is configured
   const webhookUrl =

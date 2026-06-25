@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
+import { logAudit } from '@/lib/audit'
 import { db } from '@/lib/db'
 import { dataSources, campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -334,6 +335,7 @@ export async function POST(request: Request) {
   }
 
   // ── Report ────────────────────────────────────────────────────────────────────
+  await logAudit({ req: request, session, action: 'leads.import', metadata: { inserted: novos.length, updated: updates.length, skipped: ignorados.length, total: rawRows.length } })
   return NextResponse.json({
     ok: true,
     totalLinhas: rawRows.length,
