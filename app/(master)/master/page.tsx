@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { tenants, users } from '@/lib/db/schema'
 import { count, eq, desc } from 'drizzle-orm'
+import { fmtDateBr } from '@/lib/date'
 
 export default async function MasterDashboard() {
   const [totalTenantsRow, totalUsersRow, tenantRows] = await Promise.all([
@@ -84,9 +85,7 @@ export default async function MasterDashboard() {
                   {t.userCount}
                 </td>
                 <td style={{ padding: '14px 20px', fontSize: 12, color: '#888' }}>
-                  {t.createdAt instanceof Date
-                    ? t.createdAt.toLocaleDateString('pt-BR')
-                    : new Date(t.createdAt as number * 1000).toLocaleDateString('pt-BR')}
+                  {fmtDateBr(t.createdAt)}
                 </td>
                 <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                   <a
