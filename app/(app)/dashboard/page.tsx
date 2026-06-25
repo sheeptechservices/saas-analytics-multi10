@@ -163,8 +163,8 @@ const TABLE_COLS: DataTableColumn[] = [
     label: 'Nome',
     sortable: true,
     format: (v) => (
-      <span style={{ fontWeight: 700, color: v ? 'var(--black)' : 'var(--gray2)' }}>
-        {(v as string | null) ?? '—'}
+      <span style={{ fontWeight: 700, color: 'var(--black)' }}>
+        {v as string}
       </span>
     ),
   },
@@ -224,7 +224,7 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
         <>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>Nenhum dado ainda</div>
           <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 340 }}>
-            Os dados do SDR IA vão aparecer aqui conforme as conversas e métricas forem registradas.
+            Os dados de prospecção vão aparecer aqui conforme as conversas e métricas forem registradas.
           </div>
           {syncError && (
             <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600 }}>{syncError}</div>
@@ -237,7 +237,7 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
         <>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>Nenhum dado disponível</div>
           <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 340 }}>
-            Configure e sincronize a fonte de dados do SDR IA para visualizar os dados reais.
+            Configure e sincronize a fonte de dados de prospecção para visualizar os dados reais.
           </div>
           <Link href="/settings/integrations/sdr-source" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -278,6 +278,7 @@ export default function DashboardPage() {
   const [period,     setPeriod]     = useState<Period>('30d')
   const [data,       setData]       = useState<SdrBiData | null>(null)
   const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState(false)
   const [ready,      setReady]      = useState(false)
   const [fetchEpoch, setFetchEpoch] = useState(0)
 
@@ -298,6 +299,7 @@ export default function DashboardPage() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setError(false)
     setReady(false)
     setFilterOpen(false)
 
@@ -309,7 +311,7 @@ export default function DashboardPage() {
         setLoading(false)
         setTimeout(() => { if (!cancelled) setReady(true) }, 80)
       })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      .catch(() => { if (!cancelled) { setLoading(false); setError(true) } })
 
     return () => { cancelled = true }
   }, [period, fetchEpoch])
@@ -333,9 +335,9 @@ export default function DashboardPage() {
     id: s.id, label: s.label, color: s.color, count: s.count,
   }))
 
-  // Derived table rows
+  // Derived table rows — use phone as name fallback when no name available
   const tableRows = (data?.recent ?? []).map(r => ({
-    name:         r.name,
+    name:         r.name ?? r.sessionId,
     source:       r.source,
     sessionLabel: r.sessionId,
     sessionId:    r.sessionId,
@@ -350,6 +352,8 @@ export default function DashboardPage() {
   const waDailyChart = wa.daily.slice(-30)
   const waDailyInbound: BarChartItem[] = waDailyChart.map(d => ({ label: fmtDay(d.date), count: d.inbound }))
   const waDailySent:    BarChartItem[] = waDailyChart.map(d => ({ label: fmtDay(d.date), count: d.sent    }))
+  // Shared Y-scale so the two daily charts are honestly comparable
+  const waChartMax = Math.max(...waDailyInbound.map(d => d.count), ...waDailySent.map(d => d.count), 1)
 
   const hasData = (data?.funnel.length ?? 0) > 0 || (data?.recent.length ?? 0) > 0
 
@@ -394,17 +398,32 @@ export default function DashboardPage() {
         </>
       )}
 
-      {!loading && !hasData && (
+      {!loading && error && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          minHeight: '40vh', gap: 16, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>Não foi possível carregar os dados</div>
+          <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 320 }}>
+            Verifique a conexão e tente novamente.
+          </div>
+          <Button variant="primary" onClick={() => { setError(false); setFetchEpoch(e => e + 1) }}>
+            Tentar de novo
+          </Button>
+        </div>
+      )}
+
+      {!loading && !error && !hasData && (
         <EmptyState
           configured={data?.sourceConfigured ?? false}
           onSync={() => setFetchEpoch(e => e + 1)}
         />
       )}
 
-      {!loading && hasData && (
+      {!loading && !error && hasData && (
         <>
           {/* ── KPI Cards (SDR) ────────────────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
             <KpiCard
               className="animate-slide-up delay-2"
               label="Contatos realizados"
@@ -438,7 +457,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ── Funil + Sentiment ──────────────────────────────────── */}
-          <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: sentimentSlices.length > 0 ? 'minmax(0, 3fr) minmax(0, 2fr)' : 'minmax(0, 1fr)', gap: 16, marginBottom: 16 }}>
+          <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gap: 16, marginBottom: 16 }}>
 
             {/* Funil horizontal */}
             <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
@@ -457,7 +476,7 @@ export default function DashboardPage() {
                   >
                     Filtrar etapas
                   </button>
-                  <AskAIButton question={`O funil de prospecção da SDR IA no período de ${PERIOD_LABELS[period]} mostra: ${allFunnelStages.map(s => `${s.name}: ${s.count}`).join(', ')}. Por que a conversão é essa? Como melhorar?`} />
+                  <AskAIButton question={`O funil de prospecção no período de ${PERIOD_LABELS[period]} mostra: ${allFunnelStages.map(s => `${s.name}: ${s.count}`).join(', ')}. Por que a conversão é essa? Como melhorar?`} />
                 </div>
               }>
                 Funil de prospecção
@@ -481,15 +500,22 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Sentiment donut */}
-            {sentimentSlices.length > 0 && (
-              <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
-                <SectionTitle action={<AskAIButton question={`A distribuição de sentimento das interações SDR IA é: ${data!.sentiment.map(s => `${s.label}: ${s.count}`).join(', ')}. O que isso indica sobre a qualidade das conversas?`} />}>
-                  Sentimento das interações
-                </SectionTitle>
+            {/* Sentiment donut — always rendered; empty state when no data */}
+            <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
+              <SectionTitle action={sentimentSlices.length > 0 ? <AskAIButton question={`A distribuição de sentimento das interações de prospecção é: ${data!.sentiment.map(s => `${s.label}: ${s.count}`).join(', ')}. O que isso indica sobre a qualidade das conversas?`} /> : undefined}>
+                Sentimento das interações
+              </SectionTitle>
+              {sentimentSlices.length > 0 ? (
                 <DonutChart slices={sentimentSlices} ready={ready} centerLabel="interações" />
-              </div>
-            )}
+              ) : (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  minHeight: 120, fontSize: 12, color: 'var(--gray2)', fontWeight: 500, textAlign: 'center',
+                }}>
+                  Sem dados de sentimento no período
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ── WhatsApp (YCloud) section — conditional on module ──── */}
@@ -498,7 +524,7 @@ export default function DashboardPage() {
               <WaSectionHeader />
 
               {/* 4 volume cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 14 }}>
                 <KpiCard label="Recebidas"  value={wa.totals.inbound}   accent="#0891B2" sub="mensagens inbound" />
                 <KpiCard label="Enviadas"   value={wa.totals.sent}      accent="#64748B" sub="mensagens outbound" />
                 <KpiCard label="Entregues"  value={wa.totals.delivered} accent="#2563EB" />
@@ -506,7 +532,7 @@ export default function DashboardPage() {
               </div>
 
               {/* 3 rate / failure cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
                 <KpiCard
                   label="Taxa de entrega"
                   value={Math.round(wa.rates.entrega * 100)}
@@ -529,11 +555,11 @@ export default function DashboardPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
                   <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
                     <SectionTitle>Recebidas por dia</SectionTitle>
-                    <BarChart data={waDailyInbound} ready={ready} unit="mensagem" />
+                    <BarChart data={waDailyInbound} ready={ready} unit="mensagem" maxValue={waChartMax} />
                   </div>
                   <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
                     <SectionTitle>Enviadas por dia</SectionTitle>
-                    <BarChart data={waDailySent} ready={ready} unit="mensagem" />
+                    <BarChart data={waDailySent} ready={ready} unit="mensagem" maxValue={waChartMax} />
                   </div>
                 </div>
               )}

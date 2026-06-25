@@ -11,11 +11,13 @@ export interface BarChartProps {
   ready: boolean
   /** Singular unit shown in the tooltip (e.g. 'lead'). Pluralised automatically. */
   unit?: string
+  /** Optional shared max value — set the same on sibling charts for a common Y scale. */
+  maxValue?: number
 }
 
-export function BarChart({ data, ready, unit = 'item' }: BarChartProps) {
+export function BarChart({ data, ready, unit = 'item', maxValue }: BarChartProps) {
   const [hovBar, setHovBar] = useState<string | null>(null)
-  const maxCount = Math.max(...data.map(d => d.count), 1)
+  const maxCount = maxValue ?? Math.max(...data.map(d => d.count), 1)
 
   return (
     <div>
