@@ -107,9 +107,20 @@ export async function GET() {
 
   // Omit secrets from GET response; URLs are returned for UI display
   const { n8nWebhookSecret: _omitWS, n8nDispatchSecret: _omitDS, n8nEnrollSecret: _omitES, n8nImportSecret: _omitIS, n8nBlastSecret: _omitBS, ...settingsForClient } = parsed
-  void _omitWS; void _omitDS; void _omitES; void _omitIS; void _omitBS
 
-  return NextResponse.json({ configured: true, status: row.status, version: row.version, settings: settingsForClient })
+  return NextResponse.json({
+    configured: true,
+    status: row.status,
+    version: row.version,
+    settings: settingsForClient,
+    secretsSet: {
+      n8nWebhookSecret:  !!_omitWS,
+      n8nDispatchSecret: !!_omitDS,
+      n8nEnrollSecret:   !!_omitES,
+      n8nImportSecret:   !!_omitIS,
+      n8nBlastSecret:    !!_omitBS,
+    },
+  })
 }
 
 export async function PUT(request: Request) {

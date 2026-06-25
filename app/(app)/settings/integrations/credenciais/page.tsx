@@ -12,11 +12,13 @@ function SecretInput({
   onChange,
   show,
   onToggle,
+  isSet,
 }: {
   value: string
   onChange: (v: string) => void
   show: boolean
   onToggle: () => void
+  isSet?: boolean
 }) {
   return (
     <div style={{ position: 'relative' }}>
@@ -24,7 +26,7 @@ function SecretInput({
         type={show ? 'text' : 'password'}
         value={value}
         onChange={e => onChange(e.target.value)}
-        placeholder="••••••••"
+        placeholder={isSet && !value ? '•••• deixe em branco para manter' : '••••••••'}
         autoComplete="new-password"
         style={{
           width: '100%', fontFamily: 'inherit', fontSize: 13,
@@ -63,6 +65,7 @@ function UrlPair({
   show,
   onToggle,
   secretHint,
+  isSecretSet,
 }: {
   urlLabel: string
   urlValue: string
@@ -72,7 +75,9 @@ function UrlPair({
   show: boolean
   onToggle: () => void
   secretHint?: string
+  isSecretSet?: boolean
 }) {
+  const showBadge = !!isSecretSet && !secretValue
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', marginBottom: 6 }}>
@@ -92,14 +97,26 @@ function UrlPair({
         onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
         onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
       />
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', marginBottom: 6 }}>
-        Segredo (opcional)
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)' }}>
+          Segredo (opcional)
+        </div>
+        {showBadge && (
+          <span style={{
+            fontSize: 10, fontWeight: 800, color: 'var(--green)',
+            background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
+            borderRadius: 99, padding: '1px 8px', letterSpacing: '0.03em',
+          }}>
+            configurado ✓
+          </span>
+        )}
       </div>
       <SecretInput
         value={secretValue}
         onChange={onSecretChange}
         show={show}
         onToggle={onToggle}
+        isSet={isSecretSet}
       />
       {secretHint && (
         <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 5, lineHeight: 1.5 }}>
@@ -159,6 +176,8 @@ export default function CredenciaisPage() {
   const [n8nBlastSecret,    setN8nBlastSecret]    = useState('')
   const [showBlast,         setShowBlast]         = useState(false)
 
+  const [secretsSet,   setSecretsSet]   = useState<Record<string, boolean>>({})
+
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
@@ -170,7 +189,7 @@ export default function CredenciaisPage() {
   useEffect(() => {
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then((d: { configured: boolean; status: string; settings: Record<string, unknown> }) => {
+      .then((d: { configured: boolean; status: string; settings: Record<string, unknown>; secretsSet?: Record<string, boolean> }) => {
         const {
           n8nWebhookUrl: wh, n8nDispatchUrl: di, n8nEnrollUrl: en,
           n8nImportUrl: im, n8nBlastUrl: bl,
@@ -178,6 +197,7 @@ export default function CredenciaisPage() {
         } = d.settings
         setFullSettings(rest)
         setFullStatus(d.status)
+        setSecretsSet(d.secretsSet ?? {})
         setN8nWebhookUrl(typeof wh === 'string' ? wh : '')
         setN8nDispatchUrl(typeof di === 'string' ? di : '')
         setN8nEnrollUrl(typeof en === 'string' ? en : '')
@@ -286,6 +306,7 @@ export default function CredenciaisPage() {
             onSecretChange={setN8nWebhookSecret}
             show={showWebhook}
             onToggle={() => setShowWebhook(s => !s)}
+            isSecretSet={!!secretsSet.n8nWebhookSecret}
             secretHint="Enviado como Authorization: Bearer no cabeçalho. Deixe em branco para manter o segredo já salvo."
           />
         </Card>
@@ -300,6 +321,7 @@ export default function CredenciaisPage() {
             onSecretChange={setN8nDispatchSecret}
             show={showDispatch}
             onToggle={() => setShowDispatch(s => !s)}
+            isSecretSet={!!secretsSet.n8nDispatchSecret}
             secretHint="Deixe em branco para manter o segredo já salvo."
           />
 
@@ -352,6 +374,7 @@ export default function CredenciaisPage() {
             onSecretChange={setN8nImportSecret}
             show={showImport}
             onToggle={() => setShowImport(s => !s)}
+            isSecretSet={!!secretsSet.n8nImportSecret}
             secretHint="Acionado ao importar leads via Excel. Deixe em branco para manter o segredo já salvo."
           />
         </Card>
@@ -366,6 +389,7 @@ export default function CredenciaisPage() {
             onSecretChange={setN8nEnrollSecret}
             show={showEnroll}
             onToggle={() => setShowEnroll(s => !s)}
+            isSecretSet={!!secretsSet.n8nEnrollSecret}
             secretHint="Acionado ao adicionar leads à campanha. Deixe em branco para manter o segredo já salvo."
           />
         </Card>
@@ -380,6 +404,7 @@ export default function CredenciaisPage() {
             onSecretChange={setN8nBlastSecret}
             show={showBlast}
             onToggle={() => setShowBlast(s => !s)}
+            isSecretSet={!!secretsSet.n8nBlastSecret}
             secretHint="Recebe a lista de contatos para disparo direto de template. Deixe em branco para manter o segredo já salvo."
           />
         </Card>
