@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { Search, Send, UserPlus, AlertTriangle, Check } from 'lucide-react'
 import { SkeletonTable } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useCountUp } from '@/components/widgets/KpiCard'
@@ -143,7 +143,7 @@ function Stepper({ step }: { step: Step }) {
                 color: done || active ? '#fff' : 'var(--gray2)',
                 marginBottom: 5, flexShrink: 0,
               }}>
-                {done ? '✓' : num}
+                {done ? <Check size={13} /> : num}
               </div>
               <div style={{
                 fontSize: 10, fontWeight: 700, textAlign: 'center', lineHeight: 1.3,
@@ -196,11 +196,16 @@ function ImportFeedback({
       background: n8nFalhou ? 'rgba(245,158,11,0.08)' : 'rgba(34,197,94,0.06)',
       border: `1px solid ${n8nFalhou ? 'rgba(245,158,11,0.35)' : 'rgba(34,197,94,0.25)'}`,
     }}>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: n8nFalhou ? '#b45309' : 'var(--green)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8, color: n8nFalhou ? '#b45309' : 'var(--green)' }}>
         {n8nFalhou
-          ? <>⚠ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{result.importados !== 1 ? 's' : ''} enviados, mas a importação retornou um erro (HTTP {result.n8nStatus}) — tente novamente ou verifique a configuração.</>
-          : <>✓ <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{result.importados !== 1 ? 's' : ''} enviados para importação</>
-        }
+          ? <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          : <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />}
+        <span>
+          {n8nFalhou
+            ? <><span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{result.importados !== 1 ? 's' : ''} enviados, mas a importação retornou um erro (HTTP {result.n8nStatus}) — tente novamente ou verifique a configuração.</>
+            : <><span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{result.importados !== 1 ? 's' : ''} enviados para importação</>
+          }
+        </span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginBottom: 6 }}>
         <span className="animate-count-pop tabular-nums">{importadosCount}</span> importados
@@ -254,8 +259,9 @@ function ImportFeedback({
           marginTop: 10, padding: '10px 14px', borderRadius: 10,
           background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)',
         }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
-            ⚠ {result.suspeitos!.total} número{result.suspeitos!.total !== 1 ? 's' : ''} podem estar sem o 9 — confira na planilha.
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+            <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{result.suspeitos!.total} número{result.suspeitos!.total !== 1 ? 's' : ''} podem estar sem o 9 — confira na planilha.</span>
           </div>
           <details>
             <summary style={{ fontSize: 12, color: '#92400e', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
@@ -842,8 +848,9 @@ export default function NovDisparoPage() {
                 transition: 'border-color .15s, background .15s',
               }}
             >
-              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>
-                📤 Disparar template agora
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>
+                <Send size={16} style={{ flexShrink: 0 }} />
+                Disparar template agora
               </div>
               <div style={{ fontSize: 12, color: 'var(--gray)', lineHeight: 1.55 }}>
                 Envia um template aprovado via WhatsApp para toda a lista de uma só vez.
@@ -864,8 +871,9 @@ export default function NovDisparoPage() {
                 transition: 'border-color .15s, background .15s',
               }}
             >
-              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>
-                ➕ Adicionar à campanha
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>
+                <UserPlus size={16} style={{ flexShrink: 0 }} />
+                Adicionar à campanha
               </div>
               <div style={{ fontSize: 12, color: 'var(--gray)', lineHeight: 1.55 }}>
                 Inicia a sequência automática de mensagens SDR — os leads recebem os toques programados.
@@ -1019,8 +1027,9 @@ export default function NovDisparoPage() {
               {/* sem-nome warning */}
               {semNome > 0 && (
                 <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 12, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>
-                    ⚠ {semNome} contato{semNome !== 1 ? 's' : ''} sem nome — serão enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+                    <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>{semNome} contato{semNome !== 1 ? 's' : ''} sem nome — serão enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.</span>
                   </div>
                 </div>
               )}
@@ -1065,8 +1074,9 @@ export default function NovDisparoPage() {
                 }}>
                   {blastResult.ok ? (
                     <>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#15803d', marginBottom: 14 }}>
-                        ✓ Disparo iniciado para {blastResult.started} contato{blastResult.started !== 1 ? 's' : ''}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: '#15803d', marginBottom: 14 }}>
+                        <Check size={16} style={{ flexShrink: 0 }} />
+                        Disparo iniciado para {blastResult.started} contato{blastResult.started !== 1 ? 's' : ''}
                       </div>
                       <ProportionBar
                         started={blastResult.started ?? 0}
@@ -1100,8 +1110,9 @@ export default function NovDisparoPage() {
                 }}>
                   {enrollResult.ok ? (
                     <>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#15803d' }}>
-                        ✓ {enrollResult.enrolled} lead{enrollResult.enrolled !== 1 ? 's' : ''} adicionado{enrollResult.enrolled !== 1 ? 's' : ''} à campanha
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: '#15803d' }}>
+                        <Check size={16} style={{ flexShrink: 0 }} />
+                        {enrollResult.enrolled} lead{enrollResult.enrolled !== 1 ? 's' : ''} adicionado{enrollResult.enrolled !== 1 ? 's' : ''} à campanha
                       </div>
                       {enrollResult.partialError && (
                         <div style={{ fontSize: 11, color: '#b45309', marginTop: 8, fontWeight: 500 }}>
