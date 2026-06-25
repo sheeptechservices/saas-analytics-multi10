@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import type { Session } from 'next-auth'
@@ -82,10 +83,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
     .where(eq(users.id, userId))
     .then(r => r[0])
 
+  const changes: Record<string, unknown> = {}
+  if (updates.name !== undefined) changes.name = updates.name
+  if (updates.role !== undefined) changes.role = updates.role
+  await logAudit({ req, session, action: 'user.update', entityType: 'user', entityId: userId, metadata: { changes }, tenantId: target.tenantId ?? undefined })
   return NextResponse.json(updated)
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth()
   if (!session || !canManage(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -102,5 +107,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   await db.delete(users).where(eq(users.id, userId))
 
+  await logAudit({ req, session, action: 'user.delete', entityType: 'user', entityId: userId, tenantId: target.tenantId ?? undefined })
   return NextResponse.json({ message: 'Usuário removido com sucesso.' })
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
@@ -8,7 +9,7 @@ import { requireRole } from '@/lib/auth-guard'
 
 const SOURCE = 'sdr-n8n'
 
-export async function POST() {
+export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -62,6 +63,7 @@ export async function POST() {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(15_000),
     })
+    if (res.ok) await logAudit({ req: request, session, action: 'disparo.campanha', metadata: { limiteDiario } })
     return NextResponse.json({ ok: res.ok, status: res.status })
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
