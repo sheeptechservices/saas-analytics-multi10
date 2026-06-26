@@ -142,11 +142,16 @@ export async function GET(request: Request) {
     ))
     .limit(1)
 
-  // ── WhatsApp totals: exact SQL GROUP BY / COUNT — no row limit ───────────
-  const yEvCountRows = await db
+  // ── WhatsApp totals: distinct MESSAGES por status mais avançado (não eventos) ──
+  //  Contar eventos crus quebra a relação do funil (um delivered perdido faz read
+  //  passar de delivered → taxa de leitura > 100%). Aqui contamos messageIds
+  //  distintos com IMPLICAÇÃO: lida ⊆ entregue ⊆ enviada. Exato, sem limite de linhas.
+  const [yMsgCounts] = await db
     .select({
-      eventType: events.eventType,
-      count:     sql<number>`count(*)`,
+      sent:      sql<number>`count(distinct case when ${events.eventType} in ('whatsapp_status_sent','whatsapp_status_delivered','whatsapp_status_read') then json_extract(${events.payload}, '$.messageId') end)`,
+      delivered: sql<number>`count(distinct case when ${events.eventType} in ('whatsapp_status_delivered','whatsapp_status_read') then json_extract(${events.payload}, '$.messageId') end)`,
+      read:      sql<number>`count(distinct case when ${events.eventType} = 'whatsapp_status_read' then json_extract(${events.payload}, '$.messageId') end)`,
+      failed:    sql<number>`count(distinct case when ${events.eventType} = 'whatsapp_status_failed' then json_extract(${events.payload}, '$.messageId') end)`,
     })
     .from(events)
     .where(and(
@@ -154,7 +159,6 @@ export async function GET(request: Request) {
       eq(events.source, 'ycloud-whatsapp'),
       gte(events.occurredAt, periodStart),
     ))
-    .groupBy(events.eventType)
 
   const [yConvCountRow] = await db
     .select({ count: sql<number>`count(*)` })
@@ -323,12 +327,11 @@ export async function GET(request: Request) {
   //  Local-time bucket (toYMD) matches toYearMonth convention; avoids SQLite
   //  date() UTC ambiguity — same pattern as /api/bi leadsPerWeek.
 
-  const evCountMap = new Map(yEvCountRows.map(r => [r.eventType, Number(r.count)]))
   const waTotals: WaBucket = {
-    sent:      evCountMap.get('whatsapp_status_sent')      ?? 0,
-    delivered: evCountMap.get('whatsapp_status_delivered') ?? 0,
-    read:      evCountMap.get('whatsapp_status_read')      ?? 0,
-    failed:    evCountMap.get('whatsapp_status_failed')    ?? 0,
+    sent:      Number(yMsgCounts?.sent      ?? 0),
+    delivered: Number(yMsgCounts?.delivered ?? 0),
+    read:      Number(yMsgCounts?.read      ?? 0),
+    failed:    Number(yMsgCounts?.failed    ?? 0),
     inbound:   Number(yConvCountRow?.count ?? 0),
   }
 
