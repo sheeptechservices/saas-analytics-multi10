@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Search, Send, UserPlus, AlertTriangle, Check } from 'lucide-react'
+import { Search, Send, UserPlus, AlertTriangle, Check, Database, FileSpreadsheet } from 'lucide-react'
 import { SkeletonTable } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useCountUp } from '@/components/widgets/KpiCard'
@@ -582,28 +582,33 @@ export default function NovDisparoPage() {
         <div className="animate-slide-up delay-1">
 
           {/* Source toggle */}
-          <div style={{ display: 'inline-flex', borderRadius: 10, border: '1px solid var(--gray3)', overflow: 'hidden', marginBottom: 20, background: 'var(--bg)' }}>
+          <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, borderRadius: 12, border: '1px solid var(--gray3)', padding: 4, marginBottom: 20, background: 'var(--bg)' }}>
             {([
-              { id: 'base'   as const, label: 'Selecionar da base' },
-              { id: 'import' as const, label: 'Importar planilha'  },
-              { id: 'manual' as const, label: 'Adicionar manualmente', icon: <UserPlus size={12} style={{ flexShrink: 0 }} /> },
-            ]).map(s => (
-              <button
-                key={s.id}
-                onClick={() => setSource(s.id)}
-                style={{
-                  padding: '8px 18px', fontSize: 12, fontWeight: 700,
-                  border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  background: source === s.id ? 'var(--white)' : 'transparent',
-                  color: source === s.id ? 'var(--black)' : 'var(--gray2)',
-                  boxShadow: source === s.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                  transition: 'all .15s',
-                }}
-              >
-                {s.icon}{s.label}
-              </button>
-            ))}
+              { id: 'base'   as const, label: 'Selecionar da base',    icon: <Database size={14} style={{ flexShrink: 0 }} /> },
+              { id: 'import' as const, label: 'Importar planilha',      icon: <FileSpreadsheet size={14} style={{ flexShrink: 0 }} /> },
+              { id: 'manual' as const, label: 'Adicionar manualmente',  icon: <UserPlus size={14} style={{ flexShrink: 0 }} /> },
+            ]).map(s => {
+              const active = source === s.id
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSource(s.id)}
+                  style={{
+                    padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
+                    border: 'none', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    background: active ? 'var(--white)' : 'transparent',
+                    color: active ? 'var(--black)' : 'var(--gray2)',
+                    boxShadow: active ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+                    transition: 'background .15s, color .15s',
+                  }}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--black)' }}
+                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--gray2)' }}
+                >
+                  {s.icon}{s.label}
+                </button>
+              )
+            })}
           </div>
 
           {/* ── BASE mode ────────────────────────────────────────────────────── */}
