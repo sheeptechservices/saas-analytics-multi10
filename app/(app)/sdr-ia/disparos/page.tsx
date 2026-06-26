@@ -1,11 +1,14 @@
 'use client'
 import { useState, useCallback } from 'react'
-import { ArrowLeft, RefreshCw, Download, RotateCcw } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowLeft, RefreshCw, Download, RotateCcw, UserPlus, Check } from 'lucide-react'
 import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useQuery } from '@tanstack/react-query'
 import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
 import { toMs } from '@/lib/date'
+import { AddLeadForm } from '@/components/leads/AddLeadForm'
+import type { AddedInfo } from '@/components/leads/AddLeadForm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -471,9 +474,11 @@ function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DisparosPage() {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [activeKind,  setActiveKind]  = useState<CampaignKind>('manual')
-  const [listKey,     setListKey]     = useState(0)
+  const [selectedId,   setSelectedId]   = useState<string | null>(null)
+  const [activeKind,   setActiveKind]   = useState<CampaignKind>('manual')
+  const [listKey,      setListKey]      = useState(0)
+  const [showAddLead,  setShowAddLead]  = useState(false)
+  const [addLeadDone,  setAddLeadDone]  = useState<AddedInfo | null>(null)
 
   const { data, isLoading, isError, refetch } = useQuery<{ campaigns: Campaign[] }>({
     queryKey: ['blast-campaigns', activeKind, listKey],
@@ -508,8 +513,77 @@ export default function DisparosPage() {
             Histórico de campanhas enviadas e status de entrega.
           </div>
         </div>
-        <PillBtn onClick={refresh} icon={<RefreshCw size={13} />} label="Atualizar" />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <PillBtn onClick={() => { setAddLeadDone(null); setShowAddLead(true) }} icon={<UserPlus size={13} />} label="Adicionar lead" />
+          <PillBtn onClick={refresh} icon={<RefreshCw size={13} />} label="Atualizar" />
+        </div>
       </div>
+
+      {/* Add lead modal */}
+      {showAddLead && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.40)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24, animation: 'fadeIn .12s ease both',
+          }}
+          onClick={() => { setShowAddLead(false); setAddLeadDone(null) }}
+        >
+          <div
+            style={{
+              background: 'var(--white)', borderRadius: 20, padding: 28,
+              width: '100%', maxWidth: 420,
+              boxShadow: '0 24px 64px rgba(0,0,0,0.20)',
+              animation: 'modalSlideUp .18s cubic-bezier(0.22,1,0.36,1) both',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UserPlus size={16} /> Adicionar lead
+              </div>
+              <button
+                onClick={() => { setShowAddLead(false); setAddLeadDone(null) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 22, lineHeight: 1, padding: '0 4px' }}
+                aria-label="Fechar"
+              >
+                &times;
+              </button>
+            </div>
+
+            {addLeadDone ? (
+              <div>
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
+                  padding: '12px 16px', borderRadius: 12, marginBottom: 18,
+                  background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)',
+                  fontSize: 13, fontWeight: 600, color: '#15803d',
+                }}>
+                  <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>
+                    {addLeadDone.duplicate
+                      ? <>Lead <strong>{addLeadDone.name}</strong> já existia &mdash; reaproveitado na base.</>
+                      : <>Lead <strong>{addLeadDone.name}</strong> adicionado à base.</>}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Button variant="secondary" size="sm" onClick={() => setAddLeadDone(null)}>Adicionar outro</Button>
+                  <Button variant="ghost"     size="sm" onClick={() => { setShowAddLead(false); setAddLeadDone(null) }}>Fechar</Button>
+                  <Link
+                    href="/sdr-ia/leads"
+                    style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'underline' }}
+                  >
+                    Ir para Novo disparo &rarr;
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <AddLeadForm onAdded={info => setAddLeadDone(info)} />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="animate-slide-up delay-1">

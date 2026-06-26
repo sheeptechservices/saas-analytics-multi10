@@ -6,6 +6,7 @@ import { SkeletonTable } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useCountUp } from '@/components/widgets/KpiCard'
 import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
+import { AddLeadForm } from '@/components/leads/AddLeadForm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ interface EnrollResult {
 }
 
 type Step   = 1 | 2 | 3
-type Source = 'base' | 'import'
+type Source = 'base' | 'import' | 'manual'
 type Action = 'blast' | 'enroll' | null
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -316,6 +317,9 @@ export default function NovDisparoPage() {
   const [selected,     setSelected]     = useState<Set<string>>(new Set())
   const masterRef = useRef<HTMLInputElement>(null)
 
+  // ── Step 1: manual ───────────────────────────────────────────────────────────
+  const [manualIds, setManualIds] = useState<Set<string>>(new Set())
+
   // ── Step 1: import ────────────────────────────────────────────────────────────
   const [importing,    setImporting]    = useState(false)
   const [showBar,      setShowBar]      = useState(false)
@@ -343,7 +347,7 @@ export default function NovDisparoPage() {
     ...(importResult?.leadIds ?? []),
     ...(importResult?.existingLeadIds ?? []),
   ])
-  const recipientIds    = source === 'base' ? selected : importedIds
+  const recipientIds    = source === 'base' ? selected : source === 'import' ? importedIds : manualIds
   const recipientCount  = recipientIds.size
   const names           = source === 'import' ? (importResult?.names ?? {}) : {}
   const semNome         = source === 'import' ? (importResult?.semNome ?? 0) : 0
@@ -553,6 +557,7 @@ export default function NovDisparoPage() {
     setSource('base')
     setAction(null)
     setSelected(new Set())
+    setManualIds(new Set())
     setImportResult(null)
     setSelectedTemplate('')
     setBlastTemplates(null)
@@ -578,20 +583,25 @@ export default function NovDisparoPage() {
 
           {/* Source toggle */}
           <div style={{ display: 'inline-flex', borderRadius: 10, border: '1px solid var(--gray3)', overflow: 'hidden', marginBottom: 20, background: 'var(--bg)' }}>
-            {(['base', 'import'] as const).map(s => (
+            {([
+              { id: 'base'   as const, label: 'Selecionar da base' },
+              { id: 'import' as const, label: 'Importar planilha'  },
+              { id: 'manual' as const, label: 'Adicionar manualmente', icon: <UserPlus size={12} style={{ flexShrink: 0 }} /> },
+            ]).map(s => (
               <button
-                key={s}
-                onClick={() => setSource(s)}
+                key={s.id}
+                onClick={() => setSource(s.id)}
                 style={{
                   padding: '8px 18px', fontSize: 12, fontWeight: 700,
                   border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                  background: source === s ? 'var(--white)' : 'transparent',
-                  color: source === s ? 'var(--black)' : 'var(--gray2)',
-                  boxShadow: source === s ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  background: source === s.id ? 'var(--white)' : 'transparent',
+                  color: source === s.id ? 'var(--black)' : 'var(--gray2)',
+                  boxShadow: source === s.id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                   transition: 'all .15s',
                 }}
               >
-                {s === 'base' ? 'Selecionar da base' : 'Importar planilha'}
+                {s.icon}{s.label}
               </button>
             ))}
           </div>
@@ -790,6 +800,27 @@ export default function NovDisparoPage() {
                 </div>
               )}
             </>
+          )}
+
+          {/* ── MANUAL mode ──────────────────────────────────────────────────── */}
+          {source === 'manual' && (
+            <div style={{ maxWidth: 420 }}>
+              <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 16, lineHeight: 1.55 }}>
+                Cadastre um lead manualmente. Cada lead adicionado entra automaticamente na seleção de destinatários.
+              </div>
+              <AddLeadForm
+                onAdded={info => {
+                  if (info.leadId) {
+                    setManualIds(prev => new Set([...prev, info.leadId!]))
+                  }
+                }}
+              />
+              {manualIds.size > 0 && (
+                <div style={{ marginTop: 14, fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>
+                  {manualIds.size} lead{manualIds.size !== 1 ? 's' : ''} adicionado{manualIds.size !== 1 ? 's' : ''} nesta sessão
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── Footer ─────────────────────────────────────────────────────── */}
@@ -1006,7 +1037,7 @@ export default function NovDisparoPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <span style={{ fontSize: 13, color: 'var(--gray)', fontWeight: 600, minWidth: 120 }}>Origem</span>
                     <span style={{ fontSize: 13, color: 'var(--black)', fontWeight: 700 }}>
-                      {source === 'base' ? 'Seleção da base' : 'Planilha importada'}
+                      {source === 'base' ? 'Seleção da base' : source === 'import' ? 'Planilha importada' : 'Adição manual'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
