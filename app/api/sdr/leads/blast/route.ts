@@ -8,6 +8,10 @@
 // REGRA CRÍTICA: a app NUNCA escreve no Supabase — apenas LÊ (leads + remetente).
 // O envio é responsabilidade do n8n.
 //
+// As variáveis do template são POSICIONAIS: {{1}} é a primeira, {{2}} a segunda.
+// Hoje só existe a primeira (o primeiro nome). Placeholder que sobrar depois do
+// render barra o disparo inteiro com 400 — mensagem literal não vai para o lead.
+//
 // Body:     { leadIds: string[], template: string, templateBody?: string, names?: Record<string,string> }
 // Response: { ok, started, totalSolicitado, skipped }
 
@@ -47,9 +51,20 @@ function toE164(phone: string | null, phoneAdjusted: string | null): string | nu
   return E164_RE.test(e164) ? e164 : null
 }
 
-// Render template body replacing all {{variable}} placeholders with firstName.
-function renderMessage(templateBody: string, firstName: string): string {
-  return String(templateBody ?? '').replace(/\{\{\s*[\w.]+\s*\}\}/g, firstName)
+// Render template body substituting POSITIONAL placeholders: {{1}} takes the first
+// variable, {{2}} the second — a WhatsApp template has no named variables. Anything the
+// list does not cover ({{nome}}, or {{2}} when only one variable was given) is left
+// untouched on purpose, so the guard below catches it before the message goes out.
+function renderMessage(templateBody: string, vars: string[]): string {
+  return String(templateBody ?? '').replace(/\{\{\s*(\d+)\s*\}\}/g, (raw, pos: string) => {
+    const value = vars[Number(pos) - 1]
+    return value === undefined ? raw : value
+  })
+}
+
+// Placeholders still standing after the render — the lead would receive literal {{...}}.
+function unresolvedPlaceholders(message: string): string[] {
+  return message.match(/\{\{\s*[\w.]+\s*\}\}/g) ?? []
 }
 
 // Ensure BR mobile numbers have the 9th digit (DDD(2) + 9 + 8 digits = 11 national digits).
@@ -179,7 +194,7 @@ export async function POST(request: Request) {
       if (!phone) continue  // sem telefone válido → skip
       const dbFirst    = String(r.name ?? '').trim().split(/\s+/)[0] ?? ''
       const first_name = dbFirst || names[r.id] || DEFAULT_FIRST_NAME
-      const message    = renderMessage(templateBody, first_name)
+      const message    = renderMessage(templateBody, [first_name])
       const rawSession = (r.phone_adjusted ?? r.phone ?? '').replace(/\D/g, '')
       const session_id = rawSession || phone.replace(/\D/g, '')
       recipients.push({ leadId: r.id, phone, first_name, message, session_id })
@@ -198,6 +213,24 @@ export async function POST(request: Request) {
   if (recipients.length === 0) {
     return NextResponse.json(
       { ok: false, error: 'nenhum destinatário com telefone válido', totalSolicitado: leadIds.length, skipped },
+      { status: 400 },
+    )
+  }
+
+  // ── Guard: nenhuma mensagem sai com variável por preencher ───────────────────
+  // A substituição é posicional; o que o template pedir além disso ({{2}} sem segunda
+  // variável, {{nome}}) sobrevive ao render e chegaria literal ao lead. Um disparo
+  // não tem volta, então falha aqui — antes de gravar a campanha e chamar o n8n.
+  const pendentes = Array.from(new Set(recipients.flatMap(r => unresolvedPlaceholders(r.message))))
+  if (pendentes.length > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `template ${template} tem variável sem valor: ${pendentes.join(' ')} — nada foi enviado`,
+        placeholders: pendentes,
+        totalSolicitado: leadIds.length,
+        skipped,
+      },
       { status: 400 },
     )
   }
