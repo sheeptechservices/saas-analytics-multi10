@@ -76,6 +76,11 @@ function friendlyImportError(code: string): string {
   return code
 }
 
+// Mesmo recorte que a API do disparo faz no nome do lead: só a primeira palavra.
+function primeiroNome(nome: string | null): string {
+  return String(nome ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
 function friendlyBlastError(code: string): string {
   if (code === 'blast_url_nao_configurada')
     return 'URL de disparo de lista não configurada — acesse Configurações > Credenciais.'
@@ -102,6 +107,19 @@ function StatusBadge({ value }: { value: string | null }) {
       background: s.bg, color: s.color, border: `1px solid ${s.color}30`,
     }}>
       {value}
+    </span>
+  )
+}
+
+// Marca o template que não tem variável de nome — o único que alcança lead sem nome.
+function SemNomeTag() {
+  return (
+    <span style={{
+      marginLeft: 7, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+      background: 'rgba(0,0,0,0.06)', color: 'var(--gray)', verticalAlign: 'middle',
+      whiteSpace: 'nowrap',
+    }}>
+      sem nome
     </span>
   )
 }
@@ -321,10 +339,14 @@ export default function NovDisparoPage() {
   const [debQ,         setDebQ]         = useState('')
   const [fetchSeq,     setFetchSeq]     = useState(0)
   const [selected,     setSelected]     = useState<Set<string>>(new Set())
+  // Primeiro nome de cada lead selecionado, guardado na hora da escolha: a seleção
+  // atravessa páginas, e sem isso o contador de "sem nome" só enxergaria a página atual.
+  const [selectedNames, setSelectedNames] = useState<Record<string, string>>({})
   const masterRef = useRef<HTMLInputElement>(null)
 
   // ── Step 1: manual ───────────────────────────────────────────────────────────
   const [manualIds, setManualIds] = useState<Set<string>>(new Set())
+  const [manualNames, setManualNames] = useState<Record<string, string>>({})
 
   // ── Step 1: import ────────────────────────────────────────────────────────────
   const [importing,    setImporting]    = useState(false)
@@ -333,7 +355,7 @@ export default function NovDisparoPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Step 2: template ──────────────────────────────────────────────────────────
-  const [blastTemplates,  setBlastTemplates]  = useState<{ nome_template: string; preview: string; fase_envio: string | null }[] | null>(null)
+  const [blastTemplates,  setBlastTemplates]  = useState<{ nome_template: string; preview: string; fase_envio: string | null; usaNome: boolean }[] | null>(null)
   const [blastTplLoading, setBlastTplLoading] = useState(false)
   const [blastTplError,   setBlastTplError]   = useState<string | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('')
@@ -355,8 +377,18 @@ export default function NovDisparoPage() {
   ])
   const recipientIds    = source === 'base' ? selected : source === 'import' ? importedIds : manualIds
   const recipientCount  = recipientIds.size
-  const names           = source === 'import' ? (importResult?.names ?? {}) : {}
-  const semNome         = source === 'import' ? (importResult?.semNome ?? 0) : 0
+  const names           = source === 'import' ? (importResult?.names ?? {})
+                        : source === 'manual' ? manualNames
+                        : {}
+
+  // Quantos destinatários chegariam ao disparo sem nome nenhum — na base, na planilha
+  // ou no cadastro manual. Template que usa o nome deixa esses de fora, e o operador
+  // precisa saber disso antes de confirmar, não no relatório depois.
+  const semNome = source === 'import'
+    ? (importResult?.semNome ?? 0)
+    : Array.from(recipientIds).filter(id =>
+        !((source === 'base' ? selectedNames[id] : manualNames[id]) ?? '').trim(),
+      ).length
 
   const n8nFalhou = (importResult?.importados ?? 0) > 0
     && typeof importResult?.n8nStatus === 'number'
@@ -371,7 +403,8 @@ export default function NovDisparoPage() {
   const hasPrev    = page > 1
   const hasNext    = page < totalPages
 
-  const pageIds    = leadsData?.items.map(i => i.id) ?? []
+  const pageItems  = leadsData?.items ?? []
+  const pageIds    = pageItems.map(i => i.id)
   const selCount   = pageIds.filter(id => selected.has(id)).length
   const allOnPage  = pageIds.length > 0 && selCount === pageIds.length
   const someOnPage = selCount > 0 && selCount < pageIds.length
@@ -379,10 +412,11 @@ export default function NovDisparoPage() {
   // step 2 can proceed when action chosen + template chosen (if blast)
   const step2CanContinue = action !== null && (action !== 'blast' || !!selectedTemplate)
 
-  // Template com variável posicional ({{1}}) fala com o lead pelo nome — quem não tem
-  // nome fica de fora do disparo, e não recebe saudação inventada no lugar.
-  const templatePreview = blastTemplates?.find(t => t.nome_template === selectedTemplate)?.preview ?? ''
-  const templateUsaNome = /\{\{\s*\d+\s*\}\}/.test(templatePreview)
+  // Template que usa o nome fala com o lead pelo nome — quem não tem nome fica de fora
+  // do disparo, e não recebe saudação inventada no lugar. Os sem nome são a alternativa.
+  const templateEscolhido = blastTemplates?.find(t => t.nome_template === selectedTemplate) ?? null
+  const templateUsaNome   = templateEscolhido?.usaNome ?? false
+  const templatesSemNome  = (blastTemplates ?? []).filter(t => !t.usaNome)
 
   // ── Effects ───────────────────────────────────────────────────────────────────
 
@@ -441,18 +475,33 @@ export default function NovDisparoPage() {
   // ── Event handlers ────────────────────────────────────────────────────────────
 
   function toggleAll() {
+    const marcar = !allOnPage
     setSelected(prev => {
       const next = new Set(prev)
-      if (allOnPage) { pageIds.forEach(id => next.delete(id)) }
-      else            { pageIds.forEach(id => next.add(id)) }
+      pageIds.forEach(id => { if (marcar) next.add(id); else next.delete(id) })
+      return next
+    })
+    setSelectedNames(prev => {
+      const next = { ...prev }
+      for (const lead of pageItems) {
+        if (marcar) next[lead.id] = primeiroNome(lead.name)
+        else delete next[lead.id]
+      }
       return next
     })
   }
 
-  function toggleOne(id: string) {
+  function toggleOne(lead: LeadItem) {
+    const marcar = !selected.has(lead.id)
     setSelected(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      if (marcar) next.add(lead.id); else next.delete(lead.id)
+      return next
+    })
+    setSelectedNames(prev => {
+      const next = { ...prev }
+      if (marcar) next[lead.id] = primeiroNome(lead.name)
+      else delete next[lead.id]
       return next
     })
   }
@@ -487,7 +536,7 @@ export default function NovDisparoPage() {
     setBlastTplError(null)
     try {
       const res = await fetch('/api/sdr/templates')
-      const data = await res.json() as { items?: { nome_template: string; preview: string; fase_envio: string | null }[]; error?: string }
+      const data = await res.json() as { items?: { nome_template: string; preview: string; fase_envio: string | null; usaNome: boolean }[]; error?: string }
       if (!res.ok) { setBlastTplError(data.error ?? `HTTP ${res.status}`); return }
       setBlastTemplates(data.items ?? [])
     } catch (e) {
@@ -568,7 +617,9 @@ export default function NovDisparoPage() {
     setSource('base')
     setAction(null)
     setSelected(new Set())
+    setSelectedNames({})
     setManualIds(new Set())
+    setManualNames({})
     setImportResult(null)
     setSelectedTemplate('')
     setBlastTemplates(null)
@@ -709,7 +760,7 @@ export default function NovDisparoPage() {
                           <tr
                             key={lead.id}
                             className="row-cascade"
-                            onClick={() => toggleOne(lead.id)}
+                            onClick={() => toggleOne(lead)}
                             aria-selected={checked}
                             style={{
                               '--row-delay': `${Math.min(i, 9) * 40}ms`,
@@ -723,7 +774,7 @@ export default function NovDisparoPage() {
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={() => toggleOne(lead.id)}
+                                onChange={() => toggleOne(lead)}
                                 aria-label={`Selecionar ${lead.name || lead.phone}`}
                                 style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                               />
@@ -827,7 +878,11 @@ export default function NovDisparoPage() {
               <AddLeadForm
                 onAdded={info => {
                   if (info.leadId) {
-                    setManualIds(prev => new Set([...prev, info.leadId!]))
+                    const id = info.leadId
+                    setManualIds(prev => new Set([...prev, id]))
+                    // O nome digitado agora vale como nome do lead no disparo: se o
+                    // cadastro casou com um lead antigo sem nome na base, é o único que existe.
+                    setManualNames(prev => ({ ...prev, [id]: primeiroNome(info.name) }))
                   }
                 }}
               />
@@ -957,6 +1012,7 @@ export default function NovDisparoPage() {
                   >
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {selectedTemplate || 'Escolha um template…'}
+                      {templateEscolhido && !templateEscolhido.usaNome && <SemNomeTag />}
                     </span>
                     <span style={{ flexShrink: 0, marginLeft: 8, fontSize: 11, opacity: 0.6 }}>▾</span>
                   </button>
@@ -1000,6 +1056,7 @@ export default function NovDisparoPage() {
                           >
                             <div style={{ fontSize: 13, color: 'var(--black)', fontWeight: t.nome_template === selectedTemplate ? 700 : 400 }}>
                               {t.nome_template}
+                              {!t.usaNome && <SemNomeTag />}
                             </div>
                             {t.preview && (
                               <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1021,6 +1078,37 @@ export default function NovDisparoPage() {
                       </div>
                     ) : null
                   })()}
+
+                  {/* Alternativa para quem está sem nome */}
+                  {semNome > 0 && templatesSemNome.length > 0 && (!templateEscolhido || templateUsaNome) && (
+                    <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12.5, fontWeight: 600, color: '#92400e', lineHeight: 1.5 }}>
+                        <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span>
+                          {semNome} contato{semNome !== 1 ? 's' : ''} sem nome {semNome !== 1 ? 'ficariam' : 'ficaria'} de fora
+                          {templateEscolhido ? ' deste template' : ' dos templates que usam o nome'}.
+                          {' '}Estes alcançam todo mundo:
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                        {templatesSemNome.map(t => (
+                          <button
+                            key={t.nome_template}
+                            onClick={() => setSelectedTemplate(t.nome_template)}
+                            style={{
+                              padding: '5px 10px', borderRadius: 8, fontFamily: 'inherit', fontSize: 12,
+                              fontWeight: 600, cursor: 'pointer', border: '1px solid var(--gray3)',
+                              background: 'var(--white)', color: 'var(--black)', transition: 'border-color .15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+                          >
+                            {t.nome_template}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1076,7 +1164,12 @@ export default function NovDisparoPage() {
                 <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 12, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: '#92400e' }}>
                     <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>{semNome} contato{semNome !== 1 ? 's' : ''} sem nome <strong>não {semNome !== 1 ? 'serão disparados' : 'será disparado'}</strong> — o template usa o nome do lead. Cadastre o nome desses contatos para incluí-los.</span>
+                    <span>
+                      {semNome} contato{semNome !== 1 ? 's' : ''} sem nome <strong>não {semNome !== 1 ? 'serão disparados' : 'será disparado'}</strong> — o template usa o nome do lead.
+                      {templatesSemNome.length > 0
+                        ? ' Cadastre o nome desses contatos, ou volte e escolha um template sem nome.'
+                        : ' Cadastre o nome desses contatos para incluí-los.'}
+                    </span>
                   </div>
                 </div>
               )}
