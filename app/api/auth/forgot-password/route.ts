@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { users, passwordResetTokens } from '@/lib/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
+import { trustedOrigin } from '@/lib/origin'
 
 const GENERIC = { message: 'Se este e-mail estiver cadastrado, você receberá as instruções em breve.' }
 
@@ -33,7 +34,10 @@ export async function POST(req: Request) {
       expiresAt: Date.now() + 3_600_000,
     })
 
-    const baseUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    // O link volta pela origem por onde o pedido entrou — o subdomínio do tenant de
+    // quem pediu, não o de outro. Host desconhecido cai na origem configurada, para
+    // que cabeçalho forjado não vire link de phishing com token de verdade.
+    const baseUrl = trustedOrigin(req)
     await sendResetEmail(user.email, `${baseUrl}/reset-password?token=${token}`)
 
     return NextResponse.json(GENERIC)
