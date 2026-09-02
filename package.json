@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "npm run lint && next build",
     "start": "next start",
     "seed": "npx tsx lib/db/seed.ts",
     "check-tables": "npx tsx lib/db/check-tables.ts",
     "backfill-modules": "npx tsx lib/db/backfill-modules.ts",
     "type-check": "tsc --noEmit",
     "create-master": "npx tsx lib/db/create-master.ts",
-    "seed-300": "npx tsx lib/db/seed-300.ts"
+    "seed-300": "npx tsx lib/db/seed-300.ts",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
@@ -33,6 +34,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
@@ -40,6 +42,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.10",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.15",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
     "png-to-ico": "^3.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
