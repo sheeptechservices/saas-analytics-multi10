@@ -52,6 +52,17 @@ interface DetailResponse {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Saudação que a app usava no lugar do nome antes de setembro de 2026. Ficou gravada
+// em first_name nos disparos daquela época; no reenvio ela não volta como se fosse
+// nome do lead — quem não tem nome é ignorado pela API, com motivo próprio.
+const NOME_INVENTADO_LEGADO = 'tudo bem'
+
+function nomeReal(firstName: string): string | null {
+  const nome = String(firstName ?? '').trim()
+  if (!nome || nome.toLowerCase() === NOME_INVENTADO_LEGADO) return null
+  return nome
+}
+
 function fmtDate(ts: string | number | null): string {
   const ms = toMs(ts)
   if (ms == null) return '—'
@@ -190,7 +201,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
   })
 
   const [reenvioMode,   setReenvioMode]   = useState<'idle' | 'confirm' | 'sending' | 'done'>('idle')
-  const [reenvioResult, setReenvioResult] = useState<{ ok: boolean; started?: number; error?: string } | null>(null)
+  const [reenvioResult, setReenvioResult] = useState<{ ok: boolean; started?: number; semNome?: number; error?: string } | null>(null)
 
   function refresh() { setKey(k => k + 1); setReenvioMode('idle'); setReenvioResult(null) }
 
@@ -233,7 +244,10 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
     setReenvioMode('sending')
     try {
       const names: Record<string, string> = {}
-      failed.forEach(r => { names[r.leadId] = r.firstName })
+      failed.forEach(r => {
+        const nome = nomeReal(r.firstName)
+        if (nome) names[r.leadId] = nome
+      })
       const res  = await fetch('/api/sdr/leads/blast', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,7 +258,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
           names,
         }),
       })
-      const body = await res.json() as { ok: boolean; started?: number; error?: string }
+      const body = await res.json() as { ok: boolean; started?: number; semNome?: number; error?: string }
       setReenvioResult(body)
       setReenvioMode('done')
     } catch (e) {
@@ -364,7 +378,8 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
               )}
               {reenvioMode === 'done' && reenvioResult?.ok && (
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>
-                  ✓ Nova campanha criada — {reenvioResult.started ?? failedCount} disparo{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''} iniciado{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''}.{' '}
+                  ✓ Nova campanha criada — {reenvioResult.started ?? failedCount} disparo{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''} iniciado{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''}
+                  {(reenvioResult.semNome ?? 0) > 0 && <>, {reenvioResult.semNome} sem nome ficaram de fora</>}.{' '}
                   <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: 0 }}>
                     Ver todos os disparos →
                   </button>

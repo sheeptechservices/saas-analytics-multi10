@@ -46,6 +46,7 @@ interface BlastResult {
   started?:         number
   totalSolicitado?: number
   skipped?:         number
+  semNome?:         number
   error?:           string
 }
 
@@ -105,13 +106,18 @@ function StatusBadge({ value }: { value: string | null }) {
   )
 }
 
-function ProportionBar({ started, total, skipped }: { started: number; total: number; skipped: number }) {
+function ProportionBar({ started, total, skipped, semNome }: { started: number; total: number; skipped: number; semNome: number }) {
   const [pct, setPct] = useState(0)
   useEffect(() => {
     const target = total > 0 ? Math.min(100, Math.round((started / total) * 100)) : 0
     const raf = requestAnimationFrame(() => setPct(target))
     return () => cancelAnimationFrame(raf)
   }, [started, total])
+  const semTelefone = Math.max(0, skipped - semNome)
+  const motivos = [
+    semTelefone > 0 ? `${semTelefone} sem telefone válido` : null,
+    semNome > 0     ? `${semNome} sem nome`                : null,
+  ].filter(Boolean)
   return (
     <div>
       <div style={{ height: 6, borderRadius: 3, background: 'var(--primary-dim)', overflow: 'hidden', marginBottom: 6 }}>
@@ -119,7 +125,7 @@ function ProportionBar({ started, total, skipped }: { started: number; total: nu
       </div>
       <div style={{ fontSize: 11, color: 'var(--gray)', fontWeight: 500 }}>
         {started} enviado{started !== 1 ? 's' : ''}
-        {skipped > 0 && <> · {skipped} ignorado{skipped !== 1 ? 's' : ''} (telefone inválido)</>}
+        {skipped > 0 && <> · {skipped} ignorado{skipped !== 1 ? 's' : ''}{motivos.length > 0 ? ` (${motivos.join(' · ')})` : ''}</>}
       </div>
     </div>
   )
@@ -373,6 +379,11 @@ export default function NovDisparoPage() {
   // step 2 can proceed when action chosen + template chosen (if blast)
   const step2CanContinue = action !== null && (action !== 'blast' || !!selectedTemplate)
 
+  // Template com variável posicional ({{1}}) fala com o lead pelo nome — quem não tem
+  // nome fica de fora do disparo, e não recebe saudação inventada no lugar.
+  const templatePreview = blastTemplates?.find(t => t.nome_template === selectedTemplate)?.preview ?? ''
+  const templateUsaNome = /\{\{\s*\d+\s*\}\}/.test(templatePreview)
+
   // ── Effects ───────────────────────────────────────────────────────────────────
 
   // Debounce search
@@ -510,7 +521,7 @@ export default function NovDisparoPage() {
         })
         const data = await res.json() as BlastResult
         if (res.ok && data.ok) {
-          setBlastResult({ ok: true, started: data.started, totalSolicitado: data.totalSolicitado, skipped: data.skipped })
+          setBlastResult({ ok: true, started: data.started, totalSolicitado: data.totalSolicitado, skipped: data.skipped, semNome: data.semNome })
         } else {
           setBlastResult({ ok: false, error: data.error ?? `HTTP ${res.status}` })
         }
@@ -1061,11 +1072,11 @@ export default function NovDisparoPage() {
               </div>
 
               {/* sem-nome warning */}
-              {semNome > 0 && (
+              {action === 'blast' && templateUsaNome && semNome > 0 && (
                 <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 12, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: '#92400e' }}>
                     <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>{semNome} contato{semNome !== 1 ? 's' : ''} sem nome — serão enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.</span>
+                    <span>{semNome} contato{semNome !== 1 ? 's' : ''} sem nome <strong>não {semNome !== 1 ? 'serão disparados' : 'será disparado'}</strong> — o template usa o nome do lead. Cadastre o nome desses contatos para incluí-los.</span>
                   </div>
                 </div>
               )}
@@ -1118,6 +1129,7 @@ export default function NovDisparoPage() {
                         started={blastResult.started ?? 0}
                         total={blastResult.totalSolicitado ?? blastResult.started ?? 0}
                         skipped={blastResult.skipped ?? 0}
+                        semNome={blastResult.semNome ?? 0}
                       />
                       <div style={{ marginTop: 16 }}>
                         <Link
