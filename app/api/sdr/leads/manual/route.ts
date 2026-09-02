@@ -137,7 +137,10 @@ export async function POST(request: Request) {
       ok: true,
       leadId: existingId,
       duplicate: true,
-      name: existingName ?? name,
+      // Lead sem nome na base vem como string vazia, não como null: devolver isso
+      // jogaria fora o nome que o operador acabou de digitar, e o disparo deixaria
+      // o lead de fora por falta de nome.
+      name: (existingName ?? '').trim() || name,
     })
   }
 
