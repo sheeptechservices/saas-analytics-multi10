@@ -77,6 +77,8 @@ export default [
       // Cópias inteiras do repositório criadas por agentes — lintar aqui é lintar
       // o mesmo código nove vezes, com o estado de outra branch.
       '.claude/worktrees/**',
+      // Pacote do redesenho ainda em espera: entra no lint quando for integrado.
+      'design-handoff/**',
     ],
   },
 
