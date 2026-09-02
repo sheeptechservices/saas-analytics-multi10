@@ -8,7 +8,7 @@ on:
 
 jobs:
   verificar:
-    name: lint + tipos
+    name: testes + lint + tipos
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +20,9 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      - name: Testes
+        run: npm test
 
       - name: Lint
         run: npm run lint
