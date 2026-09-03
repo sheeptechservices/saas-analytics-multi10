@@ -12,6 +12,7 @@ import { ACTION_LABELS, fmtDateTime, fmtDetail } from '@/lib/audit-format'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { useModules } from '@/components/ModulesProvider'
 import { CampaignConfig } from '@/app/(app)/sdr-ia/parametros/CampaignConfig'
+import { BrandColorField } from '@/components/settings/BrandColorField'
 
 const PRESET_COLORS = [
   '#FFB400', '#2563eb', '#1E8A3E', '#D93025',
@@ -288,6 +289,10 @@ export default function SettingsPage() {
 
   function handleColorChange(color: string) {
     setLocalColor(color)
+    // Pré-visualização ao vivo: repinta os tokens de marca no documento para o
+    // admin ver o efeito enquanto digita. É o único caminho que ainda escreve
+    // cor no cliente — no carregamento, quem manda é a folha do servidor.
+    setPrimaryColor(color)
   }
 
   async function save() {
@@ -492,21 +497,14 @@ export default function SettingsPage() {
                   )
                 })}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input
-                  type="color"
-                  value={localColor}
-                  onChange={e => handleColorChange(e.target.value)}
-                  style={{ width: 40, height: 36, borderRadius: 6, border: '1px solid var(--gray3)', cursor: 'pointer', padding: 2 }}
-                />
-                <input
-                  value={localColor}
-                  onChange={e => handleColorChange(e.target.value)}
-                  style={{ flex: 1, padding: '10px 14px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none' }}
-                  onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
-                  onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
-                />
-              </div>
+              {/* Primeiro consumidor real dos tokens novos: o campo mostra a cor
+                  da marca e, quando ela não passa em contraste, a variante que o
+                  botão vai usar de fato. */}
+              <BrandColorField
+                value={localColor}
+                onChange={handleColorChange}
+                brandName={localName || brandName}
+              />
             </div>
 
             <div style={{ marginBottom: 24 }}>

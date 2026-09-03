@@ -4,8 +4,12 @@
 // data-density precisa sair no <html> da primeira resposta. Em localStorage, a
 // escolha só chegaria depois de hidratar e a tela mudaria de densidade na frente do
 // usuário — o mesmo defeito que a cor da marca tinha (lib/brand.ts).
+//
+// Os valores são 'compact' e 'comfortable', em inglês, porque são chave técnica:
+// o seletor que os lê está no globals.css (`:root[data-density="compact"]`). O que
+// aparece para o usuário continua em português, na etiqueta do alternador.
 
-export type Density = 'compacto' | 'confortavel'
+export type Density = 'compact' | 'comfortable'
 
 export const DENSITY_COOKIE = 'densidade'
 
@@ -13,7 +17,7 @@ export const DENSITY_COOKIE = 'densidade'
 export const DENSITY_MAX_AGE = 60 * 60 * 24 * 365
 
 export function parseDensity(valor: string | null | undefined): Density | null {
-  return valor === 'compacto' || valor === 'confortavel' ? valor : null
+  return valor === 'compact' || valor === 'comfortable' ? valor : null
 }
 
 /**
@@ -25,7 +29,7 @@ export function parseDensity(valor: string | null | undefined): Density | null {
  * sessão caem no compacto, que é o padrão da plataforma.
  */
 export function defaultDensityForRole(role: string | null | undefined): Density {
-  return role === 'admin' ? 'confortavel' : 'compacto'
+  return role === 'admin' ? 'comfortable' : 'compact'
 }
 
 export function resolveDensity(

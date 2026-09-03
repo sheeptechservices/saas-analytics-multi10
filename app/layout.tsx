@@ -1,15 +1,27 @@
 import type { Metadata } from 'next'
-import { Manrope } from 'next/font/google'
+import { Inter, JetBrains_Mono } from 'next/font/google'
 import { cookies } from 'next/headers'
 import './globals.css'
 import { Providers } from '@/components/Providers'
 import { auth } from '@/auth'
 import { DENSITY_COOKIE, resolveDensity } from '@/lib/density'
 
-const manrope = Manrope({
+// As duas entram como variável CSS, não como className: o globals.css lê
+// var(--font-inter) e var(--font-jetbrains-mono) dentro do bloco @theme. Se
+// viessem por className, --font-sans cairia na cadeia de reserva e o produto
+// inteiro renderizaria em system-ui — sem erro de build e sem aviso de lint.
+const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
+  variable: '--font-inter',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  display: 'swap',
+  variable: '--font-jetbrains-mono',
 })
 
 export const metadata: Metadata = {
@@ -26,8 +38,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const density = resolveDensity(jar.get(DENSITY_COOKIE)?.value, session?.user?.role)
 
   return (
-    <html lang="pt-BR" data-density={density}>
-      <body className={manrope.className}>
+    <html lang="pt-BR" data-density={density} className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <body>
         <Providers>{children}</Providers>
       </body>
     </html>

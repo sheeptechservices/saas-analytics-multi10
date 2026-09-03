@@ -23,11 +23,20 @@ const MSG_HEX =
   'Hexadecimal solto não entra no JSX: use var(--token). Cor fora do token não acompanha tema nem marca do cliente.'
 const MSG_MOUSE =
   'onMouseEnter/Leave/Over/Out não entram: use :hover no CSS, que funciona por teclado e toque também.'
+const MSG_FOCO =
+  'Estado de foco escrito em JavaScript. Use :focus-visible; o anel vem de --brand-focus.'
 
 const SELETOR_STYLE = { selector: "JSXAttribute[name.name='style']", message: MSG_STYLE }
 const SELETOR_MOUSE = {
   selector: "JSXAttribute[name.name=/^onMouse(Enter|Leave|Over|Out)$/]",
   message: MSG_MOUSE,
+}
+// Portado do eslint.config.mjs do pacote de redesenho: pega onFocus/onBlur que
+// escrevem em element.style, que é hover em JavaScript com outro nome.
+const SELETOR_FOCO = {
+  selector:
+    'JSXAttribute[name.name=/^on(Focus|Blur)$/] > JSXExpressionContainer ArrowFunctionExpression AssignmentExpression[left.property.name="style"]',
+  message: MSG_FOCO,
 }
 // Cobre '#fff' e "#FFB400" em literal e o mesmo dentro de template string.
 const SELETORES_HEX = [
@@ -92,7 +101,7 @@ export default [
     plugins: { 'jsx-a11y': jsxA11y },
     rules: {
       ...comNivel(REGRAS_A11Y, 'warn'),
-      'no-restricted-syntax': ['warn', SELETOR_STYLE, SELETOR_MOUSE],
+      'no-restricted-syntax': ['warn', SELETOR_STYLE, SELETOR_MOUSE, SELETOR_FOCO],
     },
   },
   {
@@ -101,7 +110,7 @@ export default [
     files: ['**/*.tsx'],
     ignores: ['lib/brand.ts'],
     rules: {
-      'no-restricted-syntax': ['warn', SELETOR_STYLE, SELETOR_MOUSE, ...SELETORES_HEX],
+      'no-restricted-syntax': ['warn', SELETOR_STYLE, SELETOR_MOUSE, SELETOR_FOCO, ...SELETORES_HEX],
     },
   },
 
@@ -113,7 +122,7 @@ export default [
         plugins: { 'jsx-a11y': jsxA11y },
         rules: {
           ...comNivel(REGRAS_A11Y, 'error'),
-          'no-restricted-syntax': ['error', SELETOR_STYLE, SELETOR_MOUSE, ...SELETORES_HEX],
+          'no-restricted-syntax': ['error', SELETOR_STYLE, SELETOR_MOUSE, SELETOR_FOCO, ...SELETORES_HEX],
         },
       }]
     : []),

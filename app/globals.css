@@ -1,6 +1,460 @@
 @import "tailwindcss";
 
-/* ── Design Tokens (fiel ao protótipo) ── */
+/* ============================================================
+   CONSOLE EDITORIAL — sistema de tokens (fonte única de verdade)
+   Nenhum hexadecimal existe fora deste arquivo.
+   Nenhum estilo inline existe no projeto.
+   ------------------------------------------------------------
+   Ordem:
+   1. Neutros            2. Papéis de superfície e texto
+   3. Semânticos         4. Estados de domínio
+   5. Marca (runtime)    6. Superfície de IA
+   7. Tipografia         8. Espaçamento e grid
+   9. Densidade         10. Forma e elevação
+  11. Z-index           12. Motion
+   ============================================================ */
+
+@theme {
+  /* ── 1. NEUTROS (fixos, nunca mudam por tenant) ───────────── */
+  --color-neutral-0: #FFFFFF;
+  --color-neutral-25: #FAFBFC;
+  --color-neutral-50: #F4F6F8;
+  --color-neutral-100: #E9ECF0;
+  --color-neutral-200: #DCE0E6;
+  --color-neutral-300: #C3C9D2;
+  --color-neutral-400: #98A1AE;
+  --color-neutral-500: #6B7482;
+  --color-neutral-600: #4C5461;
+  --color-neutral-700: #343B45;
+  --color-neutral-800: #22272E;
+  --color-neutral-900: #14181D;
+
+  /* ── 2. PAPÉIS DERIVADOS ──────────────────────────────────── */
+  --color-surface-page: var(--color-neutral-50);
+  --color-surface-card: var(--color-neutral-0);
+  --color-surface-sunken: var(--color-neutral-100);
+  --color-surface-hover: var(--color-neutral-25);
+  --color-surface-selected: var(--color-neutral-100);
+
+  --color-border-hairline: var(--color-neutral-200);
+  --color-border-strong: var(--color-neutral-300);
+
+  --color-text-primary: var(--color-neutral-900);
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-muted: var(--color-neutral-400);
+  --color-text-disabled: var(--color-neutral-300);
+  --color-text-inverse: var(--color-neutral-0);
+
+  /* ── 3. SEMÂNTICOS (fixos, jamais herdam a cor do tenant) ─── */
+  --color-success-bg: #E8F5EC;
+  --color-success-border: #A8D8B8;
+  --color-success-text: #12693A;
+  --color-success-solid: #1E8A3E;
+
+  --color-warning-bg: #FEF4E2;
+  --color-warning-border: #F5D08A;
+  --color-warning-text: #8A5A00;
+  --color-warning-solid: #C87F00;
+
+  --color-danger-bg: #FDECEA;
+  --color-danger-border: #F3B5AE;
+  --color-danger-text: #A32118;
+  --color-danger-solid: #D93025;
+
+  --color-info-bg: #E9F0FD;
+  --color-info-border: #B3CBF5;
+  --color-info-text: #1D4ED8;
+  --color-info-solid: #3474FF;
+
+  /* Neutro semântico — para estados sem carga (rascunho, frio, não conectado) */
+  --color-quiet-bg: var(--color-neutral-100);
+  --color-quiet-border: var(--color-neutral-300);
+  --color-quiet-text: var(--color-neutral-600);
+  --color-quiet-solid: var(--color-neutral-500);
+
+  /* ── 6. SUPERFÍCIE DE IA (fixa, assinatura do produto) ─────
+     Blocos escuros dentro de um produto claro. Nunca é tema.
+     Nunca herda a cor da marca. */
+  --color-ai-surface: var(--color-neutral-800);
+  --color-ai-surface-raised: var(--color-neutral-700);
+  --color-ai-border: #3A424C;
+  --color-ai-text: var(--color-neutral-100);
+  --color-ai-text-muted: var(--color-neutral-400);
+  --color-ai-accent: #7DD3C0; /* apenas indicador de atividade */
+
+  /* ── 7. TIPOGRAFIA ────────────────────────────────────────── */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --text-11: 0.6875rem;   /* rótulo em maiúsculas, metadado */
+  --text-11--line-height: 1.4;
+  --text-11--letter-spacing: 0.06em;
+  --text-12: 0.75rem;     /* texto auxiliar, célula secundária */
+  --text-12--line-height: 1.4;
+  --text-13: 0.8125rem;   /* corpo compacto, tabela */
+  --text-13--line-height: 1.4;
+  --text-14: 0.875rem;    /* corpo padrão */
+  --text-14--line-height: 1.5;
+  --text-15: 0.9375rem;   /* corpo confortável */
+  --text-15--line-height: 1.5;
+  --text-18: 1.125rem;    /* título de seção */
+  --text-18--line-height: 1.3;
+  --text-22: 1.375rem;    /* título de página */
+  --text-22--line-height: 1.3;
+  --text-28: 1.75rem;     /* KPI secundário */
+  --text-28--line-height: 1.2;
+  --text-36: 2.25rem;     /* KPI principal */
+  --text-36--line-height: 1.1;
+
+  --leading-title: 1.3;
+  --leading-body: 1.5;
+  --leading-table: 1.4;
+
+  /* ── 8. ESPAÇAMENTO E GRID (base 4) ───────────────────────── */
+  --spacing: 0.25rem;
+  --spacing-1: 0.25rem;   /* 4  */
+  --spacing-2: 0.5rem;    /* 8  */
+  --spacing-3: 0.75rem;   /* 12 */
+  --spacing-4: 1rem;      /* 16 */
+  --spacing-5: 1.25rem;   /* 20 */
+  --spacing-6: 1.5rem;    /* 24 */
+  --spacing-8: 2rem;      /* 32 */
+  --spacing-10: 2.5rem;   /* 40 */
+  --spacing-12: 3rem;     /* 48 */
+  --spacing-16: 4rem;     /* 64 */
+
+  --container-reading: 1440px; /* largura máxima em telas de leitura */
+  --breakpoint-lap: 1280px;    /* abaixo: contexto vira drawer */
+
+  /* ── 10. FORMA E ELEVAÇÃO (apenas 3 radius, 3 níveis) ─────── */
+  --radius-control: 4px;  /* controles, tabelas, badges */
+  --radius-panel: 8px;    /* cards, painéis */
+  --radius-pill: 999px;   /* avatar, pill */
+
+  --shadow-base: none;                              /* nível 1: só borda */
+  --shadow-card: 0 0 0 1px var(--color-border-hairline); /* nível 2: borda nítida */
+  --shadow-floating: 0 4px 16px rgba(20, 24, 29, 0.10); /* nível 3: menu, popover, modal, drawer, toast */
+
+  /* ── 12. MOTION ───────────────────────────────────────────── */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-hover: 120ms;
+  --duration-base: 160ms;
+  --duration-panel: 200ms;
+}
+
+/* ============================================================
+   4. ESTADOS DE DOMÍNIO — mapeamento explícito sobre as quatro
+   famílias semânticas + quiet. A cor da marca NUNCA aparece aqui.
+   Consumo: bg-(--state-lead-active-bg) etc., ou via <StatusBadge>.
+   ============================================================ */
+:root {
+  /* lead */
+  --state-lead-active: var(--color-success-solid);    /* ativo        → success */
+  --state-lead-cold: var(--color-quiet-solid);        /* frio         → quiet   */
+  --state-lead-noreply: var(--color-warning-solid);   /* sem resposta → warning */
+
+  /* conversa */
+  --state-conv-in-window: var(--color-success-solid); /* dentro de 24h → success */
+  --state-conv-out-window: var(--color-warning-solid);/* fora da janela → warning */
+
+  /* disparo */
+  --state-blast-pending: var(--color-quiet-solid);    /* pendente  → quiet   */
+  --state-blast-sent: var(--color-info-solid);        /* enviado   → info    */
+  --state-blast-delivered: var(--color-info-solid);   /* entregue  → info    */
+  --state-blast-read: var(--color-success-solid);     /* lido      → success */
+  --state-blast-failed: var(--color-danger-solid);    /* falhou    → danger  */
+
+  /* campanha */
+  --state-campaign-draft: var(--color-quiet-solid);   /* rascunho → quiet   */
+  --state-campaign-active: var(--color-success-solid);/* ativa    → success */
+  --state-campaign-paused: var(--color-warning-solid);/* pausada  → warning */
+
+  /* integração */
+  --state-integration-connected: var(--color-success-solid);
+  --state-integration-pending: var(--color-warning-solid);
+  --state-integration-error: var(--color-danger-solid);
+  --state-integration-off: var(--color-quiet-solid);
+
+  /* ── 5. MARCA — valores de fallback. Em runtime, applyBrandTokens()
+     (lib/brand.ts) sobrescreve estas 15 variáveis no <html>.
+     Somente 4 usos: item ativo da navegação, botão primário,
+     anel de foco, logo. ───────────────────────────────────── */
+  --brand-50: #E9F0FD;
+  --brand-100: #D2E0FB;
+  --brand-200: #A9C4F7;
+  --brand-300: #7BA4F2;
+  --brand-400: #5288EC;
+  --brand-500: #3474FF;
+  --brand-600: #2559D6;
+  --brand-700: #1D45A8;
+  --brand-800: #16337B;
+  --brand-900: #0E2050;
+  --brand-action: var(--brand-600);   /* fundo do botão primário — variante que passa AA */
+  --brand-contrast: var(--color-neutral-0); /* texto sobre --brand-action, por WCAG real */
+  --brand-subtle: var(--brand-50);    /* fundo tintado do item ativo */
+  --brand-on-subtle: var(--brand-800);/* texto sobre --brand-subtle, por WCAG real */
+  --brand-focus: rgba(52, 116, 255, 0.45); /* anel de foco */
+
+  /* ── 9. DENSIDADE — padrão confortável (gestor).
+     data-density="compact" é o padrão do operador. Persistido no perfil. */
+  --row-h: 48px;
+  --control-h: 40px;
+  --card-pad-y: 20px;
+  --card-pad-x: 24px;
+  --density-text-body: var(--text-15);
+  --gap-block: 24px;
+  --gutter: 24px;
+
+  /* ── 11. Z-INDEX ──────────────────────────────────────────── */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-header: 100;
+  --z-drawer: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+}
+
+:root[data-density="compact"] {
+  --row-h: 36px;
+  --control-h: 32px;
+  --card-pad-y: 12px;
+  --card-pad-x: 16px;
+  --density-text-body: var(--text-13);
+  --gap-block: 16px;
+  --gutter: 16px;
+}
+
+/* Densidade exposta como utilitários de tema para consumo em Tailwind */
+@theme inline {
+  --height-row: var(--row-h);
+  --height-control: var(--control-h);
+  --spacing-card-y: var(--card-pad-y);
+  --spacing-card-x: var(--card-pad-x);
+  --spacing-block: var(--gap-block);
+  --spacing-gutter: var(--gutter);
+  --text-body: var(--density-text-body);
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-action: var(--brand-action);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-brand-on-subtle: var(--brand-on-subtle);
+  --color-brand-focus: var(--brand-focus);
+
+  --z-index-raised: var(--z-raised);
+  --z-index-header: var(--z-header);
+  --z-index-drawer: var(--z-drawer);
+  --z-index-overlay: var(--z-overlay);
+  --z-index-modal: var(--z-modal);
+  --z-index-toast: var(--z-toast);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Numerais tabulares obrigatórios em KPI, tabela e coluna numérica */
+  table,
+  [data-numeric],
+  [data-kpi] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Foco visível por teclado em todo elemento interativo */
+  :focus-visible {
+    outline: 2px solid var(--brand-focus);
+    outline-offset: 2px;
+  }
+
+  a {
+    color: var(--color-info-text);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--color-info-solid);
+    text-decoration: underline;
+  }
+
+  ::selection {
+    background-color: var(--brand-subtle);
+    color: var(--color-text-primary);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: var(--radius-pill);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+}
+
+/* ============================================================
+   MOTION — 4px de deslocamento com opacidade. Sem bounce,
+   sem escala, nada acima de 250ms.
+   ============================================================ */
+@keyframes enter-item {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes enter-panel {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Barra indeterminada de 2px — único indicador de processamento da IA */
+@keyframes ai-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+@utility animate-enter-item {
+  animation: enter-item var(--duration-base) var(--ease-standard) both;
+}
+@utility animate-enter-panel {
+  animation: enter-panel var(--duration-panel) var(--ease-standard) both;
+}
+@utility animate-skeleton {
+  animation: skeleton-pulse 1.2s var(--ease-standard) infinite;
+}
+@utility animate-ai-indeterminate {
+  animation: ai-indeterminate 1.1s var(--ease-standard) infinite;
+}
+
+/* Nenhum !important no projeto: sob prefers-reduced-motion os próprios
+   tokens de duração vão a zero e as animações são desligadas na origem. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-hover: 0ms;
+    --duration-base: 0ms;
+    --duration-panel: 0ms;
+  }
+
+  @keyframes enter-item {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes enter-panel {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes ai-indeterminate {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+  }
+}
+
+/* ============================================================
+   LEGADO — REMOVER NO PASSO 12
+   ------------------------------------------------------------
+   Tudo abaixo é o sistema anterior, mantido só enquanto existir tela não
+   migrada. Não é para consumo novo: código novo lê os tokens do bloco @theme
+   acima. Uma tela migrada é uma tela que não usa mais nada daqui.
+
+   Por que ficou: no dia da troca, o repositório tinha 1.761 usos de var(--x)
+   deste bloco em 33 arquivos e nenhuma tela migrada. Substituir sem ele deixaria
+   o produto inteiro sem cor, sem botão e sem animação até a última entrega.
+
+   Como sai: a cada tela migrada, apaga-se o que ela usava. No Passo 12 o bloco
+   deve estar vazio — se sobrar linha aqui, sobrou tela por migrar.
+
+   O que já não veio junto, de propósito:
+   - html { font-size: 15px } — a escala nova é em rem sobre raiz de 16px.
+   - body { font-family: Manrope } — a família agora vem de --font-sans (Inter).
+   - o reset universal e a barra de rolagem, que o bloco @layer base novo cobre.
+   - o @theme antigo (--color-app-*, --radius-md) — nenhuma classe dele em uso.
+   - --radius-pill: 100px — o novo, 999px, atende os mesmos quatro usos.
+   ============================================================ */
+
 :root {
   --bg: #F8F8F6;
   --white: #FFFFFF;
@@ -8,17 +462,20 @@
   --gray: #666666;
   --gray2: #AAAAAA;
   --gray3: #E3E4DE;
+
+  /* Reserva de marca. Em runtime, lib/brand.ts sobrescreve estas cinco junto
+     com as 15 novas, na mesma folha impressa pelo servidor. */
   --primary: #E10504;
   --primary-dim: rgba(225,5,4,0.12);
   --primary-mid: rgba(225,5,4,0.40);
   --primary-text: #7C0302;
   --primary-contrast: #FFFFFF;
+
   --red: #D93025;
   --green: #1E8A3E;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-pill: 100px;
   --shadow: 0 1px 2px rgba(17,24,39,.05), 0 4px 12px rgba(17,24,39,.05);
   --shadow-sm: 0 1px 2px rgba(17,24,39,.05);
   --shadow-md: 0 1px 2px rgba(17,24,39,.05), 0 8px 20px rgba(17,24,39,.07);
@@ -30,36 +487,9 @@
   --line:  #ECECE9;
 }
 
-@theme {
-  --color-bg: #F8F8F6;
-  --color-app-white: #FFFFFF;
-  --color-app-black: #121316;
-  --color-app-gray: #666666;
-  --color-app-gray2: #AAAAAA;
-  --color-app-gray3: #E3E4DE;
-  --color-app-red: #D93025;
-  --color-app-green: #1E8A3E;
-  --font-sans: 'Manrope', sans-serif;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-pill: 100px;
-}
-
-*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html { font-size: 15px; }
-
-body {
-  font-family: 'Manrope', sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--black);
-  background: var(--bg);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ── Animations ── */
+/* ── Animações do legado ──────────────────────────────────────────────────
+   Vários destes nomes são chamados de dentro de style inline (o indicador de
+   sincronização usa `spin`), então a lista sai inteira, não por uso aparente. */
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -104,20 +534,6 @@ body {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
 }
-
-.animate-slide-up  { animation: slideUp .25s ease both; }
-.animate-fade-in   { animation: fadeIn .2s ease both; }
-.animate-slide-right { animation: slideInRight .25s ease both; }
-.delay-1 { animation-delay: .04s; }
-.delay-2 { animation-delay: .08s; }
-.delay-3 { animation-delay: .12s; }
-.delay-4 { animation-delay: .16s; }
-.delay-5 { animation-delay: .20s; }
-.delay-6 { animation-delay: .24s; }
-.delay-7 { animation-delay: .28s; }
-.delay-8 { animation-delay: .32s; }
-.delay-9 { animation-delay: .36s; }
-
 @keyframes ai-step {
   from { opacity: 0; transform: translateX(-8px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -158,6 +574,24 @@ body {
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes buttonPulse {
+  0%   { box-shadow: 0 0 0 0   rgba(225, 5, 4, 0.35); }
+  70%  { box-shadow: 0 0 0 6px rgba(225, 5, 4, 0);    }
+  100% { box-shadow: 0 0 0 0   rgba(225, 5, 4, 0);    }
+}
+
+.animate-slide-up    { animation: slideUp .25s ease both; }
+.animate-fade-in     { animation: fadeIn .2s ease both; }
+.animate-slide-right { animation: slideInRight .25s ease both; }
+.delay-1 { animation-delay: .04s; }
+.delay-2 { animation-delay: .08s; }
+.delay-3 { animation-delay: .12s; }
+.delay-4 { animation-delay: .16s; }
+.delay-5 { animation-delay: .20s; }
+.delay-6 { animation-delay: .24s; }
+.delay-7 { animation-delay: .28s; }
+.delay-8 { animation-delay: .32s; }
+.delay-9 { animation-delay: .36s; }
 
 .shimmer-bar { position: relative; overflow: hidden; }
 .shimmer-bar::after {
@@ -178,12 +612,6 @@ body {
 
 .animate-count-pop { animation: count-pop .35s ease-out both; }
 .tabular-nums { font-variant-numeric: tabular-nums; }
-
-@keyframes buttonPulse {
-  0%   { box-shadow: 0 0 0 0   rgba(225, 5, 4, 0.35); }
-  70%  { box-shadow: 0 0 0 6px rgba(225, 5, 4, 0);    }
-  100% { box-shadow: 0 0 0 0   rgba(225, 5, 4, 0);    }
-}
 .btn-pulse { animation: buttonPulse 1.3s ease-in-out infinite; }
 
 .blast-dot {
@@ -208,14 +636,7 @@ body {
   .row-cascade       { animation: none; opacity: 1; transform: none; }
 }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar       { width: 6px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--gray3); border-radius: 100px; }
-::-webkit-scrollbar-thumb:hover { background: var(--gray2); }
-* { scrollbar-width: thin; scrollbar-color: var(--gray3) transparent; }
-
-/* ── Primary color utilities (white label aware) ── */
+/* ── Utilitários de marca do legado ─────────────────────────────────────── */
 .bg-primary { background-color: var(--primary) !important; }
 .text-primary { color: var(--primary) !important; }
 .border-primary { border-color: var(--primary) !important; }
@@ -227,7 +648,7 @@ body {
 .focus\:border-primary:focus { border-color: var(--primary) !important; }
 .focus\:ring-primary:focus { box-shadow: 0 0 0 3px var(--primary-dim) !important; }
 
-/* ── Button system ── */
+/* ── Botões do legado ───────────────────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   font-weight: 600; font-family: inherit; white-space: nowrap; cursor: pointer;
@@ -238,7 +659,9 @@ body {
 .btn:disabled, .btn[disabled]           { opacity: .4; cursor: not-allowed; }
 .btn:focus-visible                      { outline: none; box-shadow: 0 0 0 3px var(--primary-dim); }
 
-.btn-primary                            { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: var(--shadow-sm); }
+/* O texto sai de --primary-contrast, não de #fff fixo: com marca clara, branco
+   sobre a cor da marca é ilegível — foi o defeito que a conta WCAG resolveu. */
+.btn-primary                            { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); box-shadow: var(--shadow-sm); }
 .btn-primary:hover:not(:disabled)       { filter: brightness(.92); }
 .btn-primary:active:not(:disabled)      { filter: brightness(.85); }
 

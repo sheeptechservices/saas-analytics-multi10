@@ -13,7 +13,8 @@
     "create-master": "npx tsx lib/db/create-master.ts",
     "seed-300": "npx tsx lib/db/seed-300.ts",
     "lint": "eslint .",
-    "test": "node --import tsx --test \"lib/**/*.test.ts\""
+    "test": "node --import tsx --test \"lib/**/*.test.ts\"",
+    "debt": "node scripts/legacy-debt.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

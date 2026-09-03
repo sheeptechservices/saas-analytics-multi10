@@ -241,6 +241,28 @@ Não sobrescreva. Siga os cinco passos da reconciliação.
 HTML do servidor continua trazendo as variáveis impressas; **não há flash de
 marca** ao recarregar. Se o flash voltou, `applyBrandTokens` ficou no boot.
 
+> **Correção registrada em 02/09/2026 — o `eslint.config.mjs` do pacote assume
+> Next 16; o projeto está no 15.5.15.**
+>
+> `import next from 'eslint-config-next'` seguido de `...next` só funciona na
+> versão 16, que exporta config plano. A 15.5.15 exporta o formato eslintrc: o
+> import falha antes de qualquer regra rodar (verificado). Quem usa a 15 precisa
+> de `FlatCompat`, que é o que a configuração do repositório já faz.
+>
+> Outros dois problemas no mesmo arquivo, independentes da versão: a lista
+> `MIGRATED` vem preenchida com as Entregas 1 a 3, o oposto do que este mesmo
+> passo manda; e `severity()` junta `noRawHex` e `noJsHover` por spread, mas as
+> duas usam a chave `no-restricted-syntax` — a segunda apaga a primeira, e a
+> regra de hexadecimal simplesmente não roda.
+>
+> Decisão: ficou a configuração do repositório, com o seletor de `onFocus`/
+> `onBlur` escrevendo em `.style` portado do pacote, `MIGRADOS` vazia e
+> `.claude/worktrees/**` ignorado.
+>
+> **Se outro artefato do pacote carregar a mesma premissa de Next 16, o mesmo
+> aviso vale — sinalizar antes de integrar.** Até aqui, dos oito arquivos, só
+> este dependia da versão.
+
 ### Passo 3 — `eslint.config.mjs`
 Entre com a lista `MIGRATED` **vazia ou só com os arquivos de fundação**. Se
 entrar com a lista cheia enquanto as telas ainda são as antigas, o CI quebra em
