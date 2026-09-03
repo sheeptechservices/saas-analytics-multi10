@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,6 +13,7 @@ import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { useModules } from '@/components/ModulesProvider'
 import { CampaignConfig } from '@/app/(app)/sdr-ia/parametros/CampaignConfig'
 import { BrandColorField } from '@/components/settings/BrandColorField'
+import { DEFAULT_PRIMARY, DEFAULT_BRAND_NAME } from '@/lib/brand'
 
 const PRESET_COLORS = [
   '#FFB400', '#2563eb', '#1E8A3E', '#D93025',
@@ -224,13 +225,24 @@ export default function SettingsPage() {
     queryFn: () => fetch('/api/me').then(r => r.json()),
   })
 
+  // Cor gravada do tenant — o ponto para onde a pré-visualização volta.
+  const corSalvaRef = useRef(primaryColor)
+
   useEffect(() => {
     if (data?.tenant) {
-      setLocalColor(data.tenant.primaryColor ?? '#FFB400')
+      const cor = data.tenant.primaryColor ?? DEFAULT_PRIMARY
+      setLocalColor(cor)
+      corSalvaRef.current = cor
       setLocalLogo(data.tenant.logoUrl ?? '')
-      setLocalName(data.tenant.name ?? '300 Franchising')
+      setLocalName(data.tenant.name ?? DEFAULT_BRAND_NAME)
     }
   }, [data])
+
+  // Sair da tela sem salvar não pode deixar o rascunho pintado: ao desmontar,
+  // os tokens voltam para a cor gravada do tenant.
+  useEffect(() => {
+    return () => { setPrimaryColor(corSalvaRef.current) }
+  }, [setPrimaryColor])
 
   useEffect(() => {
     if (meData?.user) {
@@ -302,6 +314,8 @@ export default function SettingsPage() {
       body: JSON.stringify({ primaryColor: localColor, logoUrl: localLogo || null, name: localName }),
     })
     setPrimaryColor(localColor)
+    // Salvou: o rascunho virou a cor do tenant, e é para cá que a saída volta.
+    corSalvaRef.current = localColor
     setLogoUrl(localLogo || null)
     setBrandName(localName)
     qc.invalidateQueries({ queryKey: ['settings'] })
