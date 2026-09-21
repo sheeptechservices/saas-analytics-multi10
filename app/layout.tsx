@@ -39,7 +39,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const density = resolveDensity(jar.get(DENSITY_COOKIE)?.value, session?.user?.role)
 
   return (
-    <html lang="pt-BR" data-density={density} className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    // suppressHydrationWarning: o script do <head> escreve data-animate no <html>
+    // antes da hidratação — é o objetivo dele —, e o React acusaria o atributo que
+    // a árvore do servidor não tem. Vale só para os atributos deste elemento; os
+    // filhos continuam verificados.
+    <html
+      lang="pt-BR"
+      data-density={density}
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Decide data-animate antes da primeira pintura. O HTML do servidor sai
             no estado final; sem esta decisão síncrona, o gráfico apareceria
