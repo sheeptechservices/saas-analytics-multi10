@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isCronAuthorized } from '@/lib/cron-auth'
 import { db } from '@/lib/db'
 import { integrations, tenantModules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -9,8 +10,7 @@ import { dailySync as tiktokDailySync } from '@/lib/ads/tiktok'
 import { ADS_PROVIDER_MODULE } from '@/lib/modules'
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
