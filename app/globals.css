@@ -497,6 +497,18 @@
   }
 }
 
+/* Fileira de chips que rola de lado no celular (ex.: os chips de ordenação
+   do DataTable): a rolagem é o próprio gesto, e a barra de 8px da base
+   aparecia embaixo dos chips como um traço sem função. A fileira continua
+   rolável pelo toque, pela roda e pelo teclado. Só para esses scrollers
+   intencionais — tabela, quadro e lista longa mantêm a barra. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ============================================================
    LEGADO — REMOVER NO PASSO 12
    ------------------------------------------------------------
@@ -1075,7 +1087,8 @@
 
 /* ── Dashboard — Visão geral (app/(app)/dashboard/page.tsx) ─────────────────
    ≥1100px: grid 1.6fr / 1fr · 900–1100px: grid em coluna única ·
-   <900px: faixa de KPIs 2×2 e painel WhatsApp empilhado. */
+   <900px: faixa de KPIs 2×2 e painel WhatsApp empilhado ·
+   <640px (celular): faixa de KPIs em coluna única. */
 .dash {
   display: flex; flex-direction: column; gap: 22px;
   max-width: 1320px; margin-inline: auto;
@@ -1100,6 +1113,11 @@
 @media (max-width: 899px) {
   .kpi-band    { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dash-wa-body { grid-template-columns: minmax(0, 1fr); }
+}
+/* No celular a meia coluna do 2×2 fica com ~120px úteis: o valor-herói de
+   44px ("12,5%") não cabe, e a faixa (overflow: hidden) o cortaria. */
+@media (max-width: 639px) {
+  .kpi-band { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ── Funil em escala de tinta (components/widgets/FunnelChart.tsx) ──────── */

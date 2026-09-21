@@ -65,10 +65,14 @@ const navItems: NavGroup[] = [
 interface SidebarProps {
   /** Phone drawer (< md). On desktop the store is in charge. */
   drawerOpen: boolean
+  /** Phone drawer closed, off-canvas: the aside goes inert — out of the tab
+   *  order, of find-in-page and of the accessibility tree. Only ever true on
+   *  phones; the desktop sidebar never receives it. */
+  offCanvas: boolean
   onNavigate: () => void
 }
 
-export function Sidebar({ drawerOpen, onNavigate }: SidebarProps) {
+export function Sidebar({ drawerOpen, offCanvas, onNavigate }: SidebarProps) {
   const pathname = usePathname()
   const { open, pinned, setPinned, setOpen } = useSidebar()
   const modules = useModules()
@@ -104,6 +108,7 @@ export function Sidebar({ drawerOpen, onNavigate }: SidebarProps) {
   return (
     <aside
       id="app-sidebar"
+      inert={offCanvas}
       className={asideClass}
       style={{
         background: 'var(--white)',

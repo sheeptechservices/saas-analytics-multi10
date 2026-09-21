@@ -32,9 +32,10 @@ export interface DataTableProps {
   emptyMessage?: string
   maxHeight?: number
   /**
-   * Rendering below the lg breakpoint (1024px) — phones and tablets, where the
-   * table may not fit beside the sidebar. Defaults to 'cards'. Decided by CSS,
-   * not JS: both versions ship in the HTML and each width shows one.
+   * Rendering below the lg breakpoint (1024px; md, 768px, for variant 'plain')
+   * — phones and tablets, where the table may not fit beside the sidebar.
+   * Defaults to 'cards'. Decided by CSS, not JS: both versions ship in the HTML
+   * and each width shows one.
    */
   mobileMode?: 'cards' | 'scroll'
   /** Column key whose value uniquely identifies a row. Used to stabilise animation keys so re-sort doesn't re-trigger the cascade. */
@@ -42,8 +43,9 @@ export interface DataTableProps {
   /** 'default' = visual atual (cabeçalho --bg, hover com faixa da marca).
       'plain' = tabela dentro de um painel plano (dashboard Visão geral):
       cabeçalho --surface-2, divisórias --line-2, hover neutro sem faixa,
-      calha de 12px entre colunas e 20px nas bordas; abaixo de lg, linhas
-      planas em vez de cartões com sombra. */
+      calha de 12px entre colunas e 20px nas bordas; a tabela já aparece a
+      partir de md (768px), rolando de lado dentro do próprio invólucro, e
+      abaixo de md vira linhas planas em vez de cartões com sombra. */
   variant?: 'default' | 'plain'
 }
 
@@ -192,21 +194,23 @@ export function DataTable({
     </tbody>
   )
 
-  // Cards vs table is decided by CSS (lg:), not by useIsMobile: the server
+  // Cards vs table is decided by CSS (lg:/md:), not by useIsMobile: the server
   // doesn't know the screen, so a phone would get the wide table on first paint
   // and only swap after hydration. Both ship in the HTML; each width shows one.
-  // The cut is lg, not md: on a tablet with the sidebar open the table doesn't
-  // fit and the card around it clips the overflow.
+  // The default cut is lg, not md: on a tablet with the sidebar open the table
+  // doesn't fit and the card around it clips the overflow. 'plain' cuts at md:
+  // its table always sits in its own sideways-scrolling wrapper, so on a tablet
+  // it scrolls inside the panel instead of being clipped.
 
   // ── Desktop (and scroll mode): table ──────────────────────────────────────
 
-  // In 'cards' mode the table hides below lg. With maxHeight the box already
-  // scrolls on both axes; without it, 'scroll' mode and fixed column widths
-  // (the table then has a min-width) get a sideways-scrolling wrapper, so the
-  // overflow stays here instead of pushing the page. Otherwise the default
-  // desktop table gains no extra node.
-  const hideOnMobile = mobileMode === 'cards' ? 'max-lg:hidden' : undefined
-  const bareTable = !maxHeight && mobileMode === 'cards' && !hasWidths
+  // In 'cards' mode the table hides below the cut. With maxHeight the box
+  // already scrolls on both axes; without it, 'scroll' mode, fixed column
+  // widths (the table then has a min-width) and 'plain' get a sideways-scrolling
+  // wrapper, so the overflow stays here instead of pushing the page. Otherwise
+  // the default desktop table gains no extra node.
+  const hideOnMobile = mobileMode !== 'cards' ? undefined : plain ? 'max-md:hidden' : 'max-lg:hidden'
+  const bareTable = !maxHeight && mobileMode === 'cards' && !hasWidths && !plain
 
   const tableEl = (
     <table className={bareTable ? hideOnMobile : undefined} style={tableStyle}>
@@ -231,12 +235,13 @@ export function DataTable({
   const restCols = columns.slice(1)
 
   const cards = (
-    // 'plain' rows carry their own inset (flat panel); default cards float
-    // inside the container with a 12px margin.
-    <div className={plain ? 'lg:hidden' : 'p-3 lg:hidden'}>
-      {/* Sort chips */}
+    // 'plain' rows carry their own inset (flat panel) and give way to the table
+    // at md; default cards float inside the container with a 12px margin.
+    <div className={plain ? 'md:hidden' : 'p-3 lg:hidden'}>
+      {/* Sort chips — a sideways scroller whose scrollbar would only draw a
+          stray line under the chips (scrollbar-none, globals.css) */}
       {sortableCols.length > 0 && (
-        <div style={{
+        <div className="scrollbar-none" style={{
           display: 'flex', gap: 6, overflowX: 'auto',
           ...(plain
             ? { padding: '12px 16px 10px' }

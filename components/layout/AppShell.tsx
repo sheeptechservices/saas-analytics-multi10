@@ -75,7 +75,14 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
         />
       )}
 
-      <Sidebar drawerOpen={drawerOpen} onNavigate={() => setDrawerOpen(false)} />
+      {/* Closed phone drawer goes inert (behavior, hence useIsMobile): on the
+          server and on desktop isMobile is false, so the desktop sidebar is
+          never inert; the first phone paint is already covered by `invisible`. */}
+      <Sidebar
+        drawerOpen={drawerOpen}
+        offCanvas={isMobile && !drawerOpen}
+        onNavigate={() => setDrawerOpen(false)}
+      />
 
       {/* On phones the extra bottom padding lets the end of the page scroll clear of the floating AI button */}
       <main

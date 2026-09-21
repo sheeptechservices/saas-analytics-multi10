@@ -7,18 +7,20 @@ interface SkeletonProps {
   radius?:  number | string
   circle?:  boolean
   style?:   CSSProperties
+  /** Extra classes — e.g. a responsive flex-shrink. The default no-shrink is a
+   *  class (shrink-0), not inline, so a responsive class can override it. */
+  className?: string
 }
 
-export function Skeleton({ width = '100%', height = 14, radius = 6, circle, style }: SkeletonProps) {
+export function Skeleton({ width = '100%', height = 14, radius = 6, circle, style, className }: SkeletonProps) {
   return (
     <div
-      className="shimmer-bar"
+      className={cn('shimmer-bar shrink-0', className)}
       style={{
         width,
         height,
         borderRadius: circle ? '50%' : radius,
         background: 'var(--line)',
-        flexShrink: 0,
         ...style,
       }}
     />
@@ -36,7 +38,14 @@ export function SkeletonText({ lines = 2, gap = 8 }: { lines?: number; gap?: num
   )
 }
 
-// Table skeleton: white card with N rows × cols widths
+// Table skeleton: white card with N rows × cols widths.
+// The percent widths plus the fixed 16px gaps add up to more than the row, so
+// the last bar runs past the card edge. Below md the bars shrink to fit the
+// card, and below sm only the first three columns stay. From md up, unchanged.
+function colClass(i: number): string {
+  return cn('max-md:shrink', i >= 3 && 'max-sm:hidden')
+}
+
 interface SkeletonTableProps {
   rows?:     number
   colWidths?: (number | string)[]
@@ -54,7 +63,7 @@ export function SkeletonTable({ rows = 7, colWidths = ['30%', '20%', '20%', '15%
         display: 'flex', gap: 16, alignItems: 'center',
       }}>
         <Skeleton width={14} height={14} radius={3} />
-        {colWidths.map((w, i) => <Skeleton key={i} width={w} height={10} />)}
+        {colWidths.map((w, i) => <Skeleton key={i} width={w} height={10} className={colClass(i)} />)}
       </div>
       {/* rows */}
       {Array.from({ length: rows }, (_, r) => (
@@ -67,7 +76,7 @@ export function SkeletonTable({ rows = 7, colWidths = ['30%', '20%', '20%', '15%
           }}
         >
           <Skeleton width={14} height={14} radius={3} />
-          {colWidths.map((w, i) => <Skeleton key={i} width={w} height={13} />)}
+          {colWidths.map((w, i) => <Skeleton key={i} width={w} height={13} className={colClass(i)} />)}
         </div>
       ))}
     </div>
@@ -131,7 +140,8 @@ export function SkeletonKpiCards({ count = 4 }: { count?: number }) {
 
 // KPI band skeleton for the dashboard Visão geral: um objeto só (não N
 // cartões), com as mesmas células em hairline da KpiBand — inclusive o
-// 2×2 abaixo de 900px, porque reaproveita as classes .kpi-band.
+// 2×2 abaixo de 900px e a coluna única abaixo de 640px, porque reaproveita
+// as classes .kpi-band.
 export function SkeletonKpiBand({ count = 4 }: { count?: number }) {
   const cells = Math.max(count, 2)
   return (

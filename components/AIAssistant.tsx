@@ -213,9 +213,11 @@ export function AIAssistant() {
             borderRadius: 2,
           }} />
 
-          {/* Dismiss X */}
+          {/* Dismiss X — the circle stays 20px; on phones an invisible ::before
+              10px past each edge makes the hit area 40×40 */}
           <button
             onClick={dismissHint}
+            className="max-md:before:absolute max-md:before:-inset-[10px]"
             style={{
               position: 'absolute', top: 8, right: 8,
               width: 20, height: 20, borderRadius: '50%',
