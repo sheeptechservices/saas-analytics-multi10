@@ -6,6 +6,7 @@ import { users, passwordResetTokens } from '@/lib/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { getTenantBranding } from '@/lib/tenant'
+import { trustedOrigin } from '@/lib/origin'
 
 function canManage(role: string) {
   return role === 'admin' || role === 'master'
@@ -107,7 +108,9 @@ export async function POST(req: NextRequest) {
     expiresAt: Date.now() + 72 * 60 * 60 * 1000,
   })
 
-  const baseUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  // Convite chega pela origem por onde o admin criou o usuário — o subdomínio do
+  // tenant dele. Host desconhecido cai na origem configurada.
+  const baseUrl = trustedOrigin(req)
   const inviteLink = `${baseUrl}/reset-password?token=${token}`
   const { brandName } = await getTenantBranding(session.user.tenantId)
 

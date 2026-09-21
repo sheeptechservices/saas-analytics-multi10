@@ -1,0 +1,37 @@
+name: Cron diário
+
+# Substitui o cron do vercel.json, que só existe na Vercel. Chama /api/cron/all
+# (sync de Kommo, Ads e fontes SDR de todos os tenants) uma vez por dia.
+#
+# Precisa de dois secrets do repositório (Settings → Secrets and variables →
+# Actions): APP_URL, a origem pública do app, e CRON_SECRET, o mesmo valor
+# configurado no ambiente do app. Sem eles o job reprova de propósito: um sync
+# que para de rodar em silêncio foi exatamente o defeito que este arquivo corrige.
+#
+# Agendamento do GitHub só dispara na branch padrão e pode atrasar alguns minutos
+# em horário de pico.
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC = 00:00 em Brasília, o mesmo horário da Vercel
+  workflow_dispatch:       # botão "Run workflow", para disparar na mão
+
+jobs:
+  sync:
+    name: sync diário
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Chamar /api/cron/all
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Faltam os secrets APP_URL e/ou CRON_SECRET do repositório"
+            exit 1
+          fi
+          # -f reprova o job em 401/5xx. Se o tempo estourar, o servidor segue
+          # sincronizando até o fim — só o job fica vermelho.
+          curl -fsS --max-time 840 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/all"

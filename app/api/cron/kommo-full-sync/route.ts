@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
+import { isCronAuthorized } from '@/lib/cron-auth'
 import { db } from '@/lib/db'
 import { integrations, tenantModules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { refreshKommoToken, runKommoSync } from '@/lib/kommo/sync'
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
