@@ -38,11 +38,14 @@ export default function SdrIaLayout({ children }: { children: React.ReactNode })
   return (
     <div>
       {visibleTabs.length > 1 && (
-        // On phones the tabs scroll sideways instead of wrapping or overflowing
+        // On phones the tabs scroll sideways instead of wrapping or overflowing.
+        // An open Conversas thread covers the screen on phones (data-conv-view on
+        // the page, the next sibling): the tabs step out of the way — and out of
+        // the tab order — instead of sitting hidden under it.
         <div
-          className="max-md:overflow-x-auto max-md:overflow-y-hidden max-md:pb-px"
+          className="flex max-md:overflow-x-auto max-md:overflow-y-hidden max-md:pb-px max-md:[&:has(~[data-conv-view=thread])]:hidden"
           style={{
-            display: 'flex', alignItems: 'flex-end',
+            alignItems: 'flex-end',
             marginBottom: 28, borderBottom: '1px solid var(--gray3)',
           }}
         >

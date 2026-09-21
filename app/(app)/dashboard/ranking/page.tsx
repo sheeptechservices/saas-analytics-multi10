@@ -227,12 +227,15 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                 </div>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', display: 'block', marginBottom: 8 }}>Cor</label>
-                  {/* 28px swatches; on phones the gap opens to 12px and an invisible
-                      ::before 6px past each edge gives every swatch a 40×40 hit area
-                      without overlapping its neighbours */}
-                  <div className="gap-[8px] max-md:gap-[12px]" style={{ display: 'flex', flexWrap: 'wrap' }}>
+                  {/* 28px swatches; on phones an invisible 40×40 ::before centred on
+                      each one is its hit area — a fixed size, since insets would count
+                      from inside the 3px border and fall short of 40. The selected
+                      swatch is scaled 1.15, hit area included (46px, 9px past its
+                      edge; the others reach 6px past theirs), so on phones the gap
+                      opens to 16px: 9 + 6 < 16, and no two hit areas overlap */}
+                  <div className="gap-[8px] max-md:gap-[16px]" style={{ display: 'flex', flexWrap: 'wrap' }}>
                     {TEAM_COLORS.map(c => (
-                      <button key={c} onClick={() => setColor(c)} className="max-md:relative max-md:before:absolute max-md:before:-inset-[6px]" style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: color === c ? `3px solid var(--black)` : '3px solid transparent', cursor: 'pointer', transition: 'transform .15s', transform: color === c ? 'scale(1.15)' : 'scale(1)' }} />
+                      <button key={c} onClick={() => setColor(c)} className="max-md:relative max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-[40px] max-md:before:-translate-1/2" style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: color === c ? `3px solid var(--black)` : '3px solid transparent', cursor: 'pointer', transition: 'transform .15s', transform: color === c ? 'scale(1.15)' : 'scale(1)' }} />
                     ))}
                   </div>
                 </div>
@@ -257,12 +260,14 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                     <circle cx="6.5" cy="6.5" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/>
                   </svg>
+                  {/* On phones the right padding clears the clear-button's hit area */}
                   <input
                     value={repSearch}
                     onChange={e => setRepSearch(e.target.value)}
                     placeholder="Buscar vendedor…"
+                    className="py-[7px] pr-[10px] pl-[30px] max-md:pr-[40px]"
                     style={{
-                      width: '100%', padding: '7px 10px 7px 30px',
+                      width: '100%',
                       borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
                       fontSize: 12, fontWeight: 500, color: 'var(--black)',
                       outline: 'none', background: 'var(--bg)',
@@ -271,9 +276,12 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     onFocus={e => { e.target.style.borderColor = color; e.target.style.boxShadow = `0 0 0 3px ${color}22` }}
                     onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
                   />
+                  {/* The × glyph stays as is; on phones an invisible 40×40 ::before
+                      centred on it is the hit area — it covers the input's last 32px,
+                      which the input's phone padding keeps free of text */}
                   {repSearch && (
                     <button onClick={() => setRepSearch('')}
-                      className="touch-target"
+                      className="max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-[40px] max-md:before:-translate-1/2"
                       style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 14, lineHeight: 1, padding: 0 }}>
                       ×
                     </button>

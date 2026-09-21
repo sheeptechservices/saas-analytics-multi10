@@ -14,10 +14,12 @@ interface TopbarProps {
   logoUrl: string | null
   /** Opens/closes the sidebar: drawer on phones, grid column on desktop (decided in AppShell). */
   onToggleSidebar: () => void
+  /** The toggle button, so AppShell can return focus to it when the phone drawer closes. */
+  toggleRef?: React.Ref<HTMLButtonElement>
   sidebarOpen: boolean
 }
 
-export function Topbar({ userName, userRole, brandName, logoUrl, onToggleSidebar, sidebarOpen }: TopbarProps) {
+export function Topbar({ userName, userRole, brandName, logoUrl, onToggleSidebar, toggleRef, sidebarOpen }: TopbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const { primaryColor, brandName: storeBrandName, logoUrl: storeLogoUrl } = useWhiteLabel()
   const { name: storeUserName, photoUrl: storeUserPhoto } = useUser()
@@ -50,6 +52,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl, onToggleSidebar
       <div className="min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {/* touch-target: 28px no desktop, 44×44 no celular (A14). */}
         <IconButton
+          ref={toggleRef}
           label="Alternar sidebar"
           size="sm"
           className="touch-target"

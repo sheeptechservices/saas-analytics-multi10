@@ -152,7 +152,8 @@ export default function ContatosPage() {
           </div>
         </div>
 
-        <div style={{ position: 'relative' }}>
+        {/* On phones the search drops below the title at full width */}
+        <div className="max-md:w-full" style={{ position: 'relative' }}>
           <Search
             size={14}
             style={{
@@ -165,6 +166,7 @@ export default function ContatosPage() {
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="Nome ou telefone..."
+            className="max-md:w-full"
             style={{
               paddingLeft: 34, paddingRight: 14, paddingTop: 9, paddingBottom: 9,
               fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
@@ -230,6 +232,7 @@ export default function ContatosPage() {
           <button
             onClick={() => setPage(p => p - 1)}
             disabled={!hasPrev}
+            className="max-md:min-h-10"
             style={{
               padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
               fontSize: 13, fontWeight: 700,
@@ -247,6 +250,7 @@ export default function ContatosPage() {
           <button
             onClick={() => setPage(p => p + 1)}
             disabled={!hasNext}
+            className="max-md:min-h-10"
             style={{
               padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
               fontSize: 13, fontWeight: 700,

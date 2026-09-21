@@ -84,7 +84,11 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
           {/* Tags */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gray2)', marginBottom: 8 }}>Tags</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {/* On phones the rows of chips open to a 16px gap: each X's 40px hit
+                area reaches 7px past its 26px chip, so rows 42px apart keep the hit
+                areas of consecutive rows from overlapping (a tap never removes the
+                tag in the row above or below) */}
+            <div className="gap-[6px] max-md:gap-y-[16px]" style={{ display: 'flex', flexWrap: 'wrap', marginBottom: 8 }}>
               {tags.map(tag => (
                 <span key={tag} style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,

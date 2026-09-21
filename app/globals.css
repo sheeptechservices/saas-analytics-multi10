@@ -497,6 +497,18 @@
   }
 }
 
+/* Botão flutuante da IA (components/AIAssistant.tsx: anel, dica e botão,
+   marcados com data-ai-launcher). Abaixo do lg — o mesmo corte do max-lg: do
+   Tailwind — ele sai da frente quando a página tem um compositor próprio no pé
+   da tela e avisa com data-hides-ai-launcher (ex.: conversa aberta em
+   Conversas), para não ficar em cima do botão Enviar. O !important vence o
+   display em linha do botão. */
+@media (width < 64rem) {
+  body:has([data-hides-ai-launcher]) [data-ai-launcher] {
+    display: none !important;
+  }
+}
+
 /* Fileira de chips que rola de lado no celular (ex.: os chips de ordenação
    do DataTable): a rolagem é o próprio gesto, e a barra de 8px da base
    aparecia embaixo dos chips como um traço sem função. A fileira continua

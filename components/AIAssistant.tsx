@@ -175,8 +175,12 @@ export function AIAssistant() {
 
   return (
     <>
+      {/* data-ai-launcher on the glow ring, the hint and the FAB: below lg they step
+          aside while the page shows a composer of its own at the bottom of the
+          screen and says so with data-hides-ai-launcher (e.g. an open Conversas
+          thread) — rule in the RESPONSIVO section of app/globals.css */}
       {/* Breathing glow ring behind button */}
-      <div style={{
+      <div data-ai-launcher style={{
         position: 'fixed', bottom: 24, right: 24, zIndex: 208,
         width: 52, height: 52, borderRadius: '50%',
         background: 'var(--primary)',
@@ -188,7 +192,7 @@ export function AIAssistant() {
 
       {/* Hint bubble */}
       {hint && (
-        <div style={{
+        <div data-ai-launcher style={{
           position: 'fixed',
           bottom: 86,
           right: 24,
@@ -452,6 +456,7 @@ function FABButton({ open, onClick }: { open: boolean; onClick: () => void }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       title="Assistente IA"
+      data-ai-launcher
       style={{
         position: 'fixed', bottom: 24, right: 24, zIndex: 210,
         width: 52, height: 52, borderRadius: '50%',

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useSidebar } from '@/stores/sidebarStore'
 import { useIsMobile } from '@/lib/hooks/useMediaQuery'
@@ -34,9 +34,18 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
   useEffect(() => { setDrawerOpen(false) }, [pathname])
   useEffect(() => { if (!isMobile) setDrawerOpen(false) }, [isMobile])
 
+  // Closing the phone drawer by Escape or on the backdrop hands focus back to the
+  // top-bar button that opens it — the drawer goes inert, and focus inside it
+  // would otherwise fall to <body>.
+  const toggleRef = useRef<HTMLButtonElement>(null)
+
   useEffect(() => {
     if (!drawerOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setDrawerOpen(false)
+      toggleRef.current?.focus()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [drawerOpen])
@@ -59,13 +68,17 @@ export function AppShell({ children, userName, userRole, brandName, logoUrl }: P
       <Topbar
         userName={userName} userRole={userRole} brandName={brandName} logoUrl={logoUrl}
         onToggleSidebar={toggleSidebar}
+        toggleRef={toggleRef}
         sidebarOpen={isMobile ? drawerOpen : open}
       />
 
       {/* Backdrop for the drawer sidebar: always on phones, unpinned on desktop */}
       {(drawerOpen || desktopOverlay) && (
         <div
-          onClick={() => { if (isMobile) setDrawerOpen(false); else setOpen(false) }}
+          onClick={() => {
+            if (isMobile) { setDrawerOpen(false); toggleRef.current?.focus() }
+            else setOpen(false)
+          }}
           className={cn(!drawerOpen && 'max-md:hidden', !desktopOverlay && 'md:hidden')}
           style={{
             position: 'fixed', inset: 0, zIndex: 290,
