@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button'
 type Tom         = 'formal' | 'consultivo' | 'direto'
 type Status      = 'draft' | 'active' | 'paused'
 type N8nDelivery = { ok: boolean; status?: number; error?: string } | null
-type AreaId      = 'campanha' | 'ia-conteudo' | 'teste-disparo' | 'avancado'
+type AreaId      = 'campanha' | 'teste-disparo' | 'avancado'
 
 interface Settings {
   tom:              Tom
@@ -62,14 +62,8 @@ const DIAS = [
   { num: 0, label: 'Dom' },
 ]
 
-const TOM_DESC: Record<Tom, string> = {
-  formal:     'Profissional e estruturado',
-  consultivo: 'Empático e orientado a valor',
-  direto:     'Objetivo e direto ao ponto',
-}
-
 const AREAS_KEY     = 'sdr-parametros-areas'
-const AREA_DEFAULT: AreaId[] = ['campanha', 'ia-conteudo']
+const AREA_DEFAULT: AreaId[] = ['campanha']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -323,12 +317,6 @@ export function CampaignConfig() {
     }))
   }
 
-  function updTemplate(i: number, value: string) {
-    const next = [...settings.templates]
-    next[i] = value
-    upd('templates', next)
-  }
-
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -338,7 +326,6 @@ export function CampaignConfig() {
     )
   }
 
-  const hasTemplates  = settings.templates.length > 0
   const hasIntegration = !!(preservedN8nUrls.n8nWebhookUrl || preservedN8nUrls.n8nDispatchUrl)
   const isDirty = baseline !== null && (
     JSON.stringify(settings) !== JSON.stringify(baseline.settings) ||
@@ -552,141 +539,6 @@ export function CampaignConfig() {
           </SectionCard>
 
         </div>{/* /Sequência+Cadência grid */}
-      </CollapsibleArea>
-
-      {/* ━━━ Área 2: IA & Conteúdo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <CollapsibleArea
-        id="ia-conteudo"
-        title="IA & Conteúdo"
-        open={openAreas.has('ia-conteudo')}
-        onToggle={() => toggleArea('ia-conteudo')}
-      >
-        {/* Tom e objetivo */}
-        <SectionCard title="Tom e objetivo">
-          <FieldLabel>Tom da IA</FieldLabel>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 22 }}>
-            {(['formal', 'consultivo', 'direto'] as Tom[]).map(t => {
-              const on = settings.tom === t
-              return (
-                <button key={t} onClick={() => upd('tom', t)} style={{
-                  flex: 1, padding: '10px 14px', borderRadius: 10, fontFamily: 'inherit',
-                  fontSize: 12, cursor: 'pointer', textAlign: 'left',
-                  border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
-                  background: on ? 'var(--primary-dim)' : 'transparent',
-                  color:      on ? 'var(--primary-text)' : 'var(--gray)',
-                  transition: 'all .15s',
-                  display: 'flex', flexDirection: 'column', gap: 3,
-                }}>
-                  <span style={{ fontWeight: 700 }}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </span>
-                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>
-                    {TOM_DESC[t]}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          <FieldLabel>Objetivo da campanha</FieldLabel>
-          <textarea
-            value={settings.objetivo}
-            onChange={e => upd('objetivo', e.target.value)}
-            placeholder="Ex: Qualificar leads e agendar reuniões com o closer..."
-            rows={3}
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13, resize: 'vertical',
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', lineHeight: 1.5,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-        </SectionCard>
-
-        {/* Templates de mensagem */}
-        <SectionCard title="Templates de mensagem">
-          {hasTemplates && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginBottom: 14 }}>
-              {settings.templates.map((tmpl, i) => {
-                const dia   = 1 + i * settings.intervaloDias
-                const empty = !tmpl.trim()
-                return (
-                  <div key={i}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>
-                        Toque {i + 1} · dia {dia}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--gray2)', fontWeight: 500 }}>
-                        {'{{nome}}'} · {'{{empresa}}'}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <textarea
-                        value={tmpl}
-                        onChange={e => updTemplate(i, e.target.value)}
-                        rows={4}
-                        placeholder={`Mensagem do toque ${i + 1}...`}
-                        style={{
-                          flex: 1, minWidth: 0, fontFamily: 'inherit', fontSize: 13,
-                          resize: 'vertical', lineHeight: 1.55,
-                          border: `1px solid ${empty ? 'rgba(239,68,68,0.5)' : 'var(--gray3)'}`,
-                          borderRadius: 10, padding: '10px 14px',
-                          background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                          boxSizing: 'border-box', transition: 'border-color .15s',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                        onBlur={e  => (e.currentTarget.style.borderColor = empty ? 'rgba(239,68,68,0.5)' : 'var(--gray3)')}
-                      />
-                      {settings.templates.length > 1 && (
-                        <button
-                          onClick={() => upd('templates', settings.templates.filter((_, idx) => idx !== i))}
-                          title="Remover template"
-                          style={{
-                            padding: '7px 10px', borderRadius: 8, fontFamily: 'inherit',
-                            fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                            border: '1px solid var(--gray3)', background: 'transparent',
-                            color: 'var(--gray2)', transition: 'all .15s', lineHeight: 1, flexShrink: 0,
-                          }}
-                          onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--red)'; b.style.color = 'var(--red)' }}
-                          onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                    {empty && (
-                      <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginTop: 4 }}>
-                        Vazio — preencha ou remova este toque.
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          <button
-            onClick={() => upd('templates', [...settings.templates, ''])}
-            style={{
-              padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit',
-              fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              border: '1.5px dashed var(--gray3)', background: 'transparent',
-              color: 'var(--gray2)', transition: 'all .15s',
-            }}
-            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--primary)'; b.style.color = 'var(--primary-text)' }}
-            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
-          >
-            + Adicionar template
-          </button>
-
-          {settings.templates.length !== settings.numToques && (
-            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 12 }}>
-              {settings.templates.length} template{settings.templates.length !== 1 ? 's' : ''} configurado{settings.templates.length !== 1 ? 's' : ''} para {settings.numToques} toque{settings.numToques !== 1 ? 's' : ''} — os toques restantes não terão conteúdo.
-            </div>
-          )}
-        </SectionCard>
       </CollapsibleArea>
 
       {/* ━━━ Área 5: Avançado ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
