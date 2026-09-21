@@ -26,7 +26,7 @@ function fieldStyle(focused: boolean): React.CSSProperties {
     width: '100%', boxSizing: 'border-box' as const,
     padding: '9px 12px', fontSize: 13, fontFamily: 'inherit',
     border: `1px solid ${focused ? 'var(--primary)' : 'var(--gray3)'}`,
-    borderRadius: 10,
+    borderRadius: 'var(--radius-md)',
     background: 'var(--white)', color: 'var(--black)', outline: 'none',
     transition: 'border-color .15s',
   }
@@ -139,9 +139,9 @@ export function AddLeadForm({ onAdded }: AddLeadFormProps) {
         {last && !last.error && (
           <div style={{
             display: 'flex', alignItems: 'flex-start', gap: 8,
-            padding: '10px 14px', borderRadius: 10,
+            padding: '10px 14px', borderRadius: 'var(--radius-md)',
             background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)',
-            fontSize: 13, fontWeight: 600, color: '#15803d',
+            fontSize: 13, fontWeight: 600, color: 'var(--success-text)',
           }}>
             <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
             <span>
@@ -155,7 +155,7 @@ export function AddLeadForm({ onAdded }: AddLeadFormProps) {
         {last?.error && (
           <div style={{
             display: 'flex', alignItems: 'flex-start', gap: 8,
-            padding: '10px 14px', borderRadius: 10,
+            padding: '10px 14px', borderRadius: 'var(--radius-md)',
             background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.25)',
             fontSize: 13, fontWeight: 600, color: 'var(--red)',
           }}>

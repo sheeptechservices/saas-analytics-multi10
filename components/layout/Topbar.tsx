@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
 import { Menu } from 'lucide-react'
 import { initials } from '@/lib/utils'
+import { IconButton } from '@/components/ui/Button'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
 import { useSidebar } from '@/stores/sidebarStore'
@@ -46,26 +47,16 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
     }}>
       {/* Sidebar toggle + Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button
-          onClick={toggle}
-          title="Alternar sidebar"
-          style={{
-            width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: 'transparent', color: 'var(--gray2)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, transition: 'background .15s, color .15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg)'; e.currentTarget.style.color = 'var(--black)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--gray2)' }}
-        >
+        {/* touch-target: 28px no desktop, 44×44 no celular (A14). */}
+        <IconButton label="Alternar sidebar" size="sm" className="touch-target" onClick={toggle} style={{ flexShrink: 0 }}>
           <Menu size={15} />
-        </button>
+        </IconButton>
 
         {displayLogo ? (
-          <img src={displayLogo} alt={displayName} style={{ height: 28, width: 'auto', borderRadius: 6 }} />
+          <img src={displayLogo} alt={displayName} style={{ height: 28, width: 'auto', borderRadius: 'var(--radius-sm)' }} />
         ) : (
           <div style={{
-            width: 28, height: 28, background: 'var(--primary)', borderRadius: 6,
+            width: 28, height: 28, background: 'var(--primary)', borderRadius: 'var(--radius-sm)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13, fontWeight: 800, color: 'var(--primary-contrast)',
           }}>{displayName.charAt(0).toUpperCase()}</div>
@@ -81,7 +72,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
       {/* Right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
         <span style={{
-          fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 100,
+          fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)',
           background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
           color: 'var(--primary-text)',
         }}>
@@ -92,7 +83,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
           <div
             onClick={() => setMenuOpen(!menuOpen)}
             style={{
-              width: 34, height: 34, borderRadius: 100, background: 'var(--primary)',
+              width: 34, height: 34, borderRadius: 'var(--radius-pill)', background: 'var(--primary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 800, color: 'var(--primary-contrast)', cursor: 'pointer',
               overflow: 'hidden',
@@ -119,7 +110,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
               <div style={{
                 position: 'absolute', top: 42, right: 0,
                 background: 'var(--white)', border: '1px solid var(--gray3)',
-                borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                borderRadius: 'var(--radius-md)', boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                 zIndex: 300, minWidth: 160, overflow: 'hidden',
               }}>
                 <div style={{
@@ -140,7 +131,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
                     textAlign: 'left', transition: 'background .2s',
                     fontFamily: 'inherit',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(217,48,37,0.06)')}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--danger-dim)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                 >
                   Sair

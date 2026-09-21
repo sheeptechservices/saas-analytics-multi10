@@ -30,7 +30,7 @@ function SecretInput({
         autoComplete="new-password"
         style={{
           width: '100%', fontFamily: 'inherit', fontSize: 13,
-          border: '1px solid var(--gray3)', borderRadius: 10,
+          border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)',
           padding: '10px 42px 10px 14px',
           background: 'var(--bg)', color: 'var(--black)', outline: 'none',
           boxSizing: 'border-box' as const, transition: 'border-color .15s',
@@ -90,7 +90,7 @@ function UrlPair({
         placeholder="https://…/webhook/…"
         style={{
           width: '100%', fontFamily: 'inherit', fontSize: 13,
-          border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+          border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
           background: 'var(--bg)', color: 'var(--black)', outline: 'none',
           boxSizing: 'border-box' as const, transition: 'border-color .15s', marginBottom: 10,
         }}
@@ -105,7 +105,7 @@ function UrlPair({
           <span style={{
             fontSize: 10, fontWeight: 800, color: 'var(--green)',
             background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
-            borderRadius: 99, padding: '1px 8px', letterSpacing: '0.03em',
+            borderRadius: 'var(--radius-pill)', padding: '1px 8px', letterSpacing: '0.03em',
           }}>
             configurado ✓
           </span>
@@ -133,7 +133,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   return (
     <div style={{
       background: 'var(--white)', border: '1px solid var(--gray3)',
-      borderRadius: 16, padding: '20px 24px', marginBottom: 16,
+      borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 16,
       boxShadow: 'var(--shadow)',
     }}>
       <div style={{
@@ -342,7 +342,7 @@ export default function CredenciaisPage() {
                 fontSize: 12, fontWeight: 700,
                 background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
                 border: '1px solid rgba(34,197,94,0.25)',
-                borderRadius: 99, padding: '5px 14px',
+                borderRadius: 'var(--radius-pill)', padding: '5px 14px',
               }}>
                 Disparo acionado ✓
                 {dispatchResult.status !== undefined && (
@@ -356,7 +356,7 @@ export default function CredenciaisPage() {
                 fontSize: 12, fontWeight: 700,
                 background: 'rgba(239,68,68,0.08)', color: 'var(--red)',
                 border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 99, padding: '5px 14px',
+                borderRadius: 'var(--radius-pill)', padding: '5px 14px',
               }}>
                 Falha: {dispatchResult.error ?? `HTTP ${dispatchResult.status}`}
               </div>

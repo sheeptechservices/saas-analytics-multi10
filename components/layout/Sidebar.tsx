@@ -130,7 +130,7 @@ export function Sidebar() {
                   padding: '9px 20px', fontSize: 13, fontWeight: 600,
                   color: active ? 'var(--black)' : 'var(--gray)',
                   textDecoration: 'none', cursor: 'pointer',
-                  borderLeft: `2px solid ${active ? 'var(--primary)' : 'transparent'}`,
+                  borderLeft: `var(--rail) solid ${active ? 'var(--primary)' : 'transparent'}`,
                   background: active ? 'var(--primary-dim)' : 'transparent',
                   transition: 'all .2s',
                 }}

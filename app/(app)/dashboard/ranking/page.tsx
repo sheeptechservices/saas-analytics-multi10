@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
+import { Button } from '@/components/ui/Button'
 
 type Period = 'all' | '7d' | '30d' | '90d'
 type Metric = 'revenue' | 'won' | 'conversion'
@@ -149,7 +150,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(18,19,22,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn .15s ease both' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--white)', borderRadius: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', width: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'panelUp .25s ease both' }}>
+      <div style={{ background: 'var(--white)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-modal)', width: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'panelUp .25s ease both' }}>
 
         {/* Modal header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--gray3)' }}>
@@ -166,7 +167,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
               </div>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'var(--bg)', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+          <button onClick={onClose} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--bg)', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         {/* Modal body */}
@@ -181,7 +182,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                 </div>
               )}
               {teams.map(t => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: '1px solid var(--gray3)', background: 'var(--bg)' }}>
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', background: 'var(--bg)' }}>
                   <div style={{ width: 12, height: 12, borderRadius: '50%', background: t.color, flexShrink: 0, boxShadow: `0 0 0 3px ${t.color}30` }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{t.name}</div>
@@ -189,11 +190,11 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                       {t.members.length === 0 ? 'Sem membros' : t.members.slice(0, 3).join(', ') + (t.members.length > 3 ? ` +${t.members.length - 3}` : '')}
                     </div>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: `${t.color}18`, color: t.color, border: `1px solid ${t.color}40` }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)', background: `${t.color}18`, color: t.color, border: `1px solid ${t.color}40` }}>
                     {t.members.length} {t.members.length === 1 ? 'membro' : 'membros'}
                   </span>
-                  <button onClick={() => openEdit(t)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 12, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => deleteTeam(t)} aria-label="Excluir time" style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(217,48,37,0.2)', background: 'rgba(217,48,37,0.06)', color: 'var(--red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={12} /></button>
+                  <button onClick={() => openEdit(t)} style={{ padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 12, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>Editar</button>
+                  <button onClick={() => deleteTeam(t)} aria-label="Excluir time" style={{ padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(217,48,37,0.2)', background: 'var(--danger-dim)', color: 'var(--red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={12} /></button>
                 </div>
               ))}
             </div>
@@ -212,7 +213,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     onChange={e => setName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && save()}
                     placeholder="Ex: SDR, Hunters..."
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid var(--gray3)', fontSize: 13, fontWeight: 600, color: 'var(--black)', outline: 'none', background: 'var(--bg)', fontFamily: 'inherit' }}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', fontSize: 13, fontWeight: 600, color: 'var(--black)', background: 'var(--bg)', fontFamily: 'inherit' }}
                   />
                 </div>
                 <div>
@@ -224,7 +225,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                   </div>
                 </div>
                 {/* Preview */}
-                <div style={{ padding: '12px 14px', borderRadius: 10, background: `${color}12`, border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: `${color}12`, border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color }}>{name || 'Nome do time'}</span>
                   <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: `${color}CC` }}>{members.size} membros</span>
@@ -250,7 +251,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     placeholder="Buscar vendedor…"
                     style={{
                       width: '100%', padding: '7px 10px 7px 30px',
-                      borderRadius: 8, border: '1px solid var(--gray3)',
+                      borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
                       fontSize: 12, fontWeight: 500, color: 'var(--black)',
                       outline: 'none', background: 'var(--bg)',
                       fontFamily: 'inherit', boxSizing: 'border-box',
@@ -274,12 +275,12 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                   {allReps.filter(rep => rep.toLowerCase().includes(repSearch.toLowerCase())).map(rep => {
                     const checked = members.has(rep)
                     return (
-                      <label key={rep} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, border: `1px solid ${checked ? color + '50' : 'var(--gray3)'}`, background: checked ? `${color}08` : 'var(--bg)', cursor: 'pointer', transition: 'all .15s' }}>
+                      <label key={rep} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--radius-md)', border: `1px solid ${checked ? color + '50' : 'var(--gray3)'}`, background: checked ? `${color}08` : 'var(--bg)', cursor: 'pointer', transition: 'all .15s' }}>
                         <input type="checkbox" checked={checked} onChange={() => toggleMember(rep)} style={{ display: 'none' }} />
-                        <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${checked ? color : 'var(--gray3)'}`, background: checked ? color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
-                          {checked && <span style={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                        <div style={{ width: 18, height: 18, borderRadius: 'var(--radius-sm)', border: `2px solid ${checked ? color : 'var(--gray3)'}`, background: checked ? color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
+                          {checked && <span style={{ color: 'var(--white)', fontSize: 11, lineHeight: 1 }}>✓</span>}
                         </div>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(rep), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(rep), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: 'var(--white)', flexShrink: 0 }}>
                           {rep.trim().charAt(0).toUpperCase()}
                         </div>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--black)' }}>{rep}</span>
@@ -297,18 +298,18 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
           {view === 'list' ? (
             <>
               <div />
-              <button onClick={openNew} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: 'var(--primary)', color: 'var(--black)', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+              <Button variant="primary" size="md" onClick={openNew}>
                 + Novo Time
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button onClick={() => setView('list')} style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 13, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>
+              <button onClick={() => setView('list')} style={{ padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 13, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button onClick={save} disabled={!name.trim() || saving} style={{ padding: '9px 24px', borderRadius: 10, border: 'none', background: name.trim() ? 'var(--primary)' : 'var(--gray3)', color: 'var(--black)', fontSize: 13, fontWeight: 800, cursor: name.trim() ? 'pointer' : 'default', opacity: saving ? 0.7 : 1 }}>
+              <Button variant="primary" size="md" disabled={!name.trim() || saving} onClick={save}>
                 {saving ? 'Salvando…' : 'Salvar'}
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -323,13 +324,13 @@ function PerformanceBadge({ rep }: { rep: Rep }) {
   if (rep.wonLeads === 0) return null
   if (rep.conversionRate >= 70)
     return (
-      <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 99, background: 'rgba(30,138,62,0.10)', color: 'var(--green)', border: '1px solid rgba(30,138,62,0.20)', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, padding: '2px 7px', borderRadius: 'var(--radius-pill)', background: 'var(--success-dim)', color: 'var(--green)', border: '1px solid rgba(30,138,62,0.20)', whiteSpace: 'nowrap' }}>
         🔥 Top
       </span>
     )
   if (rep.conversionRate >= 50)
     return (
-      <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 99, background: 'var(--primary-dim)', color: 'var(--primary-text)', border: '1px solid var(--primary-mid)', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, padding: '2px 7px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', color: 'var(--primary-text)', border: '1px solid var(--primary-mid)', whiteSpace: 'nowrap' }}>
         ↑ Bom
       </span>
     )
@@ -352,15 +353,15 @@ function BreakdownBar({ rep, delay }: { rep: Rep; delay: number }) {
 
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <div style={{ flex: 1, height: 5, borderRadius: 99, overflow: 'hidden', background: 'var(--gray3)', display: 'flex' }}>
+      <div style={{ flex: 1, height: 5, borderRadius: 'var(--radius-pill)', overflow: 'hidden', background: 'var(--gray3)', display: 'flex' }}>
         <div style={{ width: `${wonPct}%`,  background: 'var(--green)', transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)' }} />
         <div style={{ width: `${actPct}%`,  background: '#FFB400', transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1) 0.05s' }} />
         <div style={{ width: `${lostPct}%`, background: 'var(--red)', transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1) 0.1s' }} />
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--green)' }}>●{rep.wonLeads}</span>
-        <span style={{ fontSize: 9, fontWeight: 700, color: '#7A5600' }}>●{rep.activeLeads}</span>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--red)' }}>●{rep.lostLeads}</span>
+        <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--green)' }}>●{rep.wonLeads}</span>
+        <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--warn-text)' }}>●{rep.activeLeads}</span>
+        <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--red)' }}>●{rep.lostLeads}</span>
       </div>
     </div>
   )
@@ -381,10 +382,10 @@ function ProgressBar({ value, max, color, delay }: { value: number; max: number;
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ flex: 1, height: 6, background: 'var(--gray3)', borderRadius: 99, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, height: 6, background: 'var(--gray3)', borderRadius: 'var(--radius-pill)', overflow: 'hidden', position: 'relative' }}>
         <div style={{
           height: '100%', width: `${width}%`,
-          background: color, borderRadius: 99,
+          background: color, borderRadius: 'var(--radius-pill)',
           transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
           position: 'relative', overflow: 'hidden',
         }}>
@@ -477,7 +478,7 @@ function PodiumCard({ rep, rank, metric, delay }: { rep: Rep; rank: number; metr
           width: avatarSize, height: avatarSize, borderRadius: '50%',
           background: avatarColor(rep.name),
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: avatarSize * 0.38, fontWeight: 900, color: '#fff',
+          fontSize: avatarSize * 0.38, fontWeight: 900, color: 'var(--white)',
           letterSpacing: '-0.03em', position: 'relative', zIndex: 1,
         }}>
           {rep.name.trim().charAt(0).toUpperCase()}
@@ -488,7 +489,7 @@ function PodiumCard({ rep, rank, metric, delay }: { rep: Rep; rank: number; metr
           width: 24, height: 24, borderRadius: '50%',
           background: rs.badge, border: '2px solid var(--white)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 10, fontWeight: 900, color: '#fff',
+          fontSize: 10, fontWeight: 900, color: 'var(--white)',
           boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
         }}>
           {rank}
@@ -506,7 +507,7 @@ function PodiumCard({ rep, rank, metric, delay }: { rep: Rep; rank: number; metr
 
       {/* Metric pill */}
       <div style={{
-        padding: '4px 12px', borderRadius: 99,
+        padding: '4px 12px', borderRadius: 'var(--radius-pill)',
         background: hovered ? rs.ring : rs.pillBg,
         color: hovered ? (isFirst ? '#7A5600' : '#fff') : rs.pillColor,
         fontSize: isFirst ? 13 : 11, fontWeight: 800,
@@ -595,7 +596,7 @@ function LeaderRow({ rep, rank, metric, maxVal, delay, isLast, expanded, onToggl
           width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
           background: avatarColor(rep.name),
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, fontWeight: 900, color: '#fff',
+          fontSize: 14, fontWeight: 900, color: 'var(--white)',
           boxShadow: rs ? `0 0 0 2px ${rs.ring}` : 'none',
           transition: 'transform 0.15s, box-shadow 0.15s',
           transform: hov ? 'scale(1.08)' : 'scale(1)',
@@ -652,19 +653,19 @@ function LeaderRow({ rep, rank, metric, maxVal, delay, isLast, expanded, onToggl
           borderBottom: isLast ? 'none' : '1px solid var(--gray3)',
         }}>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Ticket Médio</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Ticket Médio</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--black)' }}>{formatCurrency(rep.avgTicket)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Em negociação</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#7A5600' }}>{rep.activeLeads}</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Em negociação</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--warn-text)' }}>{rep.activeLeads}</div>
           </div>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Perdidos</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Perdidos</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--red)' }}>{rep.lostLeads}</div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 6 }}>Distribuição</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 6 }}>Distribuição</div>
             <BreakdownBar rep={rep} delay={0} />
           </div>
         </div>
@@ -678,30 +679,30 @@ function LeaderRow({ rep, rank, metric, maxVal, delay, isLast, expanded, onToggl
 function Skeleton() {
   return (
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-      <div style={{ flex: '0 0 300px', background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: 32, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 20 }}>
+      <div style={{ flex: '0 0 300px', background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', padding: 32, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 20 }}>
         {[70, 90, 58].map((s, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, paddingBottom: i === 1 ? 0 : 20 }}>
             <div className="shimmer-bar" style={{ width: s, height: s, borderRadius: '50%', background: 'var(--gray3)' }} />
-            <div className="shimmer-bar" style={{ width: 60, height: 10, borderRadius: 6, background: 'var(--gray3)' }} />
-            <div className="shimmer-bar" style={{ width: 52, height: 24, borderRadius: 99, background: 'var(--gray3)' }} />
+            <div className="shimmer-bar" style={{ width: 60, height: 10, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
+            <div className="shimmer-bar" style={{ width: 52, height: 24, borderRadius: 'var(--radius-pill)', background: 'var(--gray3)' }} />
           </div>
         ))}
       </div>
-      <div style={{ flex: 1, background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)' }}>
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)', borderRadius: '16px 16px 0 0' }}>
-          <div className="shimmer-bar" style={{ width: 120, height: 9, borderRadius: 6, background: 'var(--gray3)' }} />
+      <div style={{ flex: 1, background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)' }}>
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0' }}>
+          <div className="shimmer-bar" style={{ width: 120, height: 9, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
         </div>
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: i < 5 ? '1px solid var(--gray3)' : 'none' }}>
-            <div className="shimmer-bar" style={{ width: 20, height: 20, borderRadius: 4, background: 'var(--gray3)' }} />
+            <div className="shimmer-bar" style={{ width: 20, height: 20, borderRadius: 'var(--radius-xs)', background: 'var(--gray3)' }} />
             <div className="shimmer-bar" style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--gray3)' }} />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-              <div className="shimmer-bar" style={{ width: 110, height: 10, borderRadius: 6, background: 'var(--gray3)' }} />
-              <div className="shimmer-bar" style={{ width: '65%', height: 6, borderRadius: 99, background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: 110, height: 10, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: '65%', height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--gray3)' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
-              <div className="shimmer-bar" style={{ width: 60, height: 12, borderRadius: 6, background: 'var(--gray3)' }} />
-              <div className="shimmer-bar" style={{ width: 40, height: 9, borderRadius: 6, background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: 60, height: 12, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: 40, height: 9, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
             </div>
           </div>
         ))}
@@ -722,11 +723,11 @@ function StatCard({ label, value, accent, sub, dot }: {
       onMouseLeave={() => setHov(false)}
       style={{
         background: 'var(--white)', border: '1px solid var(--gray3)',
-        borderLeft: `4px solid ${accent}`, borderRadius: 12, padding: '16px 20px',
+        borderLeft: `4px solid ${accent}`, borderRadius: 'var(--radius-md)', padding: '16px 20px',
         cursor: 'default',
         transition: 'transform 0.22s ease, box-shadow 0.22s ease',
         transform: hov ? 'translateY(-3px) scale(1.01)' : 'translateY(0) scale(1)',
-        boxShadow: hov ? `0 8px 24px rgba(0,0,0,0.09), inset 0 0 0 1px ${accent}30` : 'var(--shadow)',
+        boxShadow: hov ? `0 8px 24px rgba(0,0,0,0.09), inset 0 0 0 1px color-mix(in srgb, ${accent} 19%, transparent)` : 'var(--shadow)',
         display: 'flex', flexDirection: 'column', gap: 6,
       }}
     >
@@ -804,7 +805,7 @@ export default function RankingPage() {
 
         {/* Metric + Period pills */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
             {([
               { key: 'revenue',    label: 'Receita' },
               { key: 'won',        label: 'Ganhos' },
@@ -812,7 +813,7 @@ export default function RankingPage() {
             ] as { key: Metric; label: string }[]).map(tab => (
               <button key={tab.key} onClick={() => { setMetric(tab.key); setExpandedRow(null) }}
                 style={{
-                  padding: '5px 14px', borderRadius: 100, border: 'none',
+                  padding: '5px 14px', borderRadius: 'var(--radius-pill)', border: 'none',
                   fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   transition: 'all .18s ease',
                   background: metric === tab.key ? 'var(--primary)' : 'transparent',
@@ -823,11 +824,11 @@ export default function RankingPage() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
             {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
               <button key={p} onClick={() => { setPeriod(p); setExpandedRow(null) }}
                 style={{
-                  padding: '5px 14px', borderRadius: 100, border: 'none',
+                  padding: '5px 14px', borderRadius: 'var(--radius-pill)', border: 'none',
                   fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   transition: 'all .18s ease',
                   background: period === p ? 'var(--primary)' : 'transparent',
@@ -861,7 +862,7 @@ export default function RankingPage() {
         {/* "Todos" pill */}
         <button
           onClick={() => { setSelectedTeam(null); setExpandedRow(null) }}
-          style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === null ? 'var(--primary)' : 'var(--gray3)'}`, background: selectedTeam === null ? 'var(--primary-dim)' : 'var(--white)', color: selectedTeam === null ? 'var(--primary-text)' : 'var(--gray)' }}
+          style={{ padding: '5px 14px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === null ? 'var(--primary)' : 'var(--gray3)'}`, background: selectedTeam === null ? 'var(--primary-dim)' : 'var(--white)', color: selectedTeam === null ? 'var(--primary-text)' : 'var(--gray)' }}
         >
           Todos
         </button>
@@ -871,7 +872,7 @@ export default function RankingPage() {
           <button
             key={t.id}
             onClick={() => { setSelectedTeam(t.id === selectedTeam ? null : t.id); setExpandedRow(null) }}
-            style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === t.id ? t.color : 'var(--gray3)'}`, background: selectedTeam === t.id ? `${t.color}18` : 'var(--white)', color: selectedTeam === t.id ? t.color : 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6 }}
+            style={{ padding: '5px 14px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === t.id ? t.color : 'var(--gray3)'}`, background: selectedTeam === t.id ? `${t.color}18` : 'var(--white)', color: selectedTeam === t.id ? t.color : 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.color, display: 'inline-block', flexShrink: 0 }} />
             {t.name}
@@ -882,7 +883,7 @@ export default function RankingPage() {
         {/* Manage button */}
         <button
           onClick={() => setTeamsModal(true)}
-          style={{ marginLeft: 'auto', padding: '5px 14px', borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--gray3)', background: 'var(--white)', color: 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s' }}
+          style={{ marginLeft: 'auto', padding: '5px 14px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--gray3)', background: 'var(--white)', color: 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s' }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--black)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--white)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--gray)' }}
         >
@@ -895,7 +896,7 @@ export default function RankingPage() {
       {isLoading ? (
         <Skeleton />
       ) : reps.length === 0 ? (
-        <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: 64, textAlign: 'center', color: 'var(--gray2)', fontSize: 14 }}>
+        <div style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', padding: 64, textAlign: 'center', color: 'var(--gray2)', fontSize: 14 }}>
           Nenhum lead com responsável encontrado no período.
         </div>
       ) : (
@@ -904,7 +905,7 @@ export default function RankingPage() {
           {/* ── Podium panel ───────────────────────────────── */}
           <div className="animate-slide-up delay-1" style={{
             flex: '0 0 460px',
-            background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)',
+            background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)',
             padding: '28px 24px 24px',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             position: 'relative', overflow: 'hidden',
@@ -925,14 +926,14 @@ export default function RankingPage() {
                 top: s.top, left: (s as any).left, right: (s as any).right,
                 width: s.size, height: s.size, borderRadius: '50%',
                 background: (s as any).color,
-                boxShadow: `0 0 ${s.size * 2}px ${(s as any).color}99`,
+                boxShadow: `0 0 ${s.size * 2}px color-mix(in srgb, ${(s as any).color} 60%, transparent)`,
                 animation: `floatBubble ${s.dur} ease-in-out ${s.delay} infinite`,
                 pointerEvents: 'none',
                 opacity: 0.75,
               }} />
             ))}
 
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--gray2)', marginBottom: 24, position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--gray2)', marginBottom: 24, position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
               <SparkleIcon size={9} /> Pódio
             </div>
 
@@ -945,7 +946,7 @@ export default function RankingPage() {
 
             {/* Decorative floor line */}
             <div style={{
-              width: '85%', height: 2, borderRadius: 99, marginTop: 20,
+              width: '85%', height: 2, borderRadius: 'var(--radius-pill)', marginTop: 20,
               background: 'linear-gradient(90deg, transparent, var(--gray3) 20%, var(--primary-mid) 50%, var(--gray3) 80%, transparent)',
             }} />
 
@@ -958,7 +959,7 @@ export default function RankingPage() {
           {/* ── Leaderboard panel ──────────────────────────── */}
           <div className="animate-slide-up delay-2" style={{
             flex: 1, minWidth: 0,
-            background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)',
+            background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)',
             overflow: 'hidden',
           }}>
             {/* Header */}
@@ -968,8 +969,8 @@ export default function RankingPage() {
               background: 'var(--bg)',
             }}>
               <div style={{ width: 28 }} />
-              <div style={{ flex: 1, fontSize: 9, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Vendedor</div>
-              <div style={{ width: 88, fontSize: 9, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'right' }}>
+              <div style={{ flex: 1, fontSize: 'var(--text-2xs)', fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Vendedor</div>
+              <div style={{ width: 88, fontSize: 'var(--text-2xs)', fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'right' }}>
                 {metric === 'revenue' ? 'Receita' : metric === 'won' ? 'Ganhos' : 'Conversão'}
               </div>
               <div style={{ width: 20 }} />
