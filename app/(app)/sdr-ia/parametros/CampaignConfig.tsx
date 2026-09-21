@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button'
 type Tom         = 'formal' | 'consultivo' | 'direto'
 type Status      = 'draft' | 'active' | 'paused'
 type N8nDelivery = { ok: boolean; status?: number; error?: string } | null
-type AreaId      = 'campanha' | 'teste-disparo' | 'avancado'
+type AreaId      = typeof AREA_IDS[number]
 
 interface Settings {
   tom:              Tom
@@ -62,8 +62,14 @@ const DIAS = [
   { num: 0, label: 'Dom' },
 ]
 
-const AREAS_KEY     = 'sdr-parametros-areas'
+const AREAS_KEY              = 'sdr-parametros-areas'
+const AREA_IDS               = ['campanha', 'teste-disparo', 'avancado'] as const
 const AREA_DEFAULT: AreaId[] = ['campanha']
+
+// Descarta ids que não existem mais (ex: 'ia-conteudo') salvos no localStorage
+function isAreaId(v: unknown): v is AreaId {
+  return typeof v === 'string' && (AREA_IDS as readonly string[]).includes(v)
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -185,7 +191,7 @@ export function CampaignConfig() {
       const raw = localStorage.getItem(AREAS_KEY)
       if (raw) {
         const arr = JSON.parse(raw) as unknown
-        if (Array.isArray(arr)) return new Set(arr as AreaId[])
+        if (Array.isArray(arr)) return new Set(arr.filter(isAreaId))
       }
     } catch {}
     return new Set(AREA_DEFAULT)
@@ -541,7 +547,7 @@ export function CampaignConfig() {
         </div>{/* /Sequência+Cadência grid */}
       </CollapsibleArea>
 
-      {/* ━━━ Área 5: Avançado ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* ━━━ Área 2: Avançado ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <CollapsibleArea
         id="avancado"
         title="Avançado"
