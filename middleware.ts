@@ -24,6 +24,7 @@ export default auth((req) => {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/webhooks/') ||
+    pathname.startsWith('/api/cron/') ||      // agendador externo; autentica via Bearer CRON_SECRET (lib/cron-auth.ts)
     pathname === '/api/sdr/blast/ack' ||    // server-to-server (n8n); autentica via Bearer próprio
     pathname === '/api/sdr/dispatch/ack'    // idem (ack do drip/campanha)
 
