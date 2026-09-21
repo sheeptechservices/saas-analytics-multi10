@@ -45,7 +45,8 @@ export function FunnelFilterPanel({
   }
 
   return createPortal(
-    <div ref={panelRef} style={{
+    // On phones the panel sits 16px from the right edge and never exceeds the screen width
+    <div ref={panelRef} className="max-w-[calc(100vw-32px)] max-md:right-4!" style={{
       position: 'fixed',
       top,
       right,
@@ -74,7 +75,7 @@ export function FunnelFilterPanel({
         {allStages.map(s => {
           const active = visible.has(s.id)
           return (
-            <button key={s.id} onClick={() => toggle(s.id)} style={{
+            <button key={s.id} onClick={() => toggle(s.id)} className="max-md:min-h-10" style={{
               padding: '5px 11px', borderRadius: 99, fontSize: 11, fontWeight: 600,
               background: active ? `${s.color}18` : 'var(--bg)',
               border: `1.5px solid ${active ? s.color : 'var(--gray3)'}`,

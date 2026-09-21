@@ -434,6 +434,38 @@
 }
 
 /* ============================================================
+   RESPONSIVO — toque no celular (abaixo do md do Tailwind, 768px)
+   ------------------------------------------------------------
+   Layout que muda com a largura da tela sai de classe responsiva
+   (md:, max-md:) no próprio componente, nunca de useIsMobile + estilo
+   em linha: o servidor não sabe a largura da tela e o primeiro quadro
+   do celular sairia com o layout de desktop.
+
+   Aqui ficam só as regras que valem para o produto inteiro. O corte é
+   o mesmo de useIsMobile (lib/hooks/useMediaQuery.ts). Ficam na camada
+   base para que uma classe utilitária no componente ainda possa vencê-las.
+   ============================================================ */
+@layer base {
+  @media (max-width: 767px) {
+    /* O iOS dá zoom na tela ao focar um campo com fonte abaixo de 16px.
+       O !important é a exceção consciente à regra da casa: o legado escreve
+       fontSize em linha nos campos, e só assim a folha vence o inline. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+
+    /* Alvo de toque mínimo de 40px para campo, seleção e botão do legado. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
+    select,
+    .btn {
+      min-height: 40px;
+    }
+  }
+}
+
+/* ============================================================
    LEGADO — REMOVER NO PASSO 12
    ------------------------------------------------------------
    Tudo abaixo é o sistema anterior, mantido só enquanto existir tela não

@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
-import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -22,7 +21,11 @@ export interface DataTableProps {
   onRowClick?: (row: Record<string, unknown>) => void
   emptyMessage?: string
   maxHeight?: number
-  /** Mobile rendering strategy. Defaults to 'cards'. Only affects < 768px. */
+  /**
+   * Rendering below the lg breakpoint (1024px) — phones and tablets, where the
+   * table may not fit beside the sidebar. Defaults to 'cards'. Decided by CSS,
+   * not JS: both versions ship in the HTML and each width shows one.
+   */
   mobileMode?: 'cards' | 'scroll'
   /** Column key whose value uniquely identifies a row. Used to stabilise animation keys so re-sort doesn't re-trigger the cascade. */
   rowKey?: string
@@ -43,7 +46,6 @@ export function DataTable({
 }: DataTableProps) {
   const [sortCol, setSortCol] = useState<string>(defaultSortKey ?? columns[0]?.key ?? '')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir)
-  const isMobile = useIsMobile()
 
   function handleSort(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -62,7 +64,7 @@ export function DataTable({
     return sortDir === 'asc' ? cmp : -cmp
   })
 
-  // ── Shared table JSX (desktop + scroll-mode mobile) ───────────────────────
+  // ── Shared table JSX (desktop + scroll mode) ──────────────────────────────
 
   const thead = (
     <thead>
@@ -126,125 +128,131 @@ export function DataTable({
     </tbody>
   )
 
-  // ── Mobile: cards ─────────────────────────────────────────────────────────
+  // Cards vs table is decided by CSS (lg:), not by useIsMobile: the server
+  // doesn't know the screen, so a phone would get the wide table on first paint
+  // and only swap after hydration. Both ship in the HTML; each width shows one.
+  // The cut is lg, not md: on a tablet with the sidebar open the table doesn't
+  // fit and the card around it clips the overflow.
 
-  if (isMobile && mobileMode === 'cards') {
-    const sortableCols = columns.filter(c => c.sortable !== false)
-    const firstCol = columns[0]
-    const restCols = columns.slice(1)
+  // ── Desktop (and scroll mode): table ──────────────────────────────────────
 
-    return (
-      <div>
-        {/* Sort chips */}
-        {sortableCols.length > 0 && (
-          <div style={{
-            display: 'flex', gap: 6, overflowX: 'auto',
-            paddingBottom: 8, marginBottom: 12,
-          }}>
-            {sortableCols.map(col => {
-              const active = sortCol === col.key
-              return (
-                <button
-                  key={col.key}
-                  onClick={() => handleSort(col.key)}
-                  style={{
-                    flexShrink: 0, padding: '5px 10px', borderRadius: 100,
-                    fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap', transition: 'all .15s',
-                    border: `1px solid ${active ? 'var(--primary)' : 'var(--gray3)'}`,
-                    background: active ? 'var(--primary-dim)' : 'var(--white)',
-                    color: active ? 'var(--primary-text)' : 'var(--gray)',
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {col.label}
-                  {active && (sortDir === 'asc' ? <ChevronUp size={9} /> : <ChevronDown size={9} />)}
-                </button>
-              )
-            })}
-          </div>
-        )}
+  // In 'cards' mode the table hides below lg. With maxHeight the box already
+  // scrolls on both axes; without it, 'scroll' mode gets a sideways-scrolling
+  // wrapper. The default desktop table gains no extra node either way.
+  const hideOnMobile = mobileMode === 'cards' ? 'max-lg:hidden' : undefined
 
-        {/* Empty state */}
-        {sorted.length === 0 ? (
-          <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-            {emptyMessage}
-          </div>
-        ) : sorted.map((row, i) => {
-          const firstVal = firstCol ? row[firstCol.key] : undefined
-          const firstDisplay = firstCol?.format
-            ? firstCol.format(firstVal)
-            : String(firstVal ?? '—')
-
-          return (
-            <div
-              key={rowKey ? String(row[rowKey]) : i}
-              className="row-cascade"
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              style={{
-                '--row-delay': `${Math.min(i, 9) * 40}ms`,
-                background: 'var(--white)', border: '1px solid var(--line)',
-                borderRadius: 12, padding: 14, marginBottom: 10,
-                boxShadow: 'var(--shadow-md)',
-                cursor: onRowClick ? 'pointer' : 'default',
-              } as React.CSSProperties}
-            >
-              <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--black)', marginBottom: restCols.length ? 10 : 0 }}>
-                {firstDisplay}
-              </div>
-
-              {restCols.map(col => {
-                const value = row[col.key]
-                const display = col.format ? col.format(value) : String(value ?? '—')
-                return (
-                  <div
-                    key={col.key}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}
-                  >
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--gray2)' }}>
-                      {col.label}
-                    </span>
-                    <span style={{ fontSize: 13, fontWeight: col.align === 'right' ? 800 : 600, color: col.align === 'right' ? 'var(--green)' : 'var(--black)', fontVariantNumeric: col.align === 'right' ? 'tabular-nums' : undefined }}>
-                      {display}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // ── Mobile: scroll ────────────────────────────────────────────────────────
-
-  if (isMobile && mobileMode === 'scroll') {
-    const inner = maxHeight
-      ? <div style={{ maxHeight, overflowY: 'auto', borderRadius: 8 }}><table style={{ width: '100%', borderCollapse: 'collapse' }}>{thead}{tbody}</table></div>
-      : <table style={{ width: '100%', borderCollapse: 'collapse' }}>{thead}{tbody}</table>
-    return <div style={{ overflowX: 'auto' }}>{inner}</div>
-  }
-
-  // ── Desktop: original table ───────────────────────────────────────────────
-
-  if (maxHeight) {
-    return (
-      <div style={{ maxHeight, overflowY: 'auto', borderRadius: 8 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          {thead}
-          {tbody}
-        </table>
-      </div>
-    )
-  }
-
-  return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+  const tableEl = (
+    <table className={maxHeight ? undefined : hideOnMobile} style={{ width: '100%', borderCollapse: 'collapse' }}>
       {thead}
       {tbody}
     </table>
+  )
+
+  const table = maxHeight
+    ? <div className={hideOnMobile} style={{ maxHeight, overflowY: 'auto', borderRadius: 8 }}>{tableEl}</div>
+    : mobileMode === 'cards'
+      ? tableEl
+      : <div className="overflow-x-auto">{tableEl}</div>
+
+  if (mobileMode !== 'cards') return table
+
+  // ── Phones and tablets: cards ─────────────────────────────────────────────
+
+  const sortableCols = columns.filter(c => c.sortable !== false)
+  const firstCol = columns[0]
+  const restCols = columns.slice(1)
+
+  const cards = (
+    <div className="p-3 lg:hidden">
+      {/* Sort chips */}
+      {sortableCols.length > 0 && (
+        <div style={{
+          display: 'flex', gap: 6, overflowX: 'auto',
+          paddingBottom: 8, marginBottom: 12,
+        }}>
+          {sortableCols.map(col => {
+            const active = sortCol === col.key
+            return (
+              <button
+                key={col.key}
+                onClick={() => handleSort(col.key)}
+                className="min-h-10"
+                style={{
+                  flexShrink: 0, padding: '5px 10px', borderRadius: 100,
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  whiteSpace: 'nowrap', transition: 'all .15s',
+                  border: `1px solid ${active ? 'var(--primary)' : 'var(--gray3)'}`,
+                  background: active ? 'var(--primary-dim)' : 'var(--white)',
+                  color: active ? 'var(--primary-text)' : 'var(--gray)',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {col.label}
+                {active && (sortDir === 'asc' ? <ChevronUp size={9} /> : <ChevronDown size={9} />)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {sorted.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
+          {emptyMessage}
+        </div>
+      ) : sorted.map((row, i) => {
+        const firstVal = firstCol ? row[firstCol.key] : undefined
+        const firstDisplay = firstCol?.format
+          ? firstCol.format(firstVal)
+          : String(firstVal ?? '—')
+
+        return (
+          <div
+            key={rowKey ? String(row[rowKey]) : i}
+            className="row-cascade"
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            style={{
+              '--row-delay': `${Math.min(i, 9) * 40}ms`,
+              background: 'var(--white)', border: '1px solid var(--line)',
+              borderRadius: 12, padding: 14, marginBottom: 10,
+              boxShadow: 'var(--shadow-md)',
+              cursor: onRowClick ? 'pointer' : 'default',
+            } as React.CSSProperties}
+          >
+            <div className="wrap-break-word" style={{ fontWeight: 800, fontSize: 15, color: 'var(--black)', marginBottom: restCols.length ? 10 : 0 }}>
+              {firstDisplay}
+            </div>
+
+            {restCols.map(col => {
+              const value = row[col.key]
+              const display = col.format ? col.format(value) : String(value ?? '—')
+              return (
+                <div
+                  key={col.key}
+                  className="gap-3"
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}
+                >
+                  <span className="shrink-0" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--gray2)' }}>
+                    {col.label}
+                  </span>
+                  <span className="min-w-0 text-right wrap-break-word" style={{ fontSize: 13, fontWeight: col.align === 'right' ? 800 : 600, color: col.align === 'right' ? 'var(--green)' : 'var(--black)', fontVariantNumeric: col.align === 'right' ? 'tabular-nums' : undefined }}>
+                    {display}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  return (
+    <>
+      {cards}
+      {table}
+    </>
   )
 }
 

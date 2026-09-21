@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { cn } from '@/lib/utils'
 
 interface SkeletonProps {
   width?:   number | string
@@ -96,10 +97,20 @@ export function SkeletonSessionList({ items = 6 }: { items?: number }) {
   )
 }
 
-// KPI card skeletons for dashboard
+// KPI card skeletons for dashboard. Columns come from static classes (Tailwind
+// only generates what is spelled out in the code): 1 on phones, 2 from sm to lg,
+// `count` on desktop.
+const KPI_COLS_LG: Record<number, string> = {
+  1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3',
+  4: 'lg:grid-cols-4', 5: 'lg:grid-cols-5', 6: 'lg:grid-cols-6',
+}
+
 export function SkeletonKpiCards({ count = 4 }: { count?: number }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))`, gap: 14, marginBottom: 24 }}>
+    <div
+      className={cn('grid grid-cols-1', count > 1 && 'sm:grid-cols-2', KPI_COLS_LG[count] ?? 'lg:grid-cols-4')}
+      style={{ gap: 14, marginBottom: 24 }}
+    >
       {Array.from({ length: count }, (_, i) => (
         <div key={i} style={{
           background: 'var(--white)', borderRadius: 16,

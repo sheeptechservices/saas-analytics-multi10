@@ -34,7 +34,9 @@ export function DonutChart({ slices, ready, centerLabel = 'leads' }: DonutChartP
   const hovSeg = hov ? segments.find(s => s.id === hov) : null
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+    // In a narrow card the legend wraps below the ring (flex-wrap + 160px basis);
+    // with room to spare it fills the rest of the row as before.
+    <div className="flex-wrap justify-center" style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
       <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
         <svg width="130" height="130" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r={r} fill="none" stroke="var(--gray3)" strokeWidth={SW} />
@@ -66,7 +68,7 @@ export function DonutChart({ slices, ready, centerLabel = 'leads' }: DonutChartP
           )}
         </div>
       </div>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {segments.map(s => (
           <div key={s.id}
             onMouseEnter={() => setHov(s.id)}

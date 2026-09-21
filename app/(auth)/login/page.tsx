@@ -3,11 +3,9 @@ import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { greeting } from '@/lib/utils'
-import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 export default function LoginPage() {
   const router = useRouter()
-  const isMobile = useIsMobile()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -35,11 +33,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', minHeight: '100vh' }}>
+    // No celular fica só o formulário: o painel escuro some pelo CSS, já no HTML do servidor
+    <div className="grid min-h-dvh grid-cols-1 md:grid-cols-2">
       {/* Painel esquerdo escuro */}
-      <div style={{
+      <div className="hidden md:flex" style={{
         background: 'var(--black)',
-        display: isMobile ? 'none' : 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         padding: '48px',
@@ -72,9 +70,9 @@ export default function LoginPage() {
       </div>
 
       {/* Painel direito — formulário */}
-      <div style={{
+      <div className="px-5 py-8 md:p-12" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: isMobile ? '32px 20px' : '48px', background: 'var(--bg)',
+        background: 'var(--bg)',
       }}>
         <div style={{ width: '100%', maxWidth: 380 }}>
           <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em', marginBottom: 6 }}>

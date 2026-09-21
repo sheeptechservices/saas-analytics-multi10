@@ -5,22 +5,21 @@ import { Menu } from 'lucide-react'
 import { initials } from '@/lib/utils'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
-import { useSidebar } from '@/stores/sidebarStore'
-import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 
 interface TopbarProps {
   userName: string
   userRole: string
   brandName: string
   logoUrl: string | null
+  /** Opens/closes the sidebar: drawer on phones, grid column on desktop (decided in AppShell). */
+  onToggleSidebar: () => void
+  sidebarOpen: boolean
 }
 
-export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) {
+export function Topbar({ userName, userRole, brandName, logoUrl, onToggleSidebar, sidebarOpen }: TopbarProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const { primaryColor, brandName: storeBrandName, logoUrl: storeLogoUrl } = useWhiteLabel()
-  const { toggle } = useSidebar()
   const { name: storeUserName, photoUrl: storeUserPhoto } = useUser()
-  const isMobile = useIsMobile()
   const displayUserName = storeUserName || userName
   const [photoError, setPhotoError] = useState(false)
   useEffect(() => { setPhotoError(false) }, [storeUserPhoto])
@@ -31,26 +30,32 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
   const roleLabels: Record<string, string> = { admin: 'Administrador', manager: 'Gerente', user: 'Usuário' }
 
   return (
-    <header style={{
-      gridColumn: '1 / -1',
-      background: 'var(--white)',
-      borderBottom: '1px solid var(--gray3)',
-      padding: isMobile ? '0 14px' : '0 28px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      position: 'sticky',
-      top: 0,
-      zIndex: 200,
-      height: 60,
-    }}>
+    <header
+      className="px-3.5 md:px-7"
+      style={{
+        gridColumn: '1 / -1',
+        background: 'var(--white)',
+        borderBottom: '1px solid var(--gray3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 200,
+        height: 60,
+      }}
+    >
       {/* Sidebar toggle + Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
-          onClick={toggle}
+          onClick={onToggleSidebar}
           title="Alternar sidebar"
+          aria-label="Alternar sidebar"
+          aria-controls="app-sidebar"
+          aria-expanded={sidebarOpen}
+          className="size-10 md:size-[30px]"
           style={{
-            width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer',
+            borderRadius: 8, border: 'none', cursor: 'pointer',
             background: 'transparent', color: 'var(--gray2)', display: 'flex',
             alignItems: 'center', justifyContent: 'center',
             flexShrink: 0, transition: 'background .15s, color .15s',
@@ -62,25 +67,25 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
         </button>
 
         {displayLogo ? (
-          <img src={displayLogo} alt={displayName} style={{ height: 28, width: 'auto', borderRadius: 6 }} />
+          <img src={displayLogo} alt={displayName} className="max-md:max-w-24 max-md:object-contain" style={{ height: 28, width: 'auto', borderRadius: 6 }} />
         ) : (
           <div style={{
             width: 28, height: 28, background: 'var(--primary)', borderRadius: 6,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 13, fontWeight: 800, color: 'var(--primary-contrast)',
+            flexShrink: 0,
           }}>{displayName.charAt(0).toUpperCase()}</div>
         )}
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>{displayName}</div>
-          {!isMobile && (
-            <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>Analytics · Insights · IA</div>
-          )}
+        <div className="min-w-0">
+          <div className="max-md:truncate" title={displayName} style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>{displayName}</div>
+          <div className="hidden md:block" style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>Analytics · Insights · IA</div>
         </div>
       </div>
 
       {/* Right */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
-        <span style={{
+        {/* The role also shows in the avatar menu; on phones the brand name needs the room */}
+        <span className="hidden sm:inline" style={{
           fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 100,
           background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
           color: 'var(--primary-text)',
@@ -91,8 +96,9 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
         <div style={{ position: 'relative' }}>
           <div
             onClick={() => setMenuOpen(!menuOpen)}
+            className="size-10 md:size-[34px]"
             style={{
-              width: 34, height: 34, borderRadius: 100, background: 'var(--primary)',
+              borderRadius: 100, background: 'var(--primary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 800, color: 'var(--primary-contrast)', cursor: 'pointer',
               overflow: 'hidden',
@@ -116,8 +122,8 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
                 style={{ position: 'fixed', inset: 0, zIndex: 299 }}
                 onClick={() => setMenuOpen(false)}
               />
-              <div style={{
-                position: 'absolute', top: 42, right: 0,
+              <div className="top-12 md:top-[42px]" style={{
+                position: 'absolute', right: 0,
                 background: 'var(--white)', border: '1px solid var(--gray3)',
                 borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                 zIndex: 300, minWidth: 160, overflow: 'hidden',
@@ -134,6 +140,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl }: TopbarProps) 
                 </div>
                 <button
                   onClick={() => signOut({ callbackUrl: '/login' })}
+                  className="max-md:min-h-10"
                   style={{
                     width: '100%', padding: '9px 14px', fontSize: 13, fontWeight: 600,
                     color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer',

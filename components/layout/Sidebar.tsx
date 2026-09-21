@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { LayoutGrid, BarChart3, MessageSquare, Settings, Send } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
 import { useModules } from '@/components/ModulesProvider'
-import { useIsMobile } from '@/lib/hooks/useMediaQuery'
+import { cn } from '@/lib/utils'
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
@@ -62,12 +62,17 @@ const navItems: NavGroup[] = [
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Phone drawer (< md). On desktop the store is in charge. */
+  drawerOpen: boolean
+  onNavigate: () => void
+}
+
+export function Sidebar({ drawerOpen, onNavigate }: SidebarProps) {
   const pathname = usePathname()
   const { open, pinned, setPinned, setOpen } = useSidebar()
   const modules = useModules()
-  const isMobile = useIsMobile()
-  const overlay = !pinned || isMobile
+  const overlay = !pinned
 
   function isItemVisible(href: string): boolean {
     if (href === '/settings')          return true
@@ -78,29 +83,38 @@ export function Sidebar() {
     return true
   }
 
+  // Below md it is always a fixed drawer driven by drawerOpen, with no
+  // transition: it opens and closes in the same frame. From md up it behaves as
+  // it always did — in the grid when pinned, sliding drawer when unpinned, both
+  // driven by the store's `open`.
+  const asideClass = cn(
+    'fixed left-0 top-[60px] z-[300] h-[calc(100dvh-60px)] overflow-y-auto shadow-[4px_0_20px_rgba(0,0,0,0.12)]',
+    drawerOpen ? 'translate-x-0' : '-translate-x-full invisible',
+    overlay
+      ? cn(
+          'md:transition-[translate] md:duration-250 md:ease-[cubic-bezier(0.4,0,0.2,1)]',
+          open ? 'md:translate-x-0 md:visible' : 'md:-translate-x-full md:visible',
+        )
+      : cn(
+          'md:static md:z-auto md:h-auto md:shadow-none md:translate-none',
+          open ? 'md:visible' : 'md:invisible md:overflow-y-hidden',
+        ),
+  )
+
   return (
-    <aside style={{
-      background: 'var(--white)',
-      borderRight: '1px solid var(--gray3)',
-      padding: '20px 0',
-      display: 'flex',
-      flexDirection: 'column',
-      overflowX: 'hidden',
-      overflowY: !overlay && !open ? 'hidden' : 'auto',
-      width: 220,
-      visibility: !overlay && !open ? 'hidden' : 'visible',
-      // overlay mode (unpinned or mobile): fixed drawer; normal mode: grid flow
-      ...(overlay ? {
-        position: 'fixed',
-        left: 0,
-        top: 60,
-        height: 'calc(100vh - 60px)',
-        zIndex: 300,
-        boxShadow: '4px 0 20px rgba(0,0,0,0.12)',
-        transform: open ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
-      } : {}),
-    }}>
+    <aside
+      id="app-sidebar"
+      className={asideClass}
+      style={{
+        background: 'var(--white)',
+        borderRight: '1px solid var(--gray3)',
+        padding: '20px 0',
+        display: 'flex',
+        flexDirection: 'column',
+        overflowX: 'hidden',
+        width: 220,
+      }}
+    >
       {navItems.map((group) => {
         const visibleItems = group.items.filter(item => isItemVisible(item.href))
         if (visibleItems.length === 0) return null
@@ -124,7 +138,8 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={href}
-                onClick={() => { if (overlay) setOpen(false) }}
+                onClick={() => { onNavigate(); if (overlay) setOpen(false) }}
+                className="max-md:min-h-10"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 20px', fontSize: 13, fontWeight: 600,
