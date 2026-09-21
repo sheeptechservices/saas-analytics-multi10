@@ -1,17 +1,26 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { Clock, ArrowRight, ArrowUp, ArrowDown } from 'lucide-react'
+import { Chip, ChipGroup } from '@/components/ui/Chip'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface FunnelStage {
   id: string
   name: string
-  color: string
   count: number
+  /** Legado: cor por etapa. O funil em escala de tinta não usa mais cor por
+      etapa (as 6 cores antigas não tinham significado); mantido opcional só
+      para não quebrar quem ainda passa. */
+  color?: string
   avgDays?: number | null
+  /** Como esta etapa é citada na taxa da etapa seguinte — "dos leads",
+      "das respostas". Sem ele, cai em "de <nome da etapa>". */
+  ratioLabel?: string
 }
+
+const nf = new Intl.NumberFormat('pt-BR')
 
 // ─── FunnelFilterPanel ───────────────────────────────────────────────────────
 
@@ -34,9 +43,15 @@ export function FunnelFilterPanel({
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose()
     }
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    setTimeout(() => { document.addEventListener('mousedown', h); window.addEventListener('keydown', k) }, 10)
-    return () => { document.removeEventListener('mousedown', h); window.removeEventListener('keydown', k) }
+    const t = setTimeout(() => { document.addEventListener('mousedown', h); window.addEventListener('keydown', k) }, 10)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', h); window.removeEventListener('keydown', k) }
   }, [onClose])
+
+  // O painel vive num portal no fim do <body>: sem levar o foco até ele, quem
+  // navega por teclado nunca o alcançaria pelo Tab.
+  useEffect(() => {
+    panelRef.current?.querySelector<HTMLElement>('.chip')?.focus()
+  }, [])
 
   const toggle = (id: string) => {
     const next = new Set(visible)
@@ -44,52 +59,52 @@ export function FunnelFilterPanel({
     onChange(next)
   }
 
+  const textBtn: CSSProperties = {
+    fontFamily: 'inherit', fontSize: 'var(--text-xs)', fontWeight: 700,
+    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+  }
+
   return createPortal(
-    <div ref={panelRef} style={{
-      position: 'fixed',
-      top,
-      right,
-      zIndex: 9999,
-      background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14,
-      boxShadow: '0 8px 40px rgba(0,0,0,0.16)', padding: 16, width: 360,
-      animation: 'fadeIn .15s ease both',
-    }}>
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-label="Etapas visíveis"
+      style={{
+        position: 'fixed',
+        top,
+        right,
+        zIndex: 9999,
+        background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--shadow-menu)', padding: 16,
+        width: 360, maxWidth: 'calc(100vw - 24px)',
+        animation: 'fadeIn .15s ease both',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--black)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: 'var(--ink)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
           Etapas visíveis
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => onChange(new Set(allStages.map(s => s.id)))}
-            style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary-text)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" onClick={() => onChange(new Set(allStages.map(s => s.id)))}
+            style={{ ...textBtn, color: 'var(--primary-text)' }}>
             Todas
           </button>
-          <span style={{ color: 'var(--gray3)' }}>·</span>
-          <button onClick={() => { const first = allStages[0]; if (first) onChange(new Set([first.id])) }}
-            style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray2)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <span aria-hidden style={{ color: 'var(--line)' }}>·</span>
+          <button type="button" onClick={() => { const first = allStages[0]; if (first) onChange(new Set([first.id])) }}
+            style={{ ...textBtn, color: 'var(--muted)' }}>
             Limpar
           </button>
         </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
-        {allStages.map(s => {
-          const active = visible.has(s.id)
-          return (
-            <button key={s.id} onClick={() => toggle(s.id)} style={{
-              padding: '5px 11px', borderRadius: 99, fontSize: 11, fontWeight: 600,
-              background: active ? `${s.color}18` : 'var(--bg)',
-              border: `1.5px solid ${active ? s.color : 'var(--gray3)'}`,
-              color: active ? s.color : 'var(--gray2)',
-              cursor: 'pointer', transition: 'all .15s ease',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: active ? s.color : 'var(--gray3)', flexShrink: 0, transition: 'background .15s' }} />
-              {s.name}
-              <span style={{ fontSize: 10, opacity: 0.7 }}>{s.count}</span>
-            </button>
-          )
-        })}
-      </div>
-      <div style={{ marginTop: 10, fontSize: 10, color: 'var(--gray2)', fontWeight: 500 }}>
+      <ChipGroup label="Etapas do funil" style={{ maxHeight: 240, overflowY: 'auto' }}>
+        {allStages.map(s => (
+          <Chip key={s.id} active={visible.has(s.id)} onClick={() => toggle(s.id)}>
+            {s.name}
+            <span className="tabular-nums" style={{ fontSize: 'var(--text-2xs)', opacity: 0.7 }}>{nf.format(s.count)}</span>
+          </Chip>
+        ))}
+      </ChipGroup>
+      <div style={{ marginTop: 10, fontSize: 'var(--text-2xs)', color: 'var(--muted)', fontWeight: 500 }}>
         {visible.size} de {allStages.length} etapas visíveis · ordenação padrão do Kommo
       </div>
     </div>,
@@ -97,223 +112,95 @@ export function FunnelFilterPanel({
   )
 }
 
-// ─── FunnelChart (HorizontalFunnel) ──────────────────────────────────────────
-
-const MIN_SEG_PX    = 72
-const MIN_METRIC_PX = 160
+// ─── FunnelChart ─────────────────────────────────────────────────────────────
+//
+// Uma linha por etapa (nome · barra · contagem) e, abaixo de cada etapa a
+// partir da segunda, a taxa sobre a etapa anterior visível ("38% dos
+// contatados") — a conversão é a pergunta real, não só a contagem.
+// Barra em tinta com opacidade decrescente (1 − i × 0,11), no lugar das cores
+// por etapa. A largura cresce na entrada quando `ready` vira true (CSS
+// .bar-grow-x, que respeita prefers-reduced-motion).
 
 export interface FunnelChartProps {
   allStages: FunnelStage[]
   stages: FunnelStage[]
   visible: Set<string>
   ready: boolean
-  /** Singular unit shown in the tooltip (e.g. 'lead'). Pluralised automatically. */
+  /** Unidade no singular, para o texto acessível da contagem (ex.: 'lead'). */
   unit?: string
 }
 
+/** Piso de opacidade: funis do Kommo podem ter muito mais que 6 etapas. */
+const MIN_OPACITY = 0.25
+
 export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }: FunnelChartProps) {
-  const [hov, setHov] = useState<number | null>(null)
-
   const filteredStages = stages.filter(s => visible.has(s.id))
-  if (!filteredStages.length) return null
 
-  const N = filteredStages.length
-  const H = 100
-  const W = 1000
-  const SEG_W = W / N
+  if (!filteredStages.length) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: 120, fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--muted)', textAlign: 'center',
+      }}>
+        Sem dados de funil no período
+      </div>
+    )
+  }
+
   const maxCount = Math.max(...filteredStages.map(s => s.count), 1)
-
-  const segs = filteredStages.map((stage, i) => {
-    const lh = Math.max((stage.count / maxCount) * H, 4)
-    const next = filteredStages[i + 1]
-    const rh = next ? Math.max((next.count / maxCount) * H, 4) : lh
-    const x = i * SEG_W
-    const lt = (H - lh) / 2
-    const lb = (H + lh) / 2
-    const rt = (H - rh) / 2
-    const rb = (H + rh) / 2
-    const dropPct = next
-      ? Math.round(((next.count - stage.count) / Math.max(stage.count, 1)) * 100)
-      : null
-    const convPct = next
-      ? Math.round((next.count / Math.max(stage.count, 1)) * 100)
-      : null
-    return { ...stage, i, x, lt, lb, rt, rb, dropPct, convPct }
-  })
-
-  const hiddenCount = allStages.length - visible.size
+  const hiddenCount = allStages.filter(s => !visible.has(s.id)).length
 
   return (
-    <div>
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 600 }}>
-          {N} etapa{N !== 1 ? 's' : ''} exibida{N !== 1 ? 's' : ''}
-          {hiddenCount > 0 && <span style={{ marginLeft: 6, color: '#7A5600', fontWeight: 700 }}>+{hiddenCount} oculta{hiddenCount !== 1 ? 's' : ''}</span>}
-        </div>
-      </div>
-
-      <div style={{ overflowX: 'auto', overflowY: 'visible', marginLeft: -4, marginRight: -4, paddingBottom: 8 }}>
-        <div style={{ minWidth: Math.max(400, N * MIN_METRIC_PX), paddingLeft: 4, paddingRight: 4 }}>
-
-          <div style={{ position: 'relative' }}>
-            <svg
-              viewBox={`0 0 ${W} ${H}`}
-              preserveAspectRatio="none"
-              style={{
-                width: '100%', height: 80, display: 'block',
-                opacity: ready ? 1 : 0,
-                transform: ready ? 'scaleX(1)' : 'scaleX(0.94)',
-                transformOrigin: 'left center',
-                transition: 'opacity 0.65s ease, transform 0.75s cubic-bezier(0.22,1,0.36,1)',
-              }}
-            >
-              <defs>
-                {segs.map(seg => (
-                  <linearGradient key={seg.id} id={`hf-${seg.id}`} x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={seg.color} stopOpacity="0.92" />
-                    <stop offset="100%" stopColor={seg.color} stopOpacity="0.70" />
-                  </linearGradient>
-                ))}
-              </defs>
-              {segs.map((seg, i) => {
-                const gap = i > 0 ? 2 : 0
-                return (
-                  <polygon
-                    key={seg.id}
-                    points={`${seg.x + gap},${seg.lt} ${seg.x + SEG_W},${seg.rt} ${seg.x + SEG_W},${seg.rb} ${seg.x + gap},${seg.lb}`}
-                    fill={`url(#hf-${seg.id})`}
-                    style={{
-                      opacity: hov !== null && hov !== i ? 0.28 : 1,
-                      transition: 'opacity 0.18s ease',
-                      cursor: 'default',
-                      filter: hov === i ? `drop-shadow(0 2px 8px ${seg.color}66)` : 'none',
-                    }}
-                    onMouseEnter={() => setHov(i)}
-                    onMouseLeave={() => setHov(null)}
+    <div data-ready={ready}>
+      <ol className="funnel-list">
+        {filteredStages.map((stage, i) => {
+          const prev = i > 0 ? filteredStages[i - 1] : null
+          const pct = (stage.count / maxCount) * 100
+          const growTo = stage.count > 0 ? `max(2px, ${pct.toFixed(2)}%)` : '0px'
+          // Divisão por zero: sem base na etapa anterior, não há taxa a mostrar.
+          const rate = prev && prev.count > 0 ? Math.round((stage.count / prev.count) * 100) : null
+          const opacity = Math.max(1 - i * 0.11, MIN_OPACITY)
+          return (
+            <li key={stage.id}>
+              <div className="funnel-row" style={{ padding: '5px 0' }}>
+                <span title={stage.name} style={{
+                  fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--ink-2)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {stage.name}
+                </span>
+                <div className="funnel-track" aria-hidden>
+                  <div
+                    className="funnel-bar bar-grow-x"
+                    style={{ '--grow-to': growTo, opacity } as CSSProperties}
                   />
-                )
-              })}
-            </svg>
-
-            {hov !== null && segs[hov] && (
-              <div style={{
-                position: 'absolute',
-                left: `${((segs[hov].x + SEG_W / 2) / W) * 100}%`,
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
-                background: 'rgba(18,19,22,0.82)',
-                color: '#fff',
-                borderRadius: 8,
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 800,
-                pointerEvents: 'none',
-                whiteSpace: 'nowrap',
-                animation: 'fadeIn 0.12s ease both',
-                zIndex: 10,
-                backdropFilter: 'blur(4px)',
-              }}>
-                <div style={{ fontWeight: 700, marginBottom: 1, opacity: 0.7, fontSize: 10 }}>{segs[hov].name}</div>
-                <div>{segs[hov].count} {unit}{segs[hov].count !== 1 ? 's' : ''}</div>
-                {segs[hov].avgDays != null && (
-                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.75, marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <Clock size={11} /> {segs[hov].avgDays} dias médios
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', marginTop: 10 }}>
-            {segs.map((seg, i) => {
-              const dropColor = seg.dropPct === null ? 'var(--gray2)'
-                : seg.dropPct < 0 ? 'var(--red)'
-                : seg.dropPct > 0 ? 'var(--green)'
-                : 'var(--gray2)'
-              const DropArrow = seg.dropPct === null || seg.dropPct === 0 ? ArrowRight : seg.dropPct > 0 ? ArrowUp : ArrowDown
-              const badgeBg   = seg.dropPct === null ? 'transparent'
-                : seg.dropPct < 0 ? 'rgba(217,48,37,0.08)'
-                : seg.dropPct > 0 ? 'rgba(30,138,62,0.08)'
-                : 'var(--bg)'
-              const showPct = i < filteredStages.length - 1 && seg.dropPct !== null
-              const isHov = hov === i
-              return (
-                <div
-                  key={seg.id}
-                  style={{
-                    flex: 1, minWidth: MIN_METRIC_PX,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    padding: '0 8px 0 4px',
-                  }}
-                  onMouseEnter={() => setHov(i)}
-                  onMouseLeave={() => setHov(null)}
-                >
-                  <div title={seg.name} style={{
-                    fontSize: 10, fontWeight: isHov ? 700 : 500,
-                    color: isHov ? seg.color : 'var(--gray)',
-                    transition: 'color 0.15s',
-                    width: '100%', textAlign: 'center',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {seg.name}
-                  </div>
-
-                  <div style={{
-                    display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', gap: 6,
-                    marginTop: 2,
-                  }}>
-                    <span style={{
-                      fontSize: 15, fontWeight: 800,
-                      color: isHov ? seg.color : 'var(--black)',
-                      transition: 'color 0.15s',
-                    }}>
-                      {seg.count}
-                    </span>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700,
-                      color: dropColor,
-                      background: badgeBg,
-                      border: `1px solid ${dropColor}40`,
-                      borderRadius: 100, padding: '1px 5px',
-                      whiteSpace: 'nowrap',
-                      opacity: showPct ? 1 : 0,
-                      transition: 'opacity 0.2s ease',
-                    }}>
-                      <DropArrow size={8} /> {Math.abs(seg.dropPct ?? 0)}%
-                    </span>
-                  </div>
-
-                  {seg.convPct !== null && i < filteredStages.length - 1 && (
-                    <div style={{
-                      fontSize: 9, fontWeight: 600,
-                      color: 'var(--gray2)',
-                      marginTop: 2,
-                      textAlign: 'center',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
-                    }}>
-                      <ArrowRight size={8} /> {seg.convPct}% avançaram
-                    </div>
-                  )}
-
-                  {seg.avgDays != null && (
-                    <div style={{
-                      fontSize: 9, fontWeight: 600,
-                      color: isHov ? 'var(--gray)' : 'var(--gray2)',
-                      transition: 'color 0.15s',
-                      marginTop: 1,
-                      textAlign: 'center',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
-                    }}>
-                      <Clock size={10} /> {seg.avgDays}d
-                    </div>
-                  )}
                 </div>
-              )
-            })}
-          </div>
+                <span className="tabular-nums" style={{
+                  textAlign: 'right', fontSize: 'var(--text-md)', fontWeight: 800, color: 'var(--ink)',
+                }}>
+                  {nf.format(stage.count)}
+                  <span className="sr-only"> {stage.count === 1 ? unit : `${unit}s`}</span>
+                </span>
+              </div>
+              {prev && rate !== null && (
+                <div className="funnel-row">
+                  <span style={{
+                    gridColumn: 2, paddingLeft: 2,
+                    fontSize: 'var(--text-2xs)', fontWeight: 700, letterSpacing: '0.02em', color: 'var(--muted)',
+                  }}>
+                    {rate}% {prev.ratioLabel ?? `de ${prev.name.toLocaleLowerCase('pt-BR')}`}
+                  </span>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+      {hiddenCount > 0 && (
+        <div style={{ marginTop: 12, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--muted)' }}>
+          {hiddenCount} etapa{hiddenCount !== 1 ? 's' : ''} oculta{hiddenCount !== 1 ? 's' : ''} — ajuste em Etapas
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -46,10 +46,10 @@ function StepIndicator({ current, step, label, sub }: { current: Step; step: Ste
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
       <div style={{
-        width: 26, height: 26, borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 26, height: 26, borderRadius: 'var(--radius-pill)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 12, fontWeight: 800, flexShrink: 0,
         background: done ? 'var(--green)' : active ? 'var(--primary)' : 'var(--bg)',
-        color: done ? '#fff' : active ? 'var(--primary-contrast)' : 'var(--gray2)',
+        color: done ? 'var(--white)' : active ? 'var(--primary-contrast)' : 'var(--gray2)',
         border: !done && !active ? '1px solid var(--gray3)' : 'none',
       }}>
         {done ? '✓' : step}
@@ -100,12 +100,12 @@ function UsageSection({ isActive }: { isActive: boolean }) {
 
   const PERIOD_LABELS: Record<Period, string> = { day: 'Hoje', week: 'Esta semana', month: 'Este mês' }
   const pct = data?.budgetUsedPercent ?? 0
-  const barColor = pct > 90 ? 'var(--red)' : pct > 70 ? '#d97706' : 'var(--green)'
+  const barColor = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--warn)' : 'var(--green)'
 
   return (
     <div className="animate-slide-up delay-2" style={{
       background: 'var(--white)', border: '1px solid var(--gray3)',
-      borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: 'var(--shadow)',
+      borderRadius: 'var(--radius-lg)', padding: 24, marginBottom: 20, boxShadow: 'var(--shadow)',
     }}>
       {/* Section header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -125,7 +125,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
                 border: `1px solid ${period === p ? 'var(--primary)' : 'var(--gray3)'}`,
                 background: period === p ? 'var(--primary-dim)' : 'var(--white)',
                 color: period === p ? 'var(--primary-text)' : 'var(--gray)',
-                borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
+                borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all .15s',
               }}
             >
               {PERIOD_LABELS[p]}
@@ -165,7 +165,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
               },
             ].map(({ label, value, sub }) => (
               <div key={label} style={{
-                padding: '14px 16px', borderRadius: 12,
+                padding: '14px 16px', borderRadius: 'var(--radius-md)',
                 background: 'var(--bg)', border: '1px solid var(--gray3)',
               }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
@@ -178,7 +178,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
           </div>
 
           {/* Budget progress */}
-          <div style={{ marginBottom: 20, padding: '16px', borderRadius: 12, background: 'var(--bg)', border: '1px solid var(--gray3)' }}>
+          <div style={{ marginBottom: 20, padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg)', border: '1px solid var(--gray3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Orçamento mensal
@@ -194,9 +194,9 @@ function UsageSection({ isActive }: { isActive: boolean }) {
               <div style={{ fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>Sem limite definido</div>
             ) : (
               <>
-                <div style={{ height: 8, borderRadius: 99, background: 'var(--gray3)', overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ height: 8, borderRadius: 'var(--radius-pill)', background: 'var(--gray3)', overflow: 'hidden', marginBottom: 8 }}>
                   <div style={{
-                    height: '100%', borderRadius: 99,
+                    height: '100%', borderRadius: 'var(--radius-pill)',
                     width: `${Math.min(100, data?.budgetUsedPercent ?? 0)}%`,
                     background: barColor,
                     transition: 'width .6s ease',
@@ -220,7 +220,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
                 {Object.entries(data.byModel)
                   .sort((a, b) => b[1].costUsd - a[1].costUsd)
                   .map(([modelId, stats]) => (
-                    <div key={modelId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: 'var(--bg)', border: '1px solid var(--gray3)' }}>
+                    <div key={modelId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg)', border: '1px solid var(--gray3)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
                         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>
@@ -253,7 +253,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
               href="https://console.anthropic.com"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--gray)', textDecoration: 'none', padding: '6px 14px', borderRadius: 8, border: '1px solid var(--gray3)', background: 'var(--bg)' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--gray)', textDecoration: 'none', padding: '6px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)', background: 'var(--bg)' }}
             >
               Ver detalhes no Console da Anthropic
               <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -367,7 +367,7 @@ export default function AIIntegrationPage() {
       {/* Stepper */}
       <div className="animate-slide-up delay-2" style={{
         background: 'var(--white)', border: '1px solid var(--gray3)',
-        borderRadius: 16, padding: '16px 24px', marginBottom: 20, boxShadow: 'var(--shadow)',
+        borderRadius: 'var(--radius-lg)', padding: '16px 24px', marginBottom: 20, boxShadow: 'var(--shadow)',
         display: 'flex', alignItems: 'center',
       }}>
         <StepIndicator current={step} step={1} label="API Key" sub="Chave de acesso" />
@@ -384,13 +384,13 @@ export default function AIIntegrationPage() {
       {step === 1 && (
         <div className="animate-slide-up delay-3" style={{
           background: 'var(--white)', border: '1px solid var(--gray3)',
-          borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)',
+          borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow)',
         }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 20 }}>
             Chave de API da Anthropic
           </div>
 
-          <div style={{ padding: '12px 16px', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', borderRadius: 12, marginBottom: 20, fontSize: 13, fontWeight: 600, color: 'var(--primary-text)', lineHeight: 1.6 }}>
+          <div style={{ padding: '12px 16px', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', borderRadius: 'var(--radius-md)', marginBottom: 20, fontSize: 13, fontWeight: 600, color: 'var(--primary-text)', lineHeight: 1.6 }}>
             Acesse{' '}
             <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-text)', fontWeight: 800 }}>
               console.anthropic.com → API Keys
@@ -399,7 +399,7 @@ export default function AIIntegrationPage() {
           </div>
 
           {existingKeyMasked && (
-            <div style={{ padding: '10px 14px', background: 'rgba(30,138,62,0.06)', border: '1px solid rgba(30,138,62,0.2)', borderRadius: 10, marginBottom: 16, fontSize: 13, fontWeight: 600, color: '#145c2a' }}>
+            <div style={{ padding: '10px 14px', background: 'var(--success-dim)', border: '1px solid rgba(30,138,62,0.2)', borderRadius: 'var(--radius-md)', marginBottom: 16, fontSize: 13, fontWeight: 600, color: 'var(--success-text)' }}>
               Chave atual: <span style={{ fontFamily: 'monospace' }}>{existingKeyMasked}</span> — deixe em branco para manter a chave atual
             </div>
           )}
@@ -415,7 +415,7 @@ export default function AIIntegrationPage() {
                   value={apiKey}
                   onChange={e => { setApiKey(e.target.value); setValidationResult(null) }}
                   placeholder="sk-ant-api03-…"
-                  style={{ width: '100%', padding: '10px 44px 10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '10px 44px 10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', outline: 'none', boxSizing: 'border-box' }}
                   onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                   onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
                 />
@@ -429,7 +429,7 @@ export default function AIIntegrationPage() {
               <button
                 onClick={validateKey}
                 disabled={validating || !apiKey}
-                style={{ padding: '10px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--bg)', border: '1px solid var(--gray3)', borderRadius: 8, cursor: !apiKey ? 'not-allowed' : 'pointer', color: 'var(--black)', whiteSpace: 'nowrap', opacity: !apiKey ? 0.5 : 1 }}
+                style={{ padding: '10px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--bg)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', cursor: !apiKey ? 'not-allowed' : 'pointer', color: 'var(--black)', whiteSpace: 'nowrap', opacity: !apiKey ? 0.5 : 1 }}
               >
                 {validating ? 'Validando…' : 'Validar conexão'}
               </button>
@@ -437,11 +437,11 @@ export default function AIIntegrationPage() {
 
             {validationResult && (
               <div style={{
-                marginTop: 8, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                marginTop: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
                 display: 'flex', alignItems: 'center', gap: 8,
-                background: validationResult.valid ? 'rgba(30,138,62,0.06)' : 'rgba(217,48,37,0.06)',
+                background: validationResult.valid ? 'var(--success-dim)' : 'var(--danger-dim)',
                 border: `1px solid ${validationResult.valid ? 'rgba(30,138,62,0.25)' : 'rgba(217,48,37,0.2)'}`,
-                color: validationResult.valid ? '#145c2a' : '#b02619',
+                color: validationResult.valid ? 'var(--success-text)' : 'var(--danger-text)',
               }}>
                 {validationResult.valid ? (
                   <>
@@ -450,7 +450,7 @@ export default function AIIntegrationPage() {
                   </>
                 ) : (
                   <>
-                    <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="#b02619" strokeWidth="2"><path d="M2 2l8 8M10 2L2 10"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="var(--danger-text)" strokeWidth="2"><path d="M2 2l8 8M10 2L2 10"/></svg>
                     {validationResult.error ?? 'Chave inválida'}
                   </>
                 )}
@@ -462,7 +462,7 @@ export default function AIIntegrationPage() {
             <button
               onClick={() => setStep(2)}
               disabled={!canAdvanceStep1}
-              style={{ padding: '11px 24px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: canAdvanceStep1 ? 'pointer' : 'not-allowed', color: 'var(--primary-contrast)', opacity: !canAdvanceStep1 ? 0.5 : 1 }}
+              style={{ padding: '11px 24px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: canAdvanceStep1 ? 'pointer' : 'not-allowed', color: 'var(--primary-contrast)', opacity: !canAdvanceStep1 ? 0.5 : 1 }}
             >
               Próximo →
             </button>
@@ -472,7 +472,7 @@ export default function AIIntegrationPage() {
 
       {/* Step 2 — Model + Budget */}
       {step === 2 && (
-        <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)' }}>
+        <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow)' }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 20 }}>
             Modelo e Orçamento
           </div>
@@ -487,7 +487,7 @@ export default function AIIntegrationPage() {
                   onClick={() => setModel(m.id)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 14,
-                    padding: '14px 16px', borderRadius: 12, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%',
+                    padding: '14px 16px', borderRadius: 'var(--radius-md)', fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%',
                     background: selected ? 'var(--primary-dim)' : 'var(--white)',
                     border: `1.5px solid ${selected ? 'var(--primary)' : 'var(--gray3)'}`,
                     transition: 'all .18s',
@@ -518,7 +518,7 @@ export default function AIIntegrationPage() {
               value={budgetBrl}
               onChange={e => setBudgetBrl(e.target.value)}
               placeholder="0"
-              style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', outline: 'none', boxSizing: 'border-box' }}
               onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
               onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
             />
@@ -528,13 +528,13 @@ export default function AIIntegrationPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <button
               onClick={() => setStep(1)}
-              style={{ padding: '11px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, cursor: 'pointer', color: 'var(--gray)' }}
+              style={{ padding: '11px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer', color: 'var(--gray)' }}
             >
               ← Voltar
             </button>
             <button
               onClick={() => setStep(3)}
-              style={{ padding: '11px 24px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)' }}
+              style={{ padding: '11px 24px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: 'pointer', color: 'var(--primary-contrast)' }}
             >
               Próximo →
             </button>
@@ -546,7 +546,7 @@ export default function AIIntegrationPage() {
       {step === 3 && (
         <div className="animate-slide-up delay-3" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {!saved ? (
-            <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 24, boxShadow: 'var(--shadow)' }}>
+            <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow)' }}>
               <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 20 }}>
                 {existingKeyMasked ? 'Configuração atual' : 'Resumo da configuração'}
               </div>
@@ -565,14 +565,14 @@ export default function AIIntegrationPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                 <button
                   onClick={() => { setSaved(false); setStep(2) }}
-                  style={{ padding: '11px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, cursor: 'pointer', color: 'var(--gray)' }}
+                  style={{ padding: '11px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer', color: 'var(--gray)' }}
                 >
                   ← Editar
                 </button>
                 <button
                   onClick={saveSettings}
                   disabled={saving}
-                  style={{ padding: '11px 28px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: saving ? 'not-allowed' : 'pointer', color: 'var(--primary-contrast)', display: 'flex', alignItems: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}
+                  style={{ padding: '11px 28px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: saving ? 'not-allowed' : 'pointer', color: 'var(--primary-contrast)', display: 'flex', alignItems: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}
                 >
                   {saving ? (
                     <>
@@ -586,8 +586,8 @@ export default function AIIntegrationPage() {
               </div>
             </div>
           ) : (
-            <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 40, boxShadow: 'var(--shadow)', textAlign: 'center' }}>
-              <div style={{ width: 56, height: 56, background: 'rgba(30,138,62,0.1)', borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: 40, boxShadow: 'var(--shadow)', textAlign: 'center' }}>
+              <div style={{ width: 56, height: 56, background: 'var(--success-dim)', borderRadius: 'var(--radius-pill)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <svg width="24" height="24" viewBox="0 0 12 12" fill="none" stroke="var(--green)" strokeWidth="2"><path d="M2 6l3 3 5-5"/></svg>
               </div>
               <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--black)', marginBottom: 8 }}>Integração salva com sucesso!</div>
@@ -598,7 +598,7 @@ export default function AIIntegrationPage() {
                 href="https://console.anthropic.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 24px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer', color: 'var(--primary-contrast)', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 24px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: 'pointer', color: 'var(--primary-contrast)', textDecoration: 'none' }}
               >
                 Abrir Console Anthropic
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">

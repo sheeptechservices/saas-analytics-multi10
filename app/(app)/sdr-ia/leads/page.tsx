@@ -90,15 +90,15 @@ function friendlyBlastError(code: string): string {
 function StatusBadge({ value }: { value: string | null }) {
   if (!value) return <span style={{ color: 'var(--gray3)', fontSize: 11 }}>—</span>
   const colors: Record<string, { bg: string; color: string }> = {
-    ativo:       { bg: 'rgba(34,197,94,0.10)',  color: '#15803d' },
+    ativo:       { bg: 'rgba(34,197,94,0.10)',  color: 'var(--success-text)' },
     inativo:     { bg: 'rgba(239,68,68,0.08)',  color: 'var(--red)' },
-    qualificado: { bg: 'rgba(37,99,235,0.10)',  color: '#1d4ed8' },
+    qualificado: { bg: 'rgba(37,99,235,0.10)',  color: 'var(--info-text)' },
   }
   const s = colors[value.toLowerCase()] ?? { bg: 'rgba(0,0,0,0.05)', color: 'var(--gray)' }
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-      background: s.bg, color: s.color, border: `1px solid ${s.color}30`,
+      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)',
+      background: s.bg, color: s.color, border: `1px solid color-mix(in srgb, ${s.color} 19%, transparent)`,
     }}>
       {value}
     </span>
@@ -114,8 +114,8 @@ function ProportionBar({ started, total, skipped }: { started: number; total: nu
   }, [started, total])
   return (
     <div>
-      <div style={{ height: 6, borderRadius: 3, background: 'var(--primary-dim)', overflow: 'hidden', marginBottom: 6 }}>
-        <div style={{ height: '100%', borderRadius: 3, background: 'var(--primary)', width: `${pct}%`, transition: 'width .5s ease-out' }} />
+      <div style={{ height: 6, borderRadius: 'var(--radius-xs)', background: 'var(--primary-dim)', overflow: 'hidden', marginBottom: 6 }}>
+        <div style={{ height: '100%', borderRadius: 'var(--radius-xs)', background: 'var(--primary)', width: `${pct}%`, transition: 'width .5s ease-out' }} />
       </div>
       <div style={{ fontSize: 11, color: 'var(--gray)', fontWeight: 500 }}>
         {started} enviado{started !== 1 ? 's' : ''}
@@ -141,7 +141,7 @@ function Stepper({ step }: { step: Step }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 800,
                 background: done || active ? 'var(--primary)' : 'var(--gray3)',
-                color: done || active ? '#fff' : 'var(--gray2)',
+                color: done || active ? 'var(--primary-contrast)' : 'var(--gray2)',
                 marginBottom: 5, flexShrink: 0,
               }}>
                 {done ? <Check size={13} /> : num}
@@ -182,7 +182,7 @@ function ImportFeedback({
   if (!result.ok) {
     return (
       <div style={{
-        marginTop: 12, padding: '12px 16px', borderRadius: 12,
+        marginTop: 12, padding: '12px 16px', borderRadius: 'var(--radius-md)',
         background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.25)',
       }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
@@ -193,11 +193,11 @@ function ImportFeedback({
   }
   return (
     <div style={{
-      marginTop: 12, padding: '14px 18px', borderRadius: 12,
-      background: n8nFalhou ? 'rgba(245,158,11,0.08)' : 'rgba(34,197,94,0.06)',
+      marginTop: 12, padding: '14px 18px', borderRadius: 'var(--radius-md)',
+      background: n8nFalhou ? 'var(--warn-dim)' : 'rgba(34,197,94,0.06)',
       border: `1px solid ${n8nFalhou ? 'rgba(245,158,11,0.35)' : 'rgba(34,197,94,0.25)'}`,
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8, color: n8nFalhou ? '#b45309' : 'var(--green)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8, color: n8nFalhou ? 'var(--warn-text)' : 'var(--green)' }}>
         {n8nFalhou
           ? <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
           : <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />}
@@ -257,25 +257,25 @@ function ImportFeedback({
 
       {(result.suspeitos?.total ?? 0) > 0 && (
         <div style={{
-          marginTop: 10, padding: '10px 14px', borderRadius: 10,
-          background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)',
+          marginTop: 10, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+          background: 'var(--warn-dim)', border: '1px solid rgba(245,158,11,0.35)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--warn-text)', marginBottom: 4 }}>
             <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{result.suspeitos!.total} número{result.suspeitos!.total !== 1 ? 's' : ''} podem estar sem o 9 — confira na planilha.</span>
           </div>
           <details>
-            <summary style={{ fontSize: 12, color: '#92400e', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
+            <summary style={{ fontSize: 12, color: 'var(--warn-text)', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
               Suspeitos ({result.suspeitos!.total})
             </summary>
             <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
               {result.suspeitos!.amostra.map((it, i) => (
-                <div key={i} style={{ fontSize: 11, color: '#78350f', fontFamily: 'monospace' }}>
+                <div key={i} style={{ fontSize: 11, color: 'var(--warn-text)', fontFamily: 'monospace' }}>
                   Linha {it.linha}: {it.telefone}
                 </div>
               ))}
               {result.suspeitos!.total > result.suspeitos!.amostra.length && (
-                <div style={{ fontSize: 11, color: '#92400e', fontStyle: 'italic' }}>
+                <div style={{ fontSize: 11, color: 'var(--warn-text)', fontStyle: 'italic' }}>
                   … e mais {result.suspeitos!.total - result.suspeitos!.amostra.length}
                 </div>
               )}
@@ -582,7 +582,7 @@ export default function NovDisparoPage() {
         <div className="animate-slide-up delay-1">
 
           {/* Source toggle */}
-          <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, borderRadius: 12, border: '1px solid var(--gray3)', padding: 4, marginBottom: 20, background: 'var(--bg)' }}>
+          <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', padding: 4, marginBottom: 20, background: 'var(--bg)' }}>
             {([
               { id: 'base'   as const, label: 'Selecionar da base',    icon: <Database size={14} style={{ flexShrink: 0 }} /> },
               { id: 'import' as const, label: 'Importar planilha',      icon: <FileSpreadsheet size={14} style={{ flexShrink: 0 }} /> },
@@ -594,8 +594,8 @@ export default function NovDisparoPage() {
                   key={s.id}
                   onClick={() => setSource(s.id)}
                   style={{
-                    padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
-                    border: 'none', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit',
+                    padding: '8px 16px', fontSize: 'var(--text-md)', fontWeight: 700,
+                    border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit',
                     display: 'flex', alignItems: 'center', gap: 7,
                     background: active ? 'var(--white)' : 'transparent',
                     color: active ? 'var(--black)' : 'var(--gray2)',
@@ -625,7 +625,7 @@ export default function NovDisparoPage() {
                     width: '100%', boxSizing: 'border-box',
                     paddingLeft: 34, paddingRight: 14, paddingTop: 9, paddingBottom: 9,
                     fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-                    border: '1px solid var(--gray3)', borderRadius: 99,
+                    border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)',
                     background: 'var(--white)', color: 'var(--black)',
                     outline: 'none', transition: 'border-color .15s',
                   }}
@@ -657,7 +657,7 @@ export default function NovDisparoPage() {
               )}
 
               {!leadsLoading && !leadsError && (
-                <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', overflow: 'hidden', marginBottom: 16 }}>
+                <div style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', overflow: 'hidden', marginBottom: 16 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg)' }}>
@@ -738,13 +738,13 @@ export default function NovDisparoPage() {
                   <button
                     onClick={() => setPage(p => p - 1)}
                     disabled={!hasPrev}
-                    style={{ padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasPrev ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasPrev ? 'var(--black)' : 'var(--gray3)' }}
+                    style={{ padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasPrev ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasPrev ? 'var(--black)' : 'var(--gray3)' }}
                   >← Anterior</button>
                   <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>{page} / {totalPages}</span>
                   <button
                     onClick={() => setPage(p => p + 1)}
                     disabled={!hasNext}
-                    style={{ padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasNext ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasNext ? 'var(--black)' : 'var(--gray3)' }}
+                    style={{ padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasNext ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasNext ? 'var(--black)' : 'var(--gray3)' }}
                   >Próxima →</button>
                 </div>
               )}
@@ -783,7 +783,7 @@ export default function NovDisparoPage() {
               {showBar && (
                 <div
                   className="shimmer-bar"
-                  style={{ height: 3, borderRadius: 2, background: 'var(--primary)', marginBottom: 12, opacity: importing ? 1 : 0, transition: 'opacity 0.4s ease' }}
+                  style={{ height: 3, borderRadius: 'var(--radius-xs)', background: 'var(--primary)', marginBottom: 12, opacity: importing ? 1 : 0, transition: 'opacity 0.4s ease' }}
                 />
               )}
 
@@ -859,7 +859,7 @@ export default function NovDisparoPage() {
 
           {!canDispatch && (
             <div style={{
-              marginBottom: 16, padding: '12px 16px', borderRadius: 12,
+              marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius-md)',
               background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.20)',
               fontSize: 13, color: 'var(--red)', fontWeight: 600,
             }}>
@@ -875,7 +875,7 @@ export default function NovDisparoPage() {
               onClick={() => canDispatch && selectAction('blast')}
               disabled={!canDispatch}
               style={{
-                textAlign: 'left', padding: '18px 20px', borderRadius: 14,
+                textAlign: 'left', padding: '18px 20px', borderRadius: 'var(--radius-lg)',
                 border: `2px solid ${action === 'blast' ? 'var(--primary)' : 'var(--gray3)'}`,
                 background: action === 'blast' ? 'var(--primary-dim)' : 'var(--white)',
                 cursor: canDispatch ? 'pointer' : 'not-allowed',
@@ -898,7 +898,7 @@ export default function NovDisparoPage() {
               onClick={() => canDispatch && selectAction('enroll')}
               disabled={!canDispatch}
               style={{
-                textAlign: 'left', padding: '18px 20px', borderRadius: 14,
+                textAlign: 'left', padding: '18px 20px', borderRadius: 'var(--radius-lg)',
                 border: `2px solid ${action === 'enroll' ? 'var(--primary)' : 'var(--gray3)'}`,
                 background: action === 'enroll' ? 'var(--primary-dim)' : 'var(--white)',
                 cursor: canDispatch ? 'pointer' : 'not-allowed',
@@ -928,7 +928,7 @@ export default function NovDisparoPage() {
                 <div style={{ fontSize: 13, color: 'var(--gray2)', padding: '10px 0' }}>Carregando templates...</div>
               )}
               {blastTplError && (
-                <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+                <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
                   {friendlyBlastError(blastTplError)}
                 </div>
               )}
@@ -938,7 +938,7 @@ export default function NovDisparoPage() {
                   <button
                     onClick={() => setTemplateOpen(o => !o)}
                     style={{
-                      width: '100%', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit',
+                      width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
                       fontSize: 13, border: '1px solid var(--gray3)', background: 'var(--white)',
                       color: selectedTemplate ? 'var(--black)' : 'var(--gray2)',
                       cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
@@ -954,7 +954,7 @@ export default function NovDisparoPage() {
                     <div style={{
                       position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 2000,
                       background: 'var(--white)', border: '1px solid var(--gray3)',
-                      borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+                      borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-menu)',
                       maxHeight: 260, overflowY: 'auto',
                     }}>
                       <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--gray3)', position: 'sticky', top: 0, background: 'var(--white)' }}>
@@ -966,7 +966,7 @@ export default function NovDisparoPage() {
                           style={{
                             width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 12,
                             padding: '6px 10px', border: '1px solid var(--gray3)',
-                            borderRadius: 8, background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                            borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--black)',
                           }}
                         />
                       </div>
@@ -1005,7 +1005,7 @@ export default function NovDisparoPage() {
                   {(() => {
                     const tpl = blastTemplates.find(t => t.nome_template === selectedTemplate)
                     return tpl?.preview ? (
-                      <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, fontSize: 12.5, color: 'var(--gray)', background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)', lineHeight: 1.55 }}>
+                      <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-md)', color: 'var(--gray)', background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)', lineHeight: 1.55 }}>
                         {tpl.preview}
                       </div>
                     ) : null
@@ -1030,7 +1030,7 @@ export default function NovDisparoPage() {
           {!hasSentResult ? (
             <>
               {/* Summary card */}
-              <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: '20px 24px', marginBottom: 16 }}>
+              <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--gray2)', marginBottom: 12 }}>
                   Resumo
                 </div>
@@ -1062,8 +1062,8 @@ export default function NovDisparoPage() {
 
               {/* sem-nome warning */}
               {semNome > 0 && (
-                <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 12, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+                <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--warn-dim)', border: '1px solid rgba(245,158,11,0.35)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--warn-text)' }}>
                     <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>{semNome} contato{semNome !== 1 ? 's' : ''} sem nome — serão enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.</span>
                   </div>
@@ -1071,9 +1071,9 @@ export default function NovDisparoPage() {
               )}
 
               {/* Confirm box */}
-              <div style={{ marginBottom: 24, padding: '14px 18px', borderRadius: 12, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.18)' }}>
+              <div style={{ marginBottom: 24, padding: '14px 18px', borderRadius: 'var(--radius-md)', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.18)' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', marginBottom: 4 }}>Envio real via WhatsApp</div>
-                <div style={{ fontSize: 12, color: '#b91c1c', lineHeight: 1.55 }}>
+                <div style={{ fontSize: 12, color: 'var(--danger-text)', lineHeight: 1.55 }}>
                   Esta ação é <strong>irreversível</strong>. As mensagens serão enviadas imediatamente para os {recipientCount} destinatário{recipientCount !== 1 ? 's' : ''}.
                 </div>
               </div>
@@ -1103,14 +1103,14 @@ export default function NovDisparoPage() {
               {/* Blast result */}
               {blastResult && (
                 <div style={{
-                  padding: '20px 24px', borderRadius: 16,
+                  padding: '20px 24px', borderRadius: 'var(--radius-lg)',
                   background: blastResult.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
                   border: `1px solid ${blastResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
                   marginBottom: 20,
                 }}>
                   {blastResult.ok ? (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: '#15803d', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: 'var(--success-text)', marginBottom: 14 }}>
                         <Check size={16} style={{ flexShrink: 0 }} />
                         Disparo iniciado para {blastResult.started} contato{blastResult.started !== 1 ? 's' : ''}
                       </div>
@@ -1139,19 +1139,19 @@ export default function NovDisparoPage() {
               {/* Enroll result */}
               {enrollResult && (
                 <div style={{
-                  padding: '20px 24px', borderRadius: 16,
+                  padding: '20px 24px', borderRadius: 'var(--radius-lg)',
                   background: enrollResult.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
                   border: `1px solid ${enrollResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
                   marginBottom: 20,
                 }}>
                   {enrollResult.ok ? (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: '#15803d' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: 'var(--success-text)' }}>
                         <Check size={16} style={{ flexShrink: 0 }} />
                         {enrollResult.enrolled} lead{enrollResult.enrolled !== 1 ? 's' : ''} adicionado{enrollResult.enrolled !== 1 ? 's' : ''} à campanha
                       </div>
                       {enrollResult.partialError && (
-                        <div style={{ fontSize: 11, color: '#b45309', marginTop: 8, fontWeight: 500 }}>
+                        <div style={{ fontSize: 11, color: 'var(--warn-text)', marginTop: 8, fontWeight: 500 }}>
                           Alguns lotes falharam: {enrollResult.partialError}
                         </div>
                       )}

@@ -75,7 +75,7 @@ function isAreaId(v: unknown): v is AreaId {
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: '20px 24px', marginBottom: 16 }}>
+    <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 16 }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 18 }}>
         {title}
       </div>
@@ -100,7 +100,7 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
       onChange={e => onChange(e.target.value)}
       style={{
         fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-        border: '1px solid var(--gray3)', borderRadius: 8, padding: '7px 10px',
+        border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', padding: '7px 10px',
         background: 'var(--bg)', color: 'var(--black)', outline: 'none',
         transition: 'border-color .15s',
       }}
@@ -119,7 +119,7 @@ function CollapsibleArea({
     <div style={{
       marginBottom: 8,
       border: '1px solid var(--gray3)',
-      borderRadius: 16,
+      borderRadius: 'var(--radius-lg)',
       overflow: 'hidden',
     }}>
       <button
@@ -326,7 +326,7 @@ export function CampaignConfig() {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <SkeletonBlock height={56} style={{ borderRadius: 12 }} />
+        <SkeletonBlock height={56} style={{ borderRadius: 'var(--radius-md)' }} />
         <SkeletonForm rows={5} />
       </div>
     )
@@ -346,7 +346,7 @@ export function CampaignConfig() {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           background: 'var(--bg)', border: '1px solid var(--gray3)',
-          borderRadius: 10, padding: '9px 14px', marginBottom: 16,
+          borderRadius: 'var(--radius-md)', padding: '9px 14px', marginBottom: 16,
           fontSize: 12, color: 'var(--gray)', fontWeight: 500,
         }}>
           <Info size={13} style={{ flexShrink: 0, color: 'var(--gray2)' }} />
@@ -356,7 +356,7 @@ export function CampaignConfig() {
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 12,
           background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.30)',
-          borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+          borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 16,
         }}>
           <AlertTriangle size={14} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.5 }}>
@@ -385,10 +385,10 @@ export function CampaignConfig() {
               const on = status === s
               return (
                 <button key={s} onClick={() => setStatus(s)} style={{
-                  padding: '7px 18px', borderRadius: 99, fontFamily: 'inherit',
+                  padding: '7px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
                   fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   border:      `1.5px solid ${on ? colors[s] : 'var(--gray3)'}`,
-                  background:  on ? `${colors[s]}18` : 'transparent',
+                  background:  on ? `color-mix(in srgb, ${colors[s]} 9%, transparent)` : 'transparent',
                   color:       on ? colors[s] : 'var(--gray2)',
                   transition: 'all .15s',
                 }}>
@@ -428,7 +428,7 @@ export function CampaignConfig() {
                 style={{
                   width: '100%', fontFamily: 'inherit', fontSize: 13,
                   border: `1px solid ${remetenteError ? 'var(--red)' : 'var(--gray3)'}`,
-                  borderRadius: 10, padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)', padding: '10px 14px',
                   background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                   boxSizing: 'border-box', transition: 'border-color .15s',
                 }}
@@ -457,7 +457,7 @@ export function CampaignConfig() {
                     onChange={e => upd('numToques', Math.max(1, Math.min(20, Number(e.target.value))))}
                     style={{
                       width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', padding: '8px 12px',
                       background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                       textAlign: 'center', transition: 'border-color .15s',
                     }}
@@ -484,7 +484,7 @@ export function CampaignConfig() {
                     onChange={e => upd('intervaloDias', Math.max(1, Math.min(30, Number(e.target.value))))}
                     style={{
                       width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', padding: '8px 12px',
                       background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                       textAlign: 'center', transition: 'border-color .15s',
                     }}
@@ -530,7 +530,7 @@ export function CampaignConfig() {
                 const on = settings.diasAtivos.includes(num)
                 return (
                   <button key={num} onClick={() => toggleDia(num)} style={{
-                    padding: '6px 14px', borderRadius: 99, fontFamily: 'inherit',
+                    padding: '6px 14px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
                     background: on ? 'var(--primary-dim)' : 'transparent',
@@ -556,7 +556,7 @@ export function CampaignConfig() {
       >
         <SectionCard title="Integração">
           {hasIntegration ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#15803d', flexWrap: 'wrap' as const }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--success-text)', flexWrap: 'wrap' as const }}>
               <Check size={14} style={{ flexShrink: 0 }} />
               Integração configurada
               <span style={{ color: 'var(--gray3)' }}>·</span>
@@ -584,7 +584,7 @@ export function CampaignConfig() {
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
             background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
-            borderRadius: 99, padding: '8px 18px', textDecoration: 'none',
+            borderRadius: 'var(--radius-pill)', padding: '8px 18px', textDecoration: 'none',
           }}>
             <ExternalLink size={13} /> Configurar fonte de dados
           </Link>
@@ -633,7 +633,7 @@ export function CampaignConfig() {
             fontSize: 12, fontWeight: 700,
             background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
             border: '1px solid rgba(34,197,94,0.25)',
-            borderRadius: 99, padding: '5px 14px',
+            borderRadius: 'var(--radius-pill)', padding: '5px 14px',
           }}>
             ✓ Integração atualizada
             {n8nDelivery.status !== undefined && (
@@ -645,9 +645,9 @@ export function CampaignConfig() {
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 12, fontWeight: 700,
-            background: 'rgba(245,158,11,0.10)', color: '#b45309',
+            background: 'var(--warn-dim)', color: 'var(--warn-text)',
             border: '1px solid rgba(245,158,11,0.30)',
-            borderRadius: 99, padding: '5px 14px',
+            borderRadius: 'var(--radius-pill)', padding: '5px 14px',
           }}>
             ⚠ Falha ao atualizar a integração
             {(n8nDelivery.error ?? n8nDelivery.status) !== undefined && (
@@ -686,7 +686,7 @@ export function CampaignConfig() {
             <div style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
               background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.22)',
-              borderRadius: 10, padding: '10px 14px', marginBottom: 20,
+              borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 20,
               fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
             }}>
               <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -700,8 +700,8 @@ export function CampaignConfig() {
                 onChange={e => setTestTemplateName(e.target.value)}
                 style={{
                   width: '100%', fontFamily: 'inherit', fontSize: 13,
-                  border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                  border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
+                  background: 'var(--bg)', color: 'var(--black)',
                   boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 8,
                   cursor: 'pointer',
                 }}
@@ -719,7 +719,7 @@ export function CampaignConfig() {
               placeholder="nome_do_template (ou digite manualmente)"
               style={{
                 width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                 background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                 boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
               }}
@@ -737,7 +737,7 @@ export function CampaignConfig() {
                   placeholder="pt_BR"
                   style={{
                     width: '100%', fontFamily: 'inherit', fontSize: 13,
-                    border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                    border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                     background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                     boxSizing: 'border-box', transition: 'border-color .15s',
                   }}
@@ -754,7 +754,7 @@ export function CampaignConfig() {
                   placeholder="João Silva, Empresa Ltda"
                   style={{
                     width: '100%', fontFamily: 'inherit', fontSize: 13,
-                    border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                    border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                     background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                     boxSizing: 'border-box', transition: 'border-color .15s',
                   }}
@@ -775,7 +775,7 @@ export function CampaignConfig() {
               placeholder={'+5554999990000\n+5551988880000'}
               style={{
                 width: '100%', fontFamily: 'monospace', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                 background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                 boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6,
                 transition: 'border-color .15s', marginBottom: 4,
@@ -807,7 +807,7 @@ export function CampaignConfig() {
                     display: 'flex', alignItems: 'center', gap: 10,
                     background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
                     border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-                    borderRadius: 10, padding: '8px 14px',
+                    borderRadius: 'var(--radius-md)', padding: '8px 14px',
                   }}>
                     <span style={{ fontWeight: 800, color: r.ok ? 'var(--green)' : 'var(--red)', flexShrink: 0, fontSize: 14 }}>
                       {r.ok ? '✓' : '✗'}
