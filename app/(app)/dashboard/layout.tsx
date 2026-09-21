@@ -151,7 +151,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               title="Sincronização incremental — busca apenas dados novos/alterados"
               className="size-10 md:size-[26px]"
               style={{
-                borderRadius: 8, border: '1px solid var(--gray3)',
+                borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
                 background: 'var(--bg)', cursor: syncing ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 opacity: syncing ? 0.4 : 1, transition: 'opacity .2s',

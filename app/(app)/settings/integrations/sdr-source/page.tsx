@@ -196,8 +196,8 @@ export default function SdrSourcePage() {
           {justSaved && sourceData.lastSyncStatus !== 'error' && (
             <div style={{
               marginTop: 12, padding: '10px 14px', borderRadius: 'var(--radius-sm)',
-              background: 'rgba(30,138,62,0.06)', border: '1px solid rgba(30,138,62,0.2)',
-              fontSize: 13, fontWeight: 600, color: '#145c2a',
+              background: 'var(--success-dim)', border: '1px solid rgba(30,138,62,0.2)',
+              fontSize: 13, fontWeight: 600, color: 'var(--success-text)',
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <CheckCircle2 size={14} color="var(--green)" />
@@ -288,9 +288,9 @@ export default function SdrSourcePage() {
             marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-sm)',
             fontSize: 13, fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: 8,
-            background: testResult.valid ? 'rgba(30,138,62,0.06)' : 'rgba(217,48,37,0.06)',
+            background: testResult.valid ? 'var(--success-dim)' : 'var(--danger-dim)',
             border: `1px solid ${testResult.valid ? 'rgba(30,138,62,0.25)' : 'rgba(217,48,37,0.2)'}`,
-            color: testResult.valid ? '#145c2a' : '#b02619',
+            color: testResult.valid ? 'var(--success-text)' : 'var(--danger-text)',
           }}>
             {testResult.valid ? (
               <>
@@ -299,7 +299,7 @@ export default function SdrSourcePage() {
               </>
             ) : (
               <>
-                <XCircle size={14} color="#b02619" />
+                <XCircle size={14} color="var(--danger-text)" />
                 {testResult.error ?? 'Falha na conexão'}
               </>
             )}
@@ -310,11 +310,11 @@ export default function SdrSourcePage() {
         {saveError && (
           <div style={{
             marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-sm)',
-            fontSize: 13, fontWeight: 600, color: '#b02619',
-            background: 'rgba(217,48,37,0.06)', border: '1px solid rgba(217,48,37,0.2)',
+            fontSize: 13, fontWeight: 600, color: 'var(--danger-text)',
+            background: 'var(--danger-dim)', border: '1px solid rgba(217,48,37,0.2)',
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            <XCircle size={14} color="#b02619" />
+            <XCircle size={14} color="var(--danger-text)" />
             {saveError}
           </div>
         )}

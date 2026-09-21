@@ -8,8 +8,8 @@ import { toDate } from '@/lib/date'
 type Priority = 'high' | 'normal' | 'low'
 
 const PRIORITY_LABELS: Record<Priority, { label: string; color: string; bg: string }> = {
-  high:   { label: 'Alta',   color: '#b02619', bg: 'rgba(217,48,37,0.08)' },
-  normal: { label: 'Normal', color: '#7A5600', bg: 'var(--primary-dim)' },
+  high:   { label: 'Alta',   color: 'var(--danger-text)', bg: 'var(--danger-dim)' },
+  normal: { label: 'Normal', color: 'var(--warn-text)', bg: 'var(--primary-dim)' },
   low:    { label: 'Baixa',  color: 'var(--gray)', bg: 'var(--bg)' },
 }
 
@@ -66,7 +66,7 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
             <div style={{ display: 'flex', gap: 8 }}>
               {(['high', 'normal', 'low'] as Priority[]).map(p => (
                 <button key={p} onClick={() => setPriority(p)} style={{
-                  padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  padding: '6px 12px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   fontFamily: 'inherit', border: '1px solid',
                   borderColor: priority === p ? PRIORITY_LABELS[p].color : 'var(--gray3)',
                   background: priority === p ? PRIORITY_LABELS[p].bg : 'var(--white)',
@@ -86,7 +86,7 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
               {tags.map(tag => (
                 <span key={tag} style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '3px 10px', borderRadius: 100, fontSize: 12, fontWeight: 700,
+                  padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700,
                   background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)',
                 }}>
                   {tag}
@@ -103,14 +103,14 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
                 placeholder="Nova tag…"
                 style={{
                   flex: 1, padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-                  border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none', background: 'var(--white)', color: 'var(--black)',
+                  border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', outline: 'none', background: 'var(--white)', color: 'var(--black)',
                 }}
                 onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                 onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
               />
               <button onClick={addTag} style={{
                 padding: '8px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-                background: 'var(--primary)', border: 'none', borderRadius: 8, cursor: 'pointer',
+                background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                 color: 'var(--primary-contrast)',
               }}>+</button>
             </div>
@@ -126,7 +126,7 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
               placeholder="Observações sobre este lead…"
               style={{
                 width: '100%', padding: '10px 14px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-                border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none', resize: 'none',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', outline: 'none', resize: 'none',
                 background: 'var(--white)', color: 'var(--black)', lineHeight: 1.5,
               }}
               onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
@@ -139,12 +139,12 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--gray3)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button onClick={onClose} style={{
             padding: '9px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, cursor: 'pointer',
+            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer',
             color: 'var(--gray)',
           }}>Cancelar</button>
           <button onClick={save} disabled={saving} style={{
             padding: '9px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-            background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer',
+            background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: 'pointer',
             color: 'var(--primary-contrast)',
           }}>{saving ? 'Salvando…' : 'Salvar'}</button>
         </div>
@@ -252,13 +252,13 @@ export default function PipelinePage() {
         {/* kanban columns */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gap: 12 }}>
           {[0,1,2,3].map(col => (
-            <div key={col} style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 16 }}>
+            <div key={col} style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 {sk('55%', 12, 4)}{sk(24, 20, 100)}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[0,1,2].map(card => (
-                  <div key={card} style={{ background: 'var(--bg)', border: '1px solid var(--gray3)', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  <div key={card} style={{ background: 'var(--bg)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
                     {sk('80%', 13, 4)}{sk('50%', 11, 4)}
                     <div style={{ display: 'flex', gap: 6 }}>{sk(48, 18, 100)}{sk(56, 18, 100)}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>{sk(60, 11, 4)}{sk(50, 11, 4)}</div>
@@ -292,7 +292,7 @@ export default function PipelinePage() {
             style={{
               width: 220, padding: '9px 12px 9px 36px', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
               color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)',
-              borderRadius: 100, outline: 'none', transition: 'border-color .2s',
+              borderRadius: 'var(--radius-pill)', outline: 'none', transition: 'border-color .2s',
             }}
             onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
             onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
@@ -310,7 +310,7 @@ export default function PipelinePage() {
             onClick={() => setShowNoTags(v => !v)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '4px 11px', borderRadius: 100, fontSize: 11, fontWeight: 700,
+              padding: '4px 11px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700,
               cursor: 'pointer', fontFamily: 'inherit',
               background: showNoTags ? 'var(--black)' : 'var(--white)',
               color: showNoTags ? 'var(--white)' : 'var(--gray)',
@@ -329,7 +329,7 @@ export default function PipelinePage() {
                 onClick={() => toggleTag(tag)}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '4px 11px', borderRadius: 100, fontSize: 11, fontWeight: 700,
+                  padding: '4px 11px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700,
                   cursor: 'pointer', fontFamily: 'inherit',
                   background: active ? 'var(--primary)' : 'var(--primary-dim)',
                   color: active ? 'var(--primary-contrast)' : 'var(--primary-text)',
@@ -348,7 +348,7 @@ export default function PipelinePage() {
               onClick={clearFilters}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 700,
+                padding: '4px 10px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700,
                 cursor: 'pointer', fontFamily: 'inherit',
                 background: 'transparent', color: 'var(--gray2)',
                 border: '1px solid transparent',
@@ -388,7 +388,7 @@ export default function PipelinePage() {
                 setDragOverStageId(null)
               }}
               style={{
-                borderRadius: 14,
+                borderRadius: 'var(--radius-lg)',
                 padding: isDropTarget ? 6 : 0,
                 background: isDropTarget ? 'var(--primary-dim)' : 'transparent',
                 border: isDropTarget ? '2px dashed var(--primary)' : '2px dashed transparent',
@@ -402,7 +402,7 @@ export default function PipelinePage() {
                   {stage.name}
                 </div>
                 <div style={{
-                  marginLeft: 'auto', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 100,
+                  marginLeft: 'auto', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 'var(--radius-pill)',
                   background: 'var(--primary)', color: 'var(--primary-contrast)',
                 }}>
                   {stage.leads.length}
@@ -428,7 +428,7 @@ export default function PipelinePage() {
                     style={{
                       background: 'var(--white)', border: `1px solid ${hasAlert ? 'rgba(217,48,37,0.3)' : 'var(--gray3)'}`,
                       borderLeft: lead.extras?.priority === 'high' ? '3px solid var(--red)' : `1px solid ${hasAlert ? 'rgba(217,48,37,0.3)' : 'var(--gray3)'}`,
-                      borderRadius: 12, padding: 12, marginBottom: 8,
+                      borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 8,
                       boxShadow: 'var(--shadow)', transition: 'border-color .2s, opacity .15s, transform .15s',
                       cursor: isDragging ? 'grabbing' : 'grab',
                       opacity: isDragging ? 0.4 : 1,
@@ -444,7 +444,7 @@ export default function PipelinePage() {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                         {lead.extras.tags.slice(0, 3).map((tag: string) => (
                           <span key={tag} style={{
-                            fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 100,
+                            fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 'var(--radius-pill)',
                             background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)',
                           }}>{tag}</span>
                         ))}
@@ -462,7 +462,7 @@ export default function PipelinePage() {
 
               {/* Empty drop target indicator */}
               {isDropTarget && stage.leads.length === 0 && (
-                <div style={{ height: 60, borderRadius: 10, border: '2px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--primary-text)', fontWeight: 700 }}>
+                <div style={{ height: 60, borderRadius: 'var(--radius-md)', border: '2px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--primary-text)', fontWeight: 700 }}>
                   Soltar aqui
                 </div>
               )}

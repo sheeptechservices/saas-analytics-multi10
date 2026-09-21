@@ -101,10 +101,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, { dot: string; text: string; bg: string; border: string }> = {
   pendente: { dot: 'var(--gray3)',   text: 'var(--gray2)',        bg: 'var(--bg)',             border: 'var(--gray3)'          },
-  enviado:  { dot: '#60a5fa',        text: '#1d4ed8',             bg: 'rgba(59,130,246,0.07)', border: 'rgba(59,130,246,0.25)' },
+  enviado:  { dot: '#60a5fa',        text: 'var(--info-text)',             bg: 'rgba(59,130,246,0.07)', border: 'rgba(59,130,246,0.25)' },
   entregue: { dot: 'var(--primary)', text: 'var(--primary-text)', bg: 'var(--primary-dim)',    border: 'var(--primary-mid)'    },
-  lido:     { dot: 'var(--green)',   text: 'var(--green)',        bg: 'rgba(30,138,62,0.07)',  border: 'rgba(30,138,62,0.22)'  },
-  falhou:   { dot: 'var(--red)',     text: 'var(--red)',          bg: 'rgba(217,48,37,0.07)',  border: 'rgba(217,48,37,0.20)'  },
+  lido:     { dot: 'var(--green)',   text: 'var(--green)',        bg: 'var(--success-dim)',  border: 'var(--success-mid)'  },
+  falhou:   { dot: 'var(--red)',     text: 'var(--red)',          bg: 'var(--danger-dim)',  border: 'rgba(217,48,37,0.20)'  },
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -112,7 +112,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
-      fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+      fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-pill)',
       background: c.bg, border: `1px solid ${c.border}`, color: c.text,
     }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.dot, flexShrink: 0 }} />
@@ -123,7 +123,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function CampaignStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string }> = {
-    enviando:  { label: 'Em andamento', color: '#d97706'      },
+    enviando:  { label: 'Em andamento', color: 'var(--warn-text)'      },
     concluido: { label: 'Concluído',    color: 'var(--green)' },
     erro:      { label: 'Erro',         color: 'var(--red)'   },
   }
@@ -135,7 +135,7 @@ function MetricPill({ label, value, color }: { label: string; value: number; col
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', minWidth: 44 }}>
       <span style={{ fontSize: 15, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
-      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{label}</span>
+      <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{label}</span>
     </span>
   )
 }
@@ -149,7 +149,7 @@ function PillBtn({
       disabled={disabled}
       style={{
         display: 'flex', alignItems: 'center', gap: 6,
-        padding: '7px 14px', borderRadius: 100,
+        padding: '7px 14px', borderRadius: 'var(--radius-pill)',
         border: '1px solid var(--gray3)', background: 'var(--white)',
         fontSize: 12, fontWeight: 700, color: disabled ? 'var(--gray3)' : 'var(--gray)',
         cursor: disabled ? 'not-allowed' : 'pointer', transition: 'background .15s',
@@ -303,7 +303,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
 
       {isLoading && (
         <div className="animate-slide-up delay-2" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[...Array(5)].map((_, i) => <Skeleton key={i} height={52} radius={10} />)}
+          {[...Array(5)].map((_, i) => <Skeleton key={i} height={52} radius="var(--radius-md)" />)}
         </div>
       )}
 
@@ -320,7 +320,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
         <>
           {/* Campaign summary */}
           <div className="animate-slide-up delay-2" style={{
-            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14,
+            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)',
             padding: '16px 20px', marginBottom: 18,
             display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center',
           }}>
@@ -332,7 +332,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
             </div>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
               <MetricPill label="Total"    value={total}         color="var(--ink)"          />
-              <MetricPill label="Enviado"  value={bySt.enviado}  color="#1d4ed8"              />
+              <MetricPill label="Enviado"  value={bySt.enviado}  color="var(--info-text)"              />
               <MetricPill label="Entregue" value={bySt.entregue} color="var(--primary-text)"  />
               <MetricPill label="Lido"     value={bySt.lido}     color="var(--green)"         />
               <MetricPill label="Falhou"   value={bySt.falhou}   color="var(--red)"           />
@@ -344,12 +344,12 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
           {/* Re-send confirm panel (manual only) */}
           {showReenvio && reenvioMode !== 'idle' && (
             <div className="animate-slide-up" style={{
-              marginBottom: 18, padding: '14px 18px', borderRadius: 12,
+              marginBottom: 18, padding: '14px 18px', borderRadius: 'var(--radius-md)',
               background: reenvioMode === 'done' && reenvioResult?.ok
                 ? 'rgba(34,197,94,0.06)'
                 : reenvioMode === 'done'
                   ? 'rgba(239,68,68,0.06)'
-                  : 'rgba(245,158,11,0.07)',
+                  : 'var(--warn-dim)',
               border: `1px solid ${
                 reenvioMode === 'done' && reenvioResult?.ok
                   ? 'rgba(34,197,94,0.25)'
@@ -360,10 +360,10 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
             }}>
               {reenvioMode === 'confirm' && (
                 <>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warn-text)', marginBottom: 6 }}>
                     Reenviar para {failedCount} destinatário{failedCount !== 1 ? 's' : ''} que falharam?
                   </div>
-                  <div style={{ fontSize: 12, color: '#78350f', marginBottom: 14, lineHeight: 1.55 }}>
+                  <div style={{ fontSize: 12, color: 'var(--warn-text)', marginBottom: 14, lineHeight: 1.55 }}>
                     Será criada uma nova campanha com o mesmo template <strong>{c.template}</strong>.
                     Envio real via WhatsApp — ação irreversível.
                   </div>
@@ -377,7 +377,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
                 <div style={{ fontSize: 13, color: 'var(--gray2)' }}>Criando nova campanha…</div>
               )}
               {reenvioMode === 'done' && reenvioResult?.ok && (
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success-text)' }}>
                   ✓ Nova campanha criada — {reenvioResult.started ?? failedCount} disparo{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''} iniciado{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''}
                   {(reenvioResult.semNome ?? 0) > 0 && <>, {reenvioResult.semNome} sem nome ficaram de fora</>}.{' '}
                   <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: 0 }}>
@@ -397,7 +397,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
           )}
 
           {/* Recipient table */}
-          <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14, overflow: 'hidden' }}>
+          <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--bg)' }}>
@@ -476,7 +476,7 @@ function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
       </div>
       <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexShrink: 0 }}>
         <MetricPill label="Total"    value={c.totalSolicitado} color="var(--ink)"         />
-        <MetricPill label="Enviado"  value={c.enviado}         color="#1d4ed8"             />
+        <MetricPill label="Enviado"  value={c.enviado}         color="var(--info-text)"             />
         <MetricPill label="Entregue" value={c.entregue}        color="var(--primary-text)" />
         <MetricPill label="Lido"     value={c.lido}            color="var(--green)"        />
         <MetricPill label="Falhou"   value={c.falhou}          color="var(--red)"          />
@@ -547,7 +547,7 @@ export default function DisparosPage() {
         >
           <div
             style={{
-              background: 'var(--white)', borderRadius: 20, padding: 28,
+              background: 'var(--white)', borderRadius: 'var(--radius-xl)', padding: 28,
               width: '100%', maxWidth: 420,
               boxShadow: '0 24px 64px rgba(0,0,0,0.20)',
               animation: 'modalSlideUp .18s cubic-bezier(0.22,1,0.36,1) both',
@@ -571,9 +571,9 @@ export default function DisparosPage() {
               <div>
                 <div style={{
                   display: 'flex', alignItems: 'flex-start', gap: 8,
-                  padding: '12px 16px', borderRadius: 12, marginBottom: 18,
+                  padding: '12px 16px', borderRadius: 'var(--radius-md)', marginBottom: 18,
                   background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)',
-                  fontSize: 13, fontWeight: 600, color: '#15803d',
+                  fontSize: 13, fontWeight: 600, color: 'var(--success-text)',
                 }}>
                   <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                   <span>
@@ -606,7 +606,7 @@ export default function DisparosPage() {
       </div>
 
       {/* List */}
-      <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14, overflow: 'hidden' }}>
+      <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {[...Array(4)].map((_, i) => (
@@ -616,7 +616,7 @@ export default function DisparosPage() {
                   <Skeleton width="20%" height={10} />
                 </div>
                 <div style={{ display: 'flex', gap: 20 }}>
-                  {[...Array(5)].map((_, j) => <Skeleton key={j} width={36} height={36} radius={8} />)}
+                  {[...Array(5)].map((_, j) => <Skeleton key={j} width={36} height={36} radius="var(--radius-sm)" />)}
                 </div>
               </div>
             ))}

@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -9,8 +11,16 @@ export interface DataTableColumn {
   label: string
   /** Defaults to 'left'. */
   align?: 'left' | 'right'
+  /** Ênfase visual do valor. 'positive' era implícito em align:'right'. */
+  tone?: 'default' | 'positive' | 'negative' | 'muted'
+  /** Peso 800 no valor. Era implícito em align:'right'. */
+  strong?: boolean
   format?: (value: unknown) => React.ReactNode
   sortable?: boolean
+  /** Largura fixa da coluna (px ou valor CSS). Quando alguma coluna define
+      largura, a tabela passa a table-layout: fixed e as colunas sem largura
+      dividem o restante — o que permite reticências na coluna fluida. */
+  width?: number | string
 }
 
 export interface DataTableProps {
@@ -29,9 +39,44 @@ export interface DataTableProps {
   mobileMode?: 'cards' | 'scroll'
   /** Column key whose value uniquely identifies a row. Used to stabilise animation keys so re-sort doesn't re-trigger the cascade. */
   rowKey?: string
+  /** 'default' = visual atual (cabeçalho --bg, hover com faixa da marca).
+      'plain' = tabela dentro de um painel plano (dashboard Visão geral):
+      cabeçalho --surface-2, divisórias --line-2, hover neutro sem faixa,
+      calha de 12px entre colunas e 20px nas bordas; abaixo de lg, linhas
+      planas em vez de cartões com sombra. */
+  variant?: 'default' | 'plain'
 }
 
 // ─── DataTable ────────────────────────────────────────────────────────────────
+
+const toneColor: Record<string, string> = {
+  default:  'var(--ink)',
+  positive: 'var(--success-text)',
+  negative: 'var(--danger-text)',
+  muted:    'var(--muted)',
+}
+
+/** Largura mínima reservada a cada coluna fluida quando há colunas fixas. */
+const FLUID_MIN_PX = 160
+
+function cellPadding(variant: 'default' | 'plain', index: number, count: number, vertical: number): string {
+  if (variant !== 'plain') return `${vertical}px 20px`
+  const left  = index === 0 ? 20 : 6
+  const right = index === count - 1 ? 20 : 6
+  return `${vertical}px ${right}px ${vertical}px ${left}px`
+}
+
+/** Enter/Espaço acionam a linha clicável, como um botão. */
+function rowKeyHandler(row: Record<string, unknown>, onClick?: (row: Record<string, unknown>) => void) {
+  if (!onClick) return undefined
+  return (e: KeyboardEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onClick(row)
+    }
+  }
+}
 
 export function DataTable({
   columns,
@@ -43,9 +88,12 @@ export function DataTable({
   maxHeight,
   mobileMode = 'cards',
   rowKey,
+  variant = 'default',
 }: DataTableProps) {
   const [sortCol, setSortCol] = useState<string>(defaultSortKey ?? columns[0]?.key ?? '')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir)
+  const plain = variant === 'plain'
+  const headerBg = plain ? 'var(--surface-2)' : 'var(--bg)'
 
   function handleSort(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -64,29 +112,44 @@ export function DataTable({
     return sortDir === 'asc' ? cmp : -cmp
   })
 
+  // ── Larguras fixas (opcional) ─────────────────────────────────────────────
+
+  const hasWidths = columns.some(c => c.width != null)
+  const fixedPx = columns.reduce((sum, c) => sum + (typeof c.width === 'number' ? c.width : 0), 0)
+  const fluidCount = columns.filter(c => c.width == null).length
+  const tableStyle: CSSProperties = hasWidths
+    ? { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: fixedPx + fluidCount * FLUID_MIN_PX }
+    : { width: '100%', borderCollapse: 'collapse' }
+  const colgroup = hasWidths ? (
+    <colgroup>
+      {columns.map(col => <col key={col.key} style={col.width != null ? { width: col.width } : undefined} />)}
+    </colgroup>
+  ) : null
+
   // ── Shared table JSX (desktop + scroll mode) ──────────────────────────────
 
   const thead = (
     <thead>
-      <tr style={{ background: 'var(--bg)' }}>
-        {columns.map(col => {
+      <tr style={{ background: headerBg }}>
+        {columns.map((col, i) => {
           const active = sortCol === col.key
           const align = col.align ?? 'left'
           return (
             <th
               key={col.key}
+              className="label-data"
               onClick={col.sortable !== false ? () => handleSort(col.key) : undefined}
+              aria-sort={col.sortable !== false && active ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
               style={{
-                padding: '9px 20px',
+                padding: cellPadding(variant, i, columns.length, plain ? 10 : 9),
                 textAlign: align,
-                fontSize: 10, fontWeight: 800,
-                color: active ? 'var(--primary-text)' : 'var(--gray2)',
-                textTransform: 'uppercase', letterSpacing: '0.07em',
+                color: active ? 'var(--primary-text)' : undefined,
                 borderBottom: '1px solid var(--gray3)',
                 cursor: col.sortable !== false ? 'pointer' : 'default',
                 userSelect: 'none', transition: 'color .15s',
                 whiteSpace: 'nowrap',
-                ...(maxHeight ? { position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1 } : {}),
+                ...(hasWidths ? { overflow: 'hidden', textOverflow: 'ellipsis' } : {}),
+                ...(maxHeight ? { position: 'sticky', top: 0, background: headerBg, zIndex: 1 } : {}),
               }}
             >
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexDirection: align === 'right' ? 'row-reverse' : 'row' }}>
@@ -122,6 +185,7 @@ export function DataTable({
             index={i}
             isLast={i === sorted.length - 1}
             onClick={onRowClick}
+            variant={variant}
           />
         ))
       )}
@@ -137,22 +201,26 @@ export function DataTable({
   // ── Desktop (and scroll mode): table ──────────────────────────────────────
 
   // In 'cards' mode the table hides below lg. With maxHeight the box already
-  // scrolls on both axes; without it, 'scroll' mode gets a sideways-scrolling
-  // wrapper. The default desktop table gains no extra node either way.
+  // scrolls on both axes; without it, 'scroll' mode and fixed column widths
+  // (the table then has a min-width) get a sideways-scrolling wrapper, so the
+  // overflow stays here instead of pushing the page. Otherwise the default
+  // desktop table gains no extra node.
   const hideOnMobile = mobileMode === 'cards' ? 'max-lg:hidden' : undefined
+  const bareTable = !maxHeight && mobileMode === 'cards' && !hasWidths
 
   const tableEl = (
-    <table className={maxHeight ? undefined : hideOnMobile} style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <table className={bareTable ? hideOnMobile : undefined} style={tableStyle}>
+      {colgroup}
       {thead}
       {tbody}
     </table>
   )
 
   const table = maxHeight
-    ? <div className={hideOnMobile} style={{ maxHeight, overflowY: 'auto', borderRadius: 8 }}>{tableEl}</div>
-    : mobileMode === 'cards'
+    ? <div className={hideOnMobile} style={{ maxHeight, overflowY: 'auto', borderRadius: 8, ...(hasWidths ? { overflowX: 'auto' } : {}) }}>{tableEl}</div>
+    : bareTable
       ? tableEl
-      : <div className="overflow-x-auto">{tableEl}</div>
+      : <div className={cn('overflow-x-auto', hideOnMobile)}>{tableEl}</div>
 
   if (mobileMode !== 'cards') return table
 
@@ -163,20 +231,27 @@ export function DataTable({
   const restCols = columns.slice(1)
 
   const cards = (
-    <div className="p-3 lg:hidden">
+    // 'plain' rows carry their own inset (flat panel); default cards float
+    // inside the container with a 12px margin.
+    <div className={plain ? 'lg:hidden' : 'p-3 lg:hidden'}>
       {/* Sort chips */}
       {sortableCols.length > 0 && (
         <div style={{
           display: 'flex', gap: 6, overflowX: 'auto',
-          paddingBottom: 8, marginBottom: 12,
+          ...(plain
+            ? { padding: '12px 16px 10px' }
+            : { paddingBottom: 8, marginBottom: 12 }),
         }}>
           {sortableCols.map(col => {
             const active = sortCol === col.key
             return (
               <button
                 key={col.key}
+                type="button"
+                // 40px on tablets, 44×44 on phones (.touch-target).
+                className="min-h-10 touch-target"
+                aria-pressed={active}
                 onClick={() => handleSort(col.key)}
-                className="min-h-10"
                 style={{
                   flexShrink: 0, padding: '5px 10px', borderRadius: 100,
                   fontSize: 11, fontWeight: 700, cursor: 'pointer',
@@ -184,7 +259,7 @@ export function DataTable({
                   border: `1px solid ${active ? 'var(--primary)' : 'var(--gray3)'}`,
                   background: active ? 'var(--primary-dim)' : 'var(--white)',
                   color: active ? 'var(--primary-text)' : 'var(--gray)',
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   fontFamily: 'inherit',
                 }}
               >
@@ -198,7 +273,7 @@ export function DataTable({
 
       {/* Empty state */}
       {sorted.length === 0 ? (
-        <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
+        <div style={{ padding: plain ? '32px 16px' : '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
           {emptyMessage}
         </div>
       ) : sorted.map((row, i) => {
@@ -210,17 +285,27 @@ export function DataTable({
         return (
           <div
             key={rowKey ? String(row[rowKey]) : i}
-            className="row-cascade"
+            className={cn('row-cascade', onRowClick && 'dt-row', plain && 'dt-row--plain')}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
-            style={{
-              '--row-delay': `${Math.min(i, 9) * 40}ms`,
-              background: 'var(--white)', border: '1px solid var(--line)',
-              borderRadius: 12, padding: 14, marginBottom: 10,
-              boxShadow: 'var(--shadow-md)',
-              cursor: onRowClick ? 'pointer' : 'default',
-            } as React.CSSProperties}
+            role={onRowClick ? 'button' : undefined}
+            tabIndex={onRowClick ? 0 : undefined}
+            onKeyDown={rowKeyHandler(row, onRowClick)}
+            style={plain
+              ? {
+                  '--row-delay': `${Math.min(i, 9) * 40}ms`,
+                  padding: '14px 16px',
+                  borderTop: '1px solid var(--line-2)',
+                  cursor: onRowClick ? 'pointer' : 'default',
+                } as CSSProperties
+              : {
+                  '--row-delay': `${Math.min(i, 9) * 40}ms`,
+                  background: 'var(--white)', border: '1px solid var(--line)',
+                  borderRadius: 12, padding: 14, marginBottom: 10,
+                  boxShadow: 'var(--shadow-md)',
+                  cursor: onRowClick ? 'pointer' : 'default',
+                } as CSSProperties}
           >
-            <div className="wrap-break-word" style={{ fontWeight: 800, fontSize: 15, color: 'var(--black)', marginBottom: restCols.length ? 10 : 0 }}>
+            <div className="wrap-break-word" style={{ fontWeight: 800, fontSize: 15, color: 'var(--black)', marginBottom: restCols.length ? 10 : 0, minWidth: 0 }}>
               {firstDisplay}
             </div>
 
@@ -230,13 +315,12 @@ export function DataTable({
               return (
                 <div
                   key={col.key}
-                  className="gap-3"
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingTop: 6 }}
                 >
-                  <span className="shrink-0" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--gray2)' }}>
+                  <span className="label-data shrink-0">
                     {col.label}
                   </span>
-                  <span className="min-w-0 text-right wrap-break-word" style={{ fontSize: 13, fontWeight: col.align === 'right' ? 800 : 600, color: col.align === 'right' ? 'var(--green)' : 'var(--black)', fontVariantNumeric: col.align === 'right' ? 'tabular-nums' : undefined }}>
+                  <span className="min-w-0 text-right wrap-break-word" style={{ fontSize: 'var(--text-md)', fontWeight: col.strong ? 800 : 600, color: toneColor[col.tone ?? 'default'], fontVariantNumeric: (col.align ?? 'left') === 'right' ? 'tabular-nums' : undefined }}>
                     {display}
                   </span>
                 </div>
@@ -259,43 +343,54 @@ export function DataTable({
 // ─── DataTableRow ─────────────────────────────────────────────────────────────
 
 function DataTableRow({
-  row, columns, index, isLast, onClick,
+  row, columns, index, isLast, onClick, variant,
 }: {
   row: Record<string, unknown>
   columns: DataTableColumn[]
   index: number
   isLast: boolean
   onClick?: (row: Record<string, unknown>) => void
+  variant: 'default' | 'plain'
 }) {
   const [hov, setHov] = useState(false)
+  const plain = variant === 'plain'
 
   return (
     <tr
-      className="row-cascade"
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      className={cn('row-cascade dt-row', plain && 'dt-row--plain')}
+      onMouseEnter={plain ? undefined : () => setHov(true)}
+      onMouseLeave={plain ? undefined : () => setHov(false)}
       onClick={onClick ? () => onClick(row) : undefined}
-      style={{
-        '--row-delay': `${Math.min(index, 9) * 40}ms`,
-        borderBottom: isLast ? 'none' : '1px solid var(--gray3)',
-        borderLeft: `3px solid ${hov ? 'var(--primary)' : 'transparent'}`,
-        background: hov ? 'var(--primary-dim)' : 'transparent',
-        transition: 'background .18s ease, border-color .18s ease',
-        cursor: onClick ? 'pointer' : 'default',
-      } as React.CSSProperties}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={rowKeyHandler(row, onClick)}
+      style={plain
+        ? {
+            // Hover e foco vêm de .dt-row--plain (globals.css), sem estado JS.
+            '--row-delay': `${Math.min(index, 9) * 40}ms`,
+            borderBottom: isLast ? 'none' : '1px solid var(--line-2)',
+            cursor: onClick ? 'pointer' : 'default',
+          } as CSSProperties
+        : {
+            '--row-delay': `${Math.min(index, 9) * 40}ms`,
+            borderBottom: isLast ? 'none' : '1px solid var(--gray3)',
+            borderLeft: `var(--rail) solid ${hov ? 'var(--primary)' : 'transparent'}`,
+            background: hov ? 'var(--primary-dim)' : 'transparent',
+            transition: 'background .18s ease, border-color .18s ease',
+            cursor: onClick ? 'pointer' : 'default',
+          } as CSSProperties}
     >
-      {columns.map(col => {
+      {columns.map((col, i) => {
         const value = row[col.key]
         const align = col.align ?? 'left'
         return (
           <td
             key={col.key}
             style={{
-              padding: '13px 20px',
+              padding: cellPadding(variant, i, columns.length, 13),
               textAlign: align,
-              fontSize: 13, fontWeight: col.align === 'right' ? 800 : 600,
-              color: col.align === 'right' ? 'var(--green)' : 'var(--black)',
-              fontVariantNumeric: col.align === 'right' ? 'tabular-nums' : undefined,
+              fontSize: 'var(--text-md)', fontWeight: col.strong ? 800 : 600,
+              color: toneColor[col.tone ?? 'default'],
+              fontVariantNumeric: align === 'right' ? 'tabular-nums' : undefined,
             }}
           >
             {col.format ? col.format(value) : String(value ?? '—')}

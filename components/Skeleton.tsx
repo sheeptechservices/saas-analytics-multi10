@@ -17,7 +17,7 @@ export function Skeleton({ width = '100%', height = 14, radius = 6, circle, styl
         width,
         height,
         borderRadius: circle ? '50%' : radius,
-        background: 'var(--gray3)',
+        background: 'var(--line)',
         flexShrink: 0,
         ...style,
       }}
@@ -44,13 +44,13 @@ interface SkeletonTableProps {
 export function SkeletonTable({ rows = 7, colWidths = ['30%', '20%', '20%', '15%', '10%'] }: SkeletonTableProps) {
   return (
     <div style={{
-      background: 'var(--white)', borderRadius: 16,
-      border: '1px solid var(--gray3)', overflow: 'hidden',
+      background: 'var(--white)', borderRadius: 'var(--radius-lg)',
+      border: '1px solid var(--line)', overflow: 'hidden',
     }}>
       {/* header ghost */}
       <div style={{
         background: 'var(--bg)', padding: '10px 16px',
-        borderBottom: '1px solid var(--gray3)',
+        borderBottom: '1px solid var(--line)',
         display: 'flex', gap: 16, alignItems: 'center',
       }}>
         <Skeleton width={14} height={14} radius={3} />
@@ -62,7 +62,7 @@ export function SkeletonTable({ rows = 7, colWidths = ['30%', '20%', '20%', '15%
           key={r}
           style={{
             padding: '13px 16px',
-            borderBottom: r < rows - 1 ? '1px solid var(--gray3)' : 'none',
+            borderBottom: r < rows - 1 ? '1px solid var(--line)' : 'none',
             display: 'flex', gap: 16, alignItems: 'center',
           }}
         >
@@ -83,7 +83,7 @@ export function SkeletonSessionList({ items = 6 }: { items?: number }) {
           key={i}
           style={{
             display: 'flex', alignItems: 'flex-start', gap: 9,
-            padding: '10px 12px', borderBottom: '1px solid var(--gray3)',
+            padding: '10px 12px', borderBottom: '1px solid var(--line)',
           }}
         >
           <Skeleton circle width={30} height={30} style={{ marginTop: 1 }} />
@@ -113,13 +113,34 @@ export function SkeletonKpiCards({ count = 4 }: { count?: number }) {
     >
       {Array.from({ length: count }, (_, i) => (
         <div key={i} style={{
-          background: 'var(--white)', borderRadius: 16,
-          border: '1px solid var(--gray3)', padding: '20px 22px',
-          display: 'flex', flexDirection: 'column', gap: 12,
+          background: 'var(--surface)', borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--line)',
+          borderLeft: 'var(--rail) solid var(--line)',
+          boxShadow: 'var(--shadow-md)',
+          padding: '18px 20px',
+          display: 'flex', flexDirection: 'column', gap: 10,
         }}>
-          <Skeleton width="55%" height={11} />
-          <Skeleton width="45%" height={28} radius={6} />
-          <Skeleton width="70%" height={10} />
+          <Skeleton width="55%" height={10} />
+          <Skeleton width="45%" height={26} radius="var(--radius-xs)" />
+          <Skeleton width="70%" height={11} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// KPI band skeleton for the dashboard Visão geral: um objeto só (não N
+// cartões), com as mesmas células em hairline da KpiBand — inclusive o
+// 2×2 abaixo de 900px, porque reaproveita as classes .kpi-band.
+export function SkeletonKpiBand({ count = 4 }: { count?: number }) {
+  const cells = Math.max(count, 2)
+  return (
+    <div className="kpi-band" aria-hidden style={{ '--kpi-count': cells - 1 } as CSSProperties}>
+      {Array.from({ length: cells }, (_, i) => (
+        <div key={i} className="kpi-band-cell">
+          <Skeleton width="55%" height={10} />
+          <Skeleton width={i === 0 ? '45%' : '40%'} height={i === 0 ? 44 : 27} radius="var(--radius-xs)" />
+          <Skeleton width="70%" height={11} />
         </div>
       ))}
     </div>
@@ -127,13 +148,18 @@ export function SkeletonKpiCards({ count = 4 }: { count?: number }) {
 }
 
 // Generic block placeholder (for charts / wide cards)
-export function SkeletonBlock({ height = 180, style }: { height?: number; style?: CSSProperties }) {
+export function SkeletonBlock({ height = 180, radius = 'var(--radius-lg)', style }: {
+  height?: number
+  /** Raio do bloco. Padrão --radius-lg (cartão de seção); use --radius-md para painéis planos. */
+  radius?: number | string
+  style?: CSSProperties
+}) {
   return (
     <Skeleton
       width="100%"
       height={height}
-      radius={16}
-      style={{ background: 'var(--gray3)', ...style }}
+      radius={radius}
+      style={{ background: 'var(--line)', ...style }}
     />
   )
 }

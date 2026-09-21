@@ -94,7 +94,7 @@ function dayLabel(key: string): string {
 
 function pagerStyle(enabled: boolean): CSSProperties {
   return {
-    fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
+    fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)',
     border: '1px solid var(--gray3)', background: 'transparent',
     cursor: enabled ? 'pointer' : 'not-allowed',
     color: enabled ? 'var(--black)' : 'var(--gray3)',
@@ -111,10 +111,10 @@ function Bubble({ msg }: { msg: Message }) {
     <div style={{ display: 'flex', justifyContent: isHuman ? 'flex-start' : 'flex-end' }}>
       <div style={{
         maxWidth: '72%', padding: '8px 12px', wordBreak: 'break-word',
-        borderRadius: isHuman ? '4px 12px 12px 12px' : '12px 4px 12px 12px',
+        borderRadius: isHuman ? 'var(--radius-xs) var(--radius-md) var(--radius-md) var(--radius-md)' : 'var(--radius-md) var(--radius-xs) var(--radius-md) var(--radius-md)',
         background: isHuman ? 'var(--bg)' : 'var(--primary)',
         border: isHuman ? '1px solid var(--gray3)' : 'none',
-        color: isHuman ? 'var(--black)' : '#fff',
+        color: isHuman ? 'var(--black)' : 'var(--primary-contrast)',
         fontSize: 13, lineHeight: 1.5,
       }}>
         <div style={{ marginBottom: 3 }}>{msg.content}</div>
@@ -125,7 +125,7 @@ function Bubble({ msg }: { msg: Message }) {
         }}>
           {isN8nBot && (
             <span style={{
-              fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 4,
+              fontSize: 'var(--text-2xs)', fontWeight: 800, padding: '1px 5px', borderRadius: 'var(--radius-xs)',
               background: 'rgba(255,255,255,0.22)', letterSpacing: '0.05em',
             }}>IA</span>
           )}
@@ -144,7 +144,7 @@ function DateSeparator({ label }: { label: string }) {
     }}>
       <span style={{
         fontSize: 11, fontWeight: 600, color: 'var(--gray2)',
-        background: 'rgba(0,0,0,0.05)', padding: '3px 12px', borderRadius: 99,
+        background: 'rgba(0,0,0,0.05)', padding: '3px 12px', borderRadius: 'var(--radius-pill)',
         letterSpacing: '0.02em', userSelect: 'none',
       }}>
         {label}
@@ -157,11 +157,11 @@ interface SendBtnProps { label: string; disabled: boolean; loading: boolean; onC
 function SendBtn({ label, disabled, loading, onClick }: SendBtnProps) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      padding: '9px 20px', borderRadius: 12, border: 'none',
+      padding: '9px 20px', borderRadius: 'var(--radius-md)', border: 'none',
       fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
       cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0,
       background: disabled ? 'var(--gray3)' : 'var(--primary)',
-      color: disabled ? 'var(--gray2)' : '#fff',
+      color: disabled ? 'var(--gray2)' : 'var(--primary-contrast)',
       transition: 'background .15s',
     }}>
       {loading ? 'Enviando...' : label}
@@ -187,8 +187,8 @@ function TemplateComposer({
   return (
     <div>
       <div style={{
-        marginBottom: 10, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-        background: 'rgba(217,150,0,0.06)', border: '1px solid rgba(217,150,0,0.25)', color: '#92650a',
+        marginBottom: 10, padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600,
+        background: 'rgba(217,150,0,0.06)', border: '1px solid rgba(217,150,0,0.25)', color: 'var(--warn-text)',
       }}>
         {expiredAgo
           ? `Janela de 24h expirada há ${expiredAgo} — envie um template aprovado`
@@ -215,8 +215,8 @@ function TemplateComposer({
               style={{
                 width: '100%', fontFamily: 'inherit', fontSize: 13,
                 padding: '8px 12px', marginBottom: 8,
-                border: '1px solid var(--gray3)', borderRadius: 8,
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)',
+                background: 'var(--bg)', color: 'var(--black)',
               }}
             >
               <option value="">Selecionar template...</option>
@@ -237,8 +237,8 @@ function TemplateComposer({
                     placeholder={`Variável {{${i + 1}}}`}
                     style={{
                       fontFamily: 'inherit', fontSize: 13, padding: '7px 12px',
-                      border: '1px solid var(--gray3)', borderRadius: 8,
-                      background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg)', color: 'var(--black)',
                     }}
                   />
                 ))}
@@ -583,8 +583,8 @@ export default function ConversasPage() {
   return (
     <div style={{
       display: 'flex', height: 'calc(100vh - 160px)', minHeight: 420,
-      border: '1px solid var(--gray3)', borderRadius: 16, overflow: 'hidden',
-      background: '#fff',
+      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+      background: 'var(--white)',
     }}>
 
       {/* ── LEFT: session list ─────────────────────────────────────────────── */}
@@ -604,7 +604,7 @@ export default function ConversasPage() {
             {syncFeedback && (
               <span style={{
                 fontSize: 10, fontWeight: 700,
-                color: syncFeedback === 'success' ? '#166534' : '#9a2008',
+                color: syncFeedback === 'success' ? 'var(--success-text)' : 'var(--danger-text)',
               }}>
                 {syncFeedback === 'success' ? 'Sincronizado' : 'Falha ao sincronizar'}
               </span>
@@ -614,7 +614,7 @@ export default function ConversasPage() {
               disabled={syncing}
               title="Sincronizar conversas agora"
               style={{
-                fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+                fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-pill)',
                 border: '1px solid var(--gray3)', background: 'transparent',
                 fontFamily: 'inherit', cursor: syncing ? 'not-allowed' : 'pointer',
                 color: syncing ? 'var(--gray3)' : 'var(--gray2)',
@@ -635,8 +635,7 @@ export default function ConversasPage() {
               width: '100%', boxSizing: 'border-box',
               fontFamily: 'inherit', fontSize: 12,
               padding: '7px 12px', border: '1px solid var(--gray3)',
-              borderRadius: 8, background: 'var(--bg)', color: 'var(--black)',
-              outline: 'none',
+              borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--black)',
             }}
           />
         </div>
@@ -644,7 +643,7 @@ export default function ConversasPage() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sessLoading && <SkeletonSessionList items={7} />}
           {sessError && (
-            <p style={{ padding: '20px 16px', fontSize: 12, color: '#c0392b', margin: 0 }}>
+            <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--danger-text)', margin: 0 }}>
               Falha ao carregar conversas
             </p>
           )}
@@ -789,14 +788,14 @@ export default function ConversasPage() {
                 <div style={{ flexShrink: 0 }}>
                   {thread.inWindow ? (
                     <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                      background: 'rgba(30,138,62,0.08)', color: '#166534',
-                      border: '1px solid rgba(30,138,62,0.22)',
+                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)',
+                      background: 'var(--success-dim)', color: 'var(--success-text)',
+                      border: '1px solid var(--success-mid)',
                     }}>● Janela aberta</span>
                   ) : (
                     <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                      background: 'rgba(180,50,0,0.06)', color: '#9a2008',
+                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)',
+                      background: 'rgba(180,50,0,0.06)', color: 'var(--danger-text)',
                       border: '1px solid rgba(180,50,0,0.18)',
                       display: 'inline-flex', alignItems: 'center', gap: 3,
                     }}><X size={9} /> Janela encerrada</span>
@@ -839,9 +838,9 @@ export default function ConversasPage() {
             }}>
               {sendError && (
                 <div style={{
-                  marginBottom: 8, padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  marginBottom: 8, padding: '7px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600,
                   background: 'rgba(192,57,43,0.06)', border: '1px solid rgba(192,57,43,0.22)',
-                  color: '#9a2008',
+                  color: 'var(--danger-text)',
                 }}>
                   {sendError}
                 </div>
@@ -862,9 +861,9 @@ export default function ConversasPage() {
                     rows={2}
                     style={{
                       flex: 1, fontFamily: 'inherit', fontSize: 13,
-                      resize: 'none', padding: '9px 13px', borderRadius: 12,
+                      resize: 'none', padding: '9px 13px', borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--gray3)', background: 'var(--bg)',
-                      color: 'var(--black)', outline: 'none', lineHeight: 1.5,
+                      color: 'var(--black)', lineHeight: 1.5,
                     }}
                   />
                   <SendBtn
