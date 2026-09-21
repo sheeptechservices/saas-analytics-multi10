@@ -13,9 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 24, igual ao desenvolvimento. O 20 não serve: o npm test passa um glob
+      # para o node --test ("lib/**/*.test.ts"), e glob no --test só existe a
+      # partir do Node 21 — no 20 o padrão vira caminho literal e o job reprova.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Instalar dependências
