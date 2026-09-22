@@ -160,12 +160,14 @@ function FilterBar<T extends string>({ options, labels, value, onChange }: {
   value: T
   onChange: (v: T) => void
 }) {
+  // On phones the buttons wrap (four providers don't fit in one row) and are 40px tall
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
+    <div className="max-md:flex-wrap" style={{ display: 'flex', gap: 6 }}>
       {options.map(opt => (
         <button
           key={opt}
           onClick={() => onChange(opt)}
+          className="max-md:min-h-10"
           style={{
             padding: '6px 14px', borderRadius: 'var(--radius-sm)',
             border: `1px solid ${value === opt ? 'var(--primary)' : 'var(--gray3)'}`,
@@ -273,8 +275,10 @@ export default function MarketingPage() {
     )
   }
 
+  // The page adds its own 28/24px padding on top of <main>'s; on phones <main>'s
+  // 16px is the only gutter, so the content keeps the full width.
   return (
-    <div style={{ padding: '28px 24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div className="px-[24px] py-[28px] max-md:p-0" style={{ maxWidth: 1200, margin: '0 auto' }}>
 
       {/* ── Header + Filters ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
@@ -302,10 +306,9 @@ export default function MarketingPage() {
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className="animate-slide-up" style={{
+      {/* ── KPI Cards — one column on phones, auto-fill from sm ── */}
+      <div className="animate-slide-up grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]" style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
         gap: 14,
         marginBottom: 28,
       }}>
@@ -317,8 +320,8 @@ export default function MarketingPage() {
         <SummaryCard label="Conversões" value={totals.totalConversions ?? 0} format={fmtNum} accent="#EA4335" delay={300} />
       </div>
 
-      {/* ── Charts ── */}
-      <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 28 }}>
+      {/* ── Charts — stacked below lg, side by side from lg ── */}
+      <div className="animate-slide-up delay-3 grid-cols-1 lg:grid-cols-[1fr_1fr]" style={{ display: 'grid', gap: 18, marginBottom: 28 }}>
 
         <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '20px 16px', boxShadow: 'var(--shadow)' }}>
           <SectionTitle>Gasto Diário por Plataforma</SectionTitle>
@@ -404,7 +407,7 @@ export default function MarketingPage() {
                     onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(0,0,0,0.025)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = '' }}
                   >
-                    <td style={{ padding: '10px 12px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                    <td title={row.name} style={{ padding: '10px 12px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
                       {row.name}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right' }}>

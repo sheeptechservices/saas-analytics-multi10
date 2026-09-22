@@ -1,50 +1,45 @@
 'use client'
 import { create } from 'zustand'
+import { applyBrandTokens, DEFAULT_PRIMARY, DEFAULT_BRAND_NAME } from '@/lib/brand'
 
-function applyPrimaryVars(color: string) {
-  if (typeof document === 'undefined') return
-  const hex = color.replace('#', '')
-  if (hex.length !== 6) return
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  const contrast = (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#121316' : '#FFFFFF'
-  // Darken the primary color for text on dim backgrounds (multiply by ~0.55)
-  const dr = Math.round(r * 0.55)
-  const dg = Math.round(g * 0.55)
-  const db = Math.round(b * 0.55)
-  const primaryText = `#${dr.toString(16).padStart(2,'0')}${dg.toString(16).padStart(2,'0')}${db.toString(16).padStart(2,'0')}`
-  document.documentElement.style.setProperty('--primary', color)
-  document.documentElement.style.setProperty('--primary-dim', `rgba(${r},${g},${b},0.12)`)
-  document.documentElement.style.setProperty('--primary-mid', `rgba(${r},${g},${b},0.40)`)
-  document.documentElement.style.setProperty('--primary-contrast', contrast)
-  document.documentElement.style.setProperty('--primary-text', primaryText)
-}
+/**
+ * O store não decide cor.
+ *
+ * Quem resolve a marca é o servidor, a partir do tenant, e imprime as variáveis
+ * no HTML da primeira resposta (app/(app)/layout.tsx). Aqui ficam só o nome, o
+ * logo e a cor como estado de leitura para os componentes.
+ *
+ * A única escrita no documento é a pré-visualização ao vivo: enquanto o admin
+ * digita uma cor na tela de Marca, `setPrimaryColor` aplica os tokens para ele
+ * ver o efeito sem recarregar. `init` não aplica nada — aplicar na carga é o que
+ * produzia o flash de marca, com a cor padrão pintando antes da cor do cliente.
+ */
 
 interface WhiteLabelState {
   primaryColor: string
   logoUrl: string | null
   brandName: string
+  /** Pré-visualização ao vivo: muda o estado e repinta os tokens no documento. */
   setPrimaryColor: (color: string) => void
   setLogoUrl: (url: string | null) => void
   setBrandName: (name: string) => void
+  /** Recebe o que o servidor já resolveu. Não escreve no documento. */
   init: (color: string, logo: string | null, name: string) => void
 }
 
 export const useWhiteLabel = create<WhiteLabelState>()(
   (set) => ({
-    primaryColor: '#E10504',
+    primaryColor: DEFAULT_PRIMARY,
     logoUrl: null,
-    brandName: '300 Franchising',
+    brandName: DEFAULT_BRAND_NAME,
     setPrimaryColor: (color) => {
       set({ primaryColor: color })
-      applyPrimaryVars(color)
+      applyBrandTokens(color)
     },
     setLogoUrl: (url) => set({ logoUrl: url }),
     setBrandName: (name) => set({ brandName: name }),
     init: (color, logo, name) => {
       set({ primaryColor: color, logoUrl: logo, brandName: name })
-      applyPrimaryVars(color)
     },
   })
 )

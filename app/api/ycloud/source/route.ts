@@ -9,12 +9,16 @@ import { assertEntitlement } from '@/lib/entitlements'
 import { getProvider } from '@/lib/providers/registry'
 import { runBackfill } from '@/lib/sync/runner'
 import { waitUntil } from '@vercel/functions'
+import { configuredOrigin } from '@/lib/origin'
 
 const PROVIDER_KEY = 'ycloud-whatsapp'
 const MODULE_KEY   = 'integration.ycloud-whatsapp'
 
+// Único lugar que fica na origem configurada, de propósito: esta URL é registrada na
+// YCloud e precisa ser estável e igual para todos. Origem tirada da requisição daria
+// um webhook diferente a cada subdomínio de acesso.
 function getBaseUrl(): string {
-  return process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  return configuredOrigin()
 }
 
 function buildWebhookUrl(token: string): string {

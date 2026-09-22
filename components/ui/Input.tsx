@@ -73,8 +73,10 @@ export function Field({ label, htmlFor, error, hint, children }: FieldProps) {
     <div className="flex flex-col gap-[7px]">
       <label htmlFor={htmlFor} className="label-data">{label}</label>
       {children}
+      {/* text-(--danger-text), não text-danger-text: esse utilitário é do @theme
+          novo (--color-danger-text) e pinta outro vermelho. */}
       {error
-        ? <span className="text-xs font-semibold text-danger-text">{error}</span>
+        ? <span className="text-xs font-semibold text-(--danger-text)">{error}</span>
         : hint
           ? <span className="text-xs font-medium text-muted">{hint}</span>
           : null}

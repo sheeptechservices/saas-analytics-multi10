@@ -58,7 +58,7 @@ function SyncStatus({ data }: { data: SourceData }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
       <XCircle size={14} color="var(--red)" style={{ marginTop: 1, flexShrink: 0 }} />
-      <span>Erro na sincronização{data.lastSyncError ? `: ${data.lastSyncError}` : ''}</span>
+      <span className="max-lg:wrap-anywhere">Erro na sincronização{data.lastSyncError ? `: ${data.lastSyncError}` : ''}</span>
     </div>
   )
 }
@@ -144,9 +144,10 @@ export default function SdrSourcePage() {
 
   return (
     <div>
-      {/* Back link */}
+      {/* Back link — 40px tall on phones */}
       <Link
         href="/settings?tab=integracoes"
+        className="max-md:min-h-10"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -186,8 +187,9 @@ export default function SdrSourcePage() {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <SyncStatus data={sourceData} />
+            {/* The masked connection string is one long word: it wraps below lg */}
             {sourceData.connMasked && (
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray2)', fontFamily: 'monospace' }}>
+              <span className="max-lg:min-w-0 max-lg:wrap-anywhere" style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray2)', fontFamily: 'monospace' }}>
                 {sourceData.connMasked}
               </span>
             )}
@@ -225,7 +227,7 @@ export default function SdrSourcePage() {
 
         {/* Existing connection hint */}
         {sourceData?.configured && sourceData.connMasked && (
-          <div style={{
+          <div className="max-lg:wrap-anywhere" style={{
             padding: '10px 14px', background: 'var(--bg)',
             border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)',
             marginBottom: 16, fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -265,9 +267,11 @@ export default function SdrSourcePage() {
                 e.target.style.boxShadow = 'none'
               }}
             />
+            {/* ~20px eye: on phones an invisible 40×40 band (::before) centred on it */}
             <button
               type="button"
               onClick={() => setShowConn(v => !v)}
+              className="max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-10 max-md:before:-translate-x-1/2 max-md:before:-translate-y-1/2"
               style={{
                 position: 'absolute', right: 12, top: '50%',
                 transform: 'translateY(-50%)', background: 'none',
@@ -284,7 +288,7 @@ export default function SdrSourcePage() {
 
         {/* Test result badge */}
         {testResult && (
-          <div style={{
+          <div className="max-lg:wrap-anywhere" style={{
             marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-sm)',
             fontSize: 13, fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: 8,
@@ -308,7 +312,7 @@ export default function SdrSourcePage() {
 
         {/* Save error */}
         {saveError && (
-          <div style={{
+          <div className="max-lg:wrap-anywhere" style={{
             marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-sm)',
             fontSize: 13, fontWeight: 600, color: 'var(--danger-text)',
             background: 'var(--danger-dim)', border: '1px solid rgba(217,48,37,0.2)',
@@ -325,6 +329,7 @@ export default function SdrSourcePage() {
             type="button"
             onClick={testConnection}
             disabled={!canTest}
+            className="max-md:min-h-10"
             style={{
               padding: '10px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
               background: 'var(--bg)', border: '1px solid var(--gray3)',
@@ -341,6 +346,7 @@ export default function SdrSourcePage() {
             type="button"
             onClick={saveSource}
             disabled={!canSave}
+            className="max-md:min-h-10"
             style={{
               padding: '10px 22px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
               background: 'var(--primary)', border: 'none',

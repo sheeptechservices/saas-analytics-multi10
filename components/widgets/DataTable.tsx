@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
-import { useIsMobile } from '@/lib/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -32,15 +31,21 @@ export interface DataTableProps {
   onRowClick?: (row: Record<string, unknown>) => void
   emptyMessage?: string
   maxHeight?: number
-  /** Mobile rendering strategy. Defaults to 'cards'. Only affects < 768px. */
+  /**
+   * Rendering below the lg breakpoint (1024px; md, 768px, for variant 'plain')
+   * — phones and tablets, where the table may not fit beside the sidebar.
+   * Defaults to 'cards'. Decided by CSS, not JS: both versions ship in the HTML
+   * and each width shows one.
+   */
   mobileMode?: 'cards' | 'scroll'
   /** Column key whose value uniquely identifies a row. Used to stabilise animation keys so re-sort doesn't re-trigger the cascade. */
   rowKey?: string
   /** 'default' = visual atual (cabeçalho --bg, hover com faixa da marca).
       'plain' = tabela dentro de um painel plano (dashboard Visão geral):
       cabeçalho --surface-2, divisórias --line-2, hover neutro sem faixa,
-      calha de 12px entre colunas e 20px nas bordas; no mobile, linhas planas
-      em vez de cartões com sombra. */
+      calha de 12px entre colunas e 20px nas bordas; a tabela já aparece a
+      partir de md (768px), rolando de lado dentro do próprio invólucro, e
+      abaixo de md vira linhas planas em vez de cartões com sombra. */
   variant?: 'default' | 'plain'
 }
 
@@ -89,7 +94,6 @@ export function DataTable({
 }: DataTableProps) {
   const [sortCol, setSortCol] = useState<string>(defaultSortKey ?? columns[0]?.key ?? '')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir)
-  const isMobile = useIsMobile()
   const plain = variant === 'plain'
   const headerBg = plain ? 'var(--surface-2)' : 'var(--bg)'
 
@@ -124,7 +128,7 @@ export function DataTable({
     </colgroup>
   ) : null
 
-  // ── Shared table JSX (desktop + scroll-mode mobile) ───────────────────────
+  // ── Shared table JSX (desktop + scroll mode) ──────────────────────────────
 
   const thead = (
     <thead>
@@ -190,143 +194,155 @@ export function DataTable({
     </tbody>
   )
 
-  const table = (
-    <table style={tableStyle}>
+  // Cards vs table is decided by CSS (lg:/md:), not by useIsMobile: the server
+  // doesn't know the screen, so a phone would get the wide table on first paint
+  // and only swap after hydration. Both ship in the HTML; each width shows one.
+  // The default cut is lg, not md: on a tablet with the sidebar open the table
+  // doesn't fit and the card around it clips the overflow. 'plain' cuts at md:
+  // its table always sits in its own sideways-scrolling wrapper, so on a tablet
+  // it scrolls inside the panel instead of being clipped.
+
+  // ── Desktop (and scroll mode): table ──────────────────────────────────────
+
+  // In 'cards' mode the table hides below the cut. With maxHeight the box
+  // already scrolls on both axes; without it, 'scroll' mode, fixed column
+  // widths (the table then has a min-width) and 'plain' get a sideways-scrolling
+  // wrapper, so the overflow stays here instead of pushing the page. Otherwise
+  // the default desktop table gains no extra node.
+  const hideOnMobile = mobileMode !== 'cards' ? undefined : plain ? 'max-md:hidden' : 'max-lg:hidden'
+  const bareTable = !maxHeight && mobileMode === 'cards' && !hasWidths && !plain
+
+  const tableEl = (
+    <table className={bareTable ? hideOnMobile : undefined} style={tableStyle}>
       {colgroup}
       {thead}
       {tbody}
     </table>
   )
 
-  // ── Mobile: cards ─────────────────────────────────────────────────────────
+  const table = maxHeight
+    ? <div className={hideOnMobile} style={{ maxHeight, overflowY: 'auto', borderRadius: 8, ...(hasWidths ? { overflowX: 'auto' } : {}) }}>{tableEl}</div>
+    : bareTable
+      ? tableEl
+      : <div className={cn('overflow-x-auto', hideOnMobile)}>{tableEl}</div>
 
-  if (isMobile && mobileMode === 'cards') {
-    const sortableCols = columns.filter(c => c.sortable !== false)
-    const firstCol = columns[0]
-    const restCols = columns.slice(1)
+  if (mobileMode !== 'cards') return table
 
-    return (
-      <div>
-        {/* Sort chips */}
-        {sortableCols.length > 0 && (
-          <div style={{
-            display: 'flex', gap: 6, overflowX: 'auto',
-            ...(plain
-              ? { padding: '12px 16px 10px' }
-              : { paddingBottom: 8, marginBottom: 12 }),
-          }}>
-            {sortableCols.map(col => {
-              const active = sortCol === col.key
+  // ── Phones and tablets: cards ─────────────────────────────────────────────
+
+  const sortableCols = columns.filter(c => c.sortable !== false)
+  const firstCol = columns[0]
+  const restCols = columns.slice(1)
+
+  const cards = (
+    // 'plain' rows carry their own inset (flat panel) and give way to the table
+    // at md; default cards float inside the container with a 12px margin.
+    <div className={plain ? 'md:hidden' : 'p-3 lg:hidden'}>
+      {/* Sort chips — a sideways scroller whose scrollbar would only draw a
+          stray line under the chips (scrollbar-none, globals.css) */}
+      {sortableCols.length > 0 && (
+        <div className="scrollbar-none" style={{
+          display: 'flex', gap: 6, overflowX: 'auto',
+          ...(plain
+            ? { padding: '12px 16px 10px' }
+            : { paddingBottom: 8, marginBottom: 12 }),
+        }}>
+          {sortableCols.map(col => {
+            const active = sortCol === col.key
+            return (
+              <button
+                key={col.key}
+                type="button"
+                // 40px on tablets, 44×44 on phones (.touch-target).
+                className="min-h-10 touch-target"
+                aria-pressed={active}
+                onClick={() => handleSort(col.key)}
+                style={{
+                  flexShrink: 0, padding: '5px 10px', borderRadius: 100,
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  whiteSpace: 'nowrap', transition: 'all .15s',
+                  border: `1px solid ${active ? 'var(--primary)' : 'var(--gray3)'}`,
+                  background: active ? 'var(--primary-dim)' : 'var(--white)',
+                  color: active ? 'var(--primary-text)' : 'var(--gray)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {col.label}
+                {active && (sortDir === 'asc' ? <ChevronUp size={9} /> : <ChevronDown size={9} />)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {sorted.length === 0 ? (
+        <div style={{ padding: plain ? '32px 16px' : '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
+          {emptyMessage}
+        </div>
+      ) : sorted.map((row, i) => {
+        const firstVal = firstCol ? row[firstCol.key] : undefined
+        const firstDisplay = firstCol?.format
+          ? firstCol.format(firstVal)
+          : String(firstVal ?? '—')
+
+        return (
+          <div
+            key={rowKey ? String(row[rowKey]) : i}
+            className={cn('row-cascade', onRowClick && 'dt-row', plain && 'dt-row--plain')}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            role={onRowClick ? 'button' : undefined}
+            tabIndex={onRowClick ? 0 : undefined}
+            onKeyDown={rowKeyHandler(row, onRowClick)}
+            style={plain
+              ? {
+                  '--row-delay': `${Math.min(i, 9) * 40}ms`,
+                  padding: '14px 16px',
+                  borderTop: '1px solid var(--line-2)',
+                  cursor: onRowClick ? 'pointer' : 'default',
+                } as CSSProperties
+              : {
+                  '--row-delay': `${Math.min(i, 9) * 40}ms`,
+                  background: 'var(--white)', border: '1px solid var(--line)',
+                  borderRadius: 12, padding: 14, marginBottom: 10,
+                  boxShadow: 'var(--shadow-md)',
+                  cursor: onRowClick ? 'pointer' : 'default',
+                } as CSSProperties}
+          >
+            <div className="wrap-break-word" style={{ fontWeight: 800, fontSize: 15, color: 'var(--black)', marginBottom: restCols.length ? 10 : 0, minWidth: 0 }}>
+              {firstDisplay}
+            </div>
+
+            {restCols.map(col => {
+              const value = row[col.key]
+              const display = col.format ? col.format(value) : String(value ?? '—')
               return (
-                <button
+                <div
                   key={col.key}
-                  type="button"
-                  className="touch-target"
-                  aria-pressed={active}
-                  onClick={() => handleSort(col.key)}
-                  style={{
-                    flexShrink: 0, padding: '5px 10px', borderRadius: 100,
-                    fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap', transition: 'all .15s',
-                    border: `1px solid ${active ? 'var(--primary)' : 'var(--gray3)'}`,
-                    background: active ? 'var(--primary-dim)' : 'var(--white)',
-                    color: active ? 'var(--primary-text)' : 'var(--gray)',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                    fontFamily: 'inherit',
-                  }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingTop: 6 }}
                 >
-                  {col.label}
-                  {active && (sortDir === 'asc' ? <ChevronUp size={9} /> : <ChevronDown size={9} />)}
-                </button>
+                  <span className="label-data shrink-0">
+                    {col.label}
+                  </span>
+                  <span className="min-w-0 text-right wrap-break-word" style={{ fontSize: 'var(--text-md)', fontWeight: col.strong ? 800 : 600, color: toneColor[col.tone ?? 'default'], fontVariantNumeric: (col.align ?? 'left') === 'right' ? 'tabular-nums' : undefined }}>
+                    {display}
+                  </span>
+                </div>
               )
             })}
           </div>
-        )}
+        )
+      })}
+    </div>
+  )
 
-        {/* Empty state */}
-        {sorted.length === 0 ? (
-          <div style={{ padding: plain ? '32px 16px' : '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-            {emptyMessage}
-          </div>
-        ) : sorted.map((row, i) => {
-          const firstVal = firstCol ? row[firstCol.key] : undefined
-          const firstDisplay = firstCol?.format
-            ? firstCol.format(firstVal)
-            : String(firstVal ?? '—')
-
-          return (
-            <div
-              key={rowKey ? String(row[rowKey]) : i}
-              className={cn('row-cascade', onRowClick && 'dt-row', plain && 'dt-row--plain')}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              role={onRowClick ? 'button' : undefined}
-              tabIndex={onRowClick ? 0 : undefined}
-              onKeyDown={rowKeyHandler(row, onRowClick)}
-              style={plain
-                ? {
-                    '--row-delay': `${Math.min(i, 9) * 40}ms`,
-                    padding: '14px 16px',
-                    borderTop: '1px solid var(--line-2)',
-                    cursor: onRowClick ? 'pointer' : 'default',
-                  } as CSSProperties
-                : {
-                    '--row-delay': `${Math.min(i, 9) * 40}ms`,
-                    background: 'var(--white)', border: '1px solid var(--line)',
-                    borderRadius: 12, padding: 14, marginBottom: 10,
-                    boxShadow: 'var(--shadow-md)',
-                    cursor: onRowClick ? 'pointer' : 'default',
-                  } as CSSProperties}
-            >
-              <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--black)', marginBottom: restCols.length ? 10 : 0, minWidth: 0 }}>
-                {firstDisplay}
-              </div>
-
-              {restCols.map(col => {
-                const value = row[col.key]
-                const display = col.format ? col.format(value) : String(value ?? '—')
-                return (
-                  <div
-                    key={col.key}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingTop: 6 }}
-                  >
-                    <span className="label-data">
-                      {col.label}
-                    </span>
-                    <span style={{ fontSize: 'var(--text-md)', fontWeight: col.strong ? 800 : 600, color: toneColor[col.tone ?? 'default'], fontVariantNumeric: (col.align ?? 'left') === 'right' ? 'tabular-nums' : undefined }}>
-                      {display}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // ── Mobile: scroll ────────────────────────────────────────────────────────
-
-  if (isMobile && mobileMode === 'scroll') {
-    const inner = maxHeight
-      ? <div style={{ maxHeight, overflowY: 'auto', borderRadius: 8 }}>{table}</div>
-      : table
-    return <div style={{ overflowX: 'auto' }}>{inner}</div>
-  }
-
-  // ── Desktop: original table ───────────────────────────────────────────────
-
-  if (maxHeight) {
-    return (
-      <div style={{ maxHeight, overflowY: 'auto', borderRadius: 8, ...(hasWidths ? { overflowX: 'auto' } : {}) }}>
-        {table}
-      </div>
-    )
-  }
-
-  // Com larguras fixas a tabela tem largura mínima; a rolagem horizontal fica
-  // contida aqui em vez de empurrar a página.
-  return hasWidths ? <div style={{ overflowX: 'auto' }}>{table}</div> : table
+  return (
+    <>
+      {cards}
+      {table}
+    </>
+  )
 }
 
 // ─── DataTableRow ─────────────────────────────────────────────────────────────

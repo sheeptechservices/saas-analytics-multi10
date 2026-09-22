@@ -112,17 +112,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div>
-      <div style={{
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-        marginBottom: 28, borderBottom: '1px solid var(--gray3)',
-      }}>
-        <div style={{ display: 'flex', gap: 0 }}>
+      {/* On phones the sync block moves up and the tabs sit on the line, scrolling sideways */}
+      <div
+        className="flex flex-col-reverse max-md:gap-2 md:flex-row md:items-end md:justify-between"
+        style={{ marginBottom: 28, borderBottom: '1px solid var(--gray3)' }}
+      >
+        <div className="max-md:overflow-x-auto max-md:overflow-y-hidden max-md:pb-px" style={{ display: 'flex', gap: 0 }}>
           {visibleTabs.map(tab => {
             const active = pathname === tab.href
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
+                className="max-md:flex max-md:min-h-10 max-md:shrink-0 max-md:items-center max-md:whitespace-nowrap"
                 style={{
                   padding: '8px 18px', fontSize: 13, fontWeight: 700,
                   color: active ? 'var(--black)' : 'var(--gray2)',
@@ -147,8 +149,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={syncNow}
               disabled={syncing}
               title="Sincronização incremental — busca apenas dados novos/alterados"
+              className="size-10 md:size-[26px]"
               style={{
-                width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
+                borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
                 background: 'var(--bg)', cursor: syncing ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 opacity: syncing ? 0.4 : 1, transition: 'opacity .2s',

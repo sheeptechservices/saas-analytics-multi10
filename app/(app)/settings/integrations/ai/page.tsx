@@ -107,8 +107,8 @@ function UsageSection({ isActive }: { isActive: boolean }) {
       background: 'var(--white)', border: '1px solid var(--gray3)',
       borderRadius: 'var(--radius-lg)', padding: 24, marginBottom: 20, boxShadow: 'var(--shadow)',
     }}>
-      {/* Section header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      {/* Section header — on phones the period buttons (40px) drop below the title */}
+      <div className="max-md:flex-wrap max-md:gap-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)' }}>Uso e Gastos</div>
           <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginTop: 2 }}>
@@ -120,6 +120,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
             <button
               key={p}
               onClick={() => setPeriod(p)}
+              className="max-md:min-h-10"
               style={{
                 padding: '5px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
                 border: `1px solid ${period === p ? 'var(--primary)' : 'var(--gray3)'}`,
@@ -140,8 +141,9 @@ function UsageSection({ isActive }: { isActive: boolean }) {
         </div>
       ) : (
         <>
-          {/* KPI cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+          {/* KPI cards — 2×2 below lg (four don't fit beside the sidebar or on a
+              phone), the row of four from lg */}
+          <div className="grid-cols-2 lg:grid-cols-[repeat(4,1fr)]" style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
             {[
               {
                 label: 'Gasto no período',
@@ -220,7 +222,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
                 {Object.entries(data.byModel)
                   .sort((a, b) => b[1].costUsd - a[1].costUsd)
                   .map(([modelId, stats]) => (
-                    <div key={modelId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg)', border: '1px solid var(--gray3)' }}>
+                    <div key={modelId} className="max-md:flex-wrap max-md:gap-1" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg)', border: '1px solid var(--gray3)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
                         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>
@@ -253,6 +255,7 @@ function UsageSection({ isActive }: { isActive: boolean }) {
               href="https://console.anthropic.com"
               target="_blank"
               rel="noopener noreferrer"
+              className="max-md:min-h-10"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--gray)', textDecoration: 'none', padding: '6px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)', background: 'var(--bg)' }}
             >
               Ver detalhes no Console da Anthropic
@@ -346,9 +349,10 @@ export default function AIIntegrationPage() {
 
   return (
     <div>
-      {/* Back link */}
+      {/* Back link — 40px tall on phones */}
       <Link
         href="/settings?tab=integracoes"
+        className="max-md:min-h-10"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -364,16 +368,16 @@ export default function AIIntegrationPage() {
         <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: 2 }}>Configure sua chave de API da Anthropic para usar recursos de inteligência artificial</div>
       </div>
 
-      {/* Stepper */}
-      <div className="animate-slide-up delay-2" style={{
+      {/* Stepper — the three steps don't fit side by side on a phone: they stack,
+          without the connecting lines */}
+      <div className="animate-slide-up delay-2 flex items-center max-md:flex-col max-md:items-stretch max-md:gap-3" style={{
         background: 'var(--white)', border: '1px solid var(--gray3)',
         borderRadius: 'var(--radius-lg)', padding: '16px 24px', marginBottom: 20, boxShadow: 'var(--shadow)',
-        display: 'flex', alignItems: 'center',
       }}>
         <StepIndicator current={step} step={1} label="API Key" sub="Chave de acesso" />
-        <div style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
+        <div className="max-md:hidden" style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
         <StepIndicator current={step} step={2} label="Modelo" sub="Configurações" />
-        <div style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
+        <div className="max-md:hidden" style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
         <StepIndicator current={step} step={3} label="Confirmar" sub="Finalizar" />
       </div>
 
@@ -408,7 +412,8 @@ export default function AIIntegrationPage() {
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em' }}>
               {existingKeyMasked ? 'NOVA CHAVE DE API (OPCIONAL)' : 'CHAVE DE API'}
             </label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            {/* On phones the button goes under the field, which keeps the full width */}
+            <div className="max-md:flex-col" style={{ display: 'flex', gap: 8 }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <input
                   type={showKey ? 'text' : 'password'}
@@ -419,8 +424,10 @@ export default function AIIntegrationPage() {
                   onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                   onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
                 />
+                {/* ~20px eye: on phones an invisible 40×40 band (::before) centred on it */}
                 <button
                   onClick={() => setShowKey(v => !v)}
+                  className="max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-10 max-md:before:-translate-x-1/2 max-md:before:-translate-y-1/2"
                   style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', padding: 2 }}
                 >
                   <EyeIcon open={showKey} />
@@ -429,6 +436,7 @@ export default function AIIntegrationPage() {
               <button
                 onClick={validateKey}
                 disabled={validating || !apiKey}
+                className="max-md:min-h-10"
                 style={{ padding: '10px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--bg)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', cursor: !apiKey ? 'not-allowed' : 'pointer', color: 'var(--black)', whiteSpace: 'nowrap', opacity: !apiKey ? 0.5 : 1 }}
               >
                 {validating ? 'Validando…' : 'Validar conexão'}
@@ -436,7 +444,7 @@ export default function AIIntegrationPage() {
             </div>
 
             {validationResult && (
-              <div style={{
+              <div className="max-lg:wrap-anywhere" style={{
                 marginTop: 8, padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
                 display: 'flex', alignItems: 'center', gap: 8,
                 background: validationResult.valid ? 'var(--success-dim)' : 'var(--danger-dim)',
@@ -556,13 +564,13 @@ export default function AIIntegrationPage() {
                 { label: 'Orçamento mensal', value: budgetDisplay, mono: false },
                 { label: 'API Key', value: displayKey, mono: true },
               ].map(({ label, value, mono }) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14, marginBottom: 14, borderBottom: '1px solid var(--gray3)' }}>
+                <div key={label} className="max-md:flex-wrap max-md:gap-x-3 max-md:gap-y-1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14, marginBottom: 14, borderBottom: '1px solid var(--gray3)' }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray)' }}>{label}</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</span>
                 </div>
               ))}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <div className="max-md:flex-wrap max-md:gap-3" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                 <button
                   onClick={() => { setSaved(false); setStep(2) }}
                   style={{ padding: '11px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer', color: 'var(--gray)' }}

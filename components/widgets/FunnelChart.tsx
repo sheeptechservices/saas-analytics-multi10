@@ -65,10 +65,12 @@ export function FunnelFilterPanel({
   }
 
   return createPortal(
+    // On phones the panel sits 16px from the right edge and never exceeds the screen width
     <div
       ref={panelRef}
       role="dialog"
       aria-label="Etapas visíveis"
+      className="max-w-[calc(100vw-32px)] max-md:right-4!"
       style={{
         position: 'fixed',
         top,
@@ -76,7 +78,7 @@ export function FunnelFilterPanel({
         zIndex: 9999,
         background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)',
         boxShadow: 'var(--shadow-menu)', padding: 16,
-        width: 360, maxWidth: 'calc(100vw - 24px)',
+        width: 360,
         animation: 'fadeIn .15s ease both',
       }}
     >
