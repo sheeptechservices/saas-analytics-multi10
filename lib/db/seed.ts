@@ -54,6 +54,12 @@ async function main() {
       passwordHash: bcrypt.hashSync('admin123', 10),
       role: 'admin', avatarColor: '#FFB400', avatarBg: '#121316', createdAt: now,
     },
+    // Os dois abaixo nascem com papel legado DE PROPÓSITO. A conta única acabou
+    // com 'manager' e 'user' no produto — conta nova sai como 'admin' —, mas o
+    // banco de produção ainda tem linhas assim e o código precisa tratá-las como
+    // admin sem a migração drizzle/0011 ter rodado. Estas duas contas são a
+    // forma de exercitar esse caminho localmente: entre com qualquer uma e a
+    // tela tem que se comportar igualzinho à do admin acima.
     {
       id: uid(), tenantId,
       name: 'Carlos Mendes', email: 'carlos@multi10.com',

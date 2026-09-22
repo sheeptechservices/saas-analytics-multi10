@@ -16,6 +16,14 @@ export const users = sqliteTable('users', {
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  // Conta única: toda conta de cliente nasce 'admin' — quem decide isso é
+  // app/api/users/route.ts, que grava TENANT_ROLE e ignora papel vindo do corpo.
+  // O default da coluna abaixo é letra morta: nenhum insert do projeto omite o
+  // papel (api/users, lib/db/seed*.ts, lib/db/create-master.ts). Mexer nele não
+  // mudaria comportamento nenhum e custaria caro: em SQLite, trocar o default
+  // obriga a recriar a tabela, e o drizzle-kit emitiria uma migração derrubando
+  // e refazendo os 17 índices. 'manager' e 'user' seguem no enum porque existem
+  // linhas antigas no banco; lib/roles.ts trata as duas como admin.
   role: text('role', { enum: ['master', 'admin', 'manager', 'user'] }).notNull().default('user'),
   avatarColor: text('avatar_color').notNull().default('#FFB400'),
   avatarBg: text('avatar_bg').notNull().default('#121316'),

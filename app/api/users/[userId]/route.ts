@@ -5,12 +5,10 @@ import { logAudit } from '@/lib/audit'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import type { Session } from 'next-auth'
+import { requireMaster, requireTenantUser } from '@/lib/auth-guard'
+import { sharesTenant } from '@/lib/roles'
 
 type Params = { params: Promise<{ userId: string }> }
-
-function canManage(role: string) {
-  return role === 'admin' || role === 'master'
-}
 
 async function resolveTarget(userId: string, session: Session) {
   const user = await db
@@ -27,15 +25,17 @@ async function resolveTarget(userId: string, session: Session) {
     .then(r => r[0] ?? null)
 
   if (!user) return null
-  if (session.user.role === 'admin' && user.tenantId !== session.user.tenantId) return null
+  // Isolamento: o usuário do cliente só alcança quem é do próprio tenant. Só o
+  // master atravessa — e isso não mudou com a conta única.
+  if (!sharesTenant(session.user, user.tenantId)) return null
   return user
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const session = await auth()
-  if (!session || !canManage(session.user.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const roleCheck = requireTenantUser(session)
+  if (roleCheck) return roleCheck
 
   const { userId } = await params
   const user = await resolveTarget(userId, session)
@@ -47,29 +47,22 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   const session = await auth()
-  if (!session || !canManage(session.user.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const roleCheck = requireTenantUser(session)
+  if (roleCheck) return roleCheck
 
   const { userId } = await params
   const target = await resolveTarget(userId, session)
   if (!target) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
-  const { name, role } = body
-
-  if (role !== undefined) {
-    if (!['admin', 'manager', 'user'].includes(role)) {
-      return NextResponse.json({ error: 'Role inválido.' }, { status: 400 })
-    }
-    if (userId === session.user.id) {
-      return NextResponse.json({ error: 'Você não pode alterar seu próprio role.' }, { status: 400 })
-    }
-  }
+  // Conta única: só o nome é editável. Um `role` no corpo é ignorado, do mesmo
+  // jeito que no POST — não há papel de tenant para escolher, e trocar o papel de
+  // alguém deixou de ser uma operação do produto.
+  const { name } = body
 
   const updates: Record<string, unknown> = {}
   if (typeof name === 'string' && name.trim()) updates.name = name.trim()
-  if (role !== undefined) updates.role = role
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'Nenhum campo para atualizar.' }, { status: 400 })
@@ -85,16 +78,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   const changes: Record<string, unknown> = {}
   if (updates.name !== undefined) changes.name = updates.name
-  if (updates.role !== undefined) changes.role = updates.role
   await logAudit({ req, session, action: 'user.update', entityType: 'user', entityId: userId, metadata: { changes }, tenantId: target.tenantId ?? undefined })
   return NextResponse.json(updated)
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   const session = await auth()
-  if (!session || !canManage(session.user.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Exceção à conta única, por decisão do dono: remover conta é irreversível e
+  // apaga o acesso de outra pessoa, então fica com a plataforma. Listar,
+  // convidar e renomear seguem abertos a todo usuário do cliente.
+  const roleCheck = requireMaster(session)
+  if (roleCheck) return roleCheck
 
   const { userId } = await params
 

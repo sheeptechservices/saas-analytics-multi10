@@ -6,6 +6,7 @@ import { initials } from '@/lib/utils'
 import { IconButton } from '@/components/ui/Button'
 import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
+import { roleLabel } from '@/lib/roles'
 
 interface TopbarProps {
   userName: string
@@ -30,7 +31,9 @@ export function Topbar({ userName, userRole, brandName, logoUrl, onToggleSidebar
   const displayName = storeBrandName || brandName
   const displayLogo = storeLogoUrl !== undefined ? storeLogoUrl : logoUrl
 
-  const roleLabels: Record<string, string> = { admin: 'Administrador', manager: 'Gerente', user: 'Usuário' }
+  // Conta única: duas etiquetas, a da plataforma e a do cliente. O mapa antigo
+  // chamava de "Gerente"/"Usuário" quem hoje tem acesso completo (lib/roles.ts).
+  const papel = roleLabel(userRole)
 
   return (
     <header
@@ -88,7 +91,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl, onToggleSidebar
           background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
           color: 'var(--primary-text)',
         }}>
-          {roleLabels[userRole] ?? userRole}
+          {papel}
         </span>
 
         <div style={{ position: 'relative' }}>
@@ -133,7 +136,7 @@ export function Topbar({ userName, userRole, brandName, logoUrl, onToggleSidebar
                 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--black)' }}>{displayUserName}</div>
                   <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--gray2)', marginTop: 1 }}>
-                    {roleLabels[userRole] ?? userRole}
+                    {papel}
                   </div>
                 </div>
                 <button

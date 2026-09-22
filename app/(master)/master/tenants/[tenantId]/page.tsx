@@ -8,6 +8,10 @@ import { fmtDateBr } from '@/lib/date'
 
 type Props = { params: Promise<{ tenantId: string }> }
 
+// Visão da plataforma: aqui o papel gravado ainda aparece cru. A conta única
+// acabou com a hierarquia dentro do cliente — toda conta nova nasce 'admin' —,
+// mas 'manager' e 'user' seguem no banco em linhas antigas e o master precisa
+// enxergar o que está lá. Por isso os quatro valores continuam mapeados.
 const ROLE_BADGE: Record<string, { bg: string; color: string; label: string }> = {
   master:  { bg: '#ede9fe', color: '#5b21b6', label: 'master' },
   admin:   { bg: 'rgba(255,180,0,0.15)', color: '#7A5600', label: 'admin' },
@@ -110,7 +114,7 @@ export default async function TenantDetailPage({ params }: Props) {
           </thead>
           <tbody>
             {tenantUsers.map((u, i) => {
-              const badge = ROLE_BADGE[u.role] ?? ROLE_BADGE.user
+              const badge = ROLE_BADGE[u.role] ?? { ...ROLE_BADGE.user, label: u.role }
               return (
                 <tr key={u.id} style={{ borderBottom: i < tenantUsers.length - 1 ? '1px solid #f0f0ee' : 'none' }}>
                   <td style={{ padding: '14px 20px', fontSize: 13, fontWeight: 700, color: '#121316' }}>
