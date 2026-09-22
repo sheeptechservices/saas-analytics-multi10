@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Check, ChevronDown, ExternalLink, Info } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Info, RefreshCw } from 'lucide-react'
 import { SkeletonForm, SkeletonBlock } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 
@@ -169,6 +169,8 @@ export function CampaignConfig() {
   const [baseline,        setBaseline]        = useState<{ settings: Settings; status: Status } | null>(null)
   const [preservedN8nUrls, setPreservedN8nUrls] = useState<Record<string, string>>({})
   const [remetenteError,  setRemetenteError]  = useState<string | null>(null)
+  const [version,         setVersion]         = useState<number | null>(null)
+  const [loadError,       setLoadError]       = useState<string | null>(null)
   const [loading,            setLoading]            = useState(true)
   const [saving,             setSaving]             = useState(false)
   const [saved,              setSaved]              = useState(false)
@@ -227,7 +229,13 @@ export function CampaignConfig() {
   }, [])
 
   // ── Fetch settings ────────────────────────────────────────────────────────────
-  useEffect(() => {
+  // O GET que falhava em silêncio renderizava os DEFAULTS como se fossem os
+  // valores salvos — e o Salvar seguinte gravava por cima do que nunca chegou a
+  // ser lido (issue #94). Agora a falha vira estado explícito: mensagem, botão
+  // de recarregar e Salvar travado até a leitura dar certo.
+  const loadSettings = useCallback(() => {
+    setLoading(true)
+    setLoadError(null)
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((d: ApiData) => {
@@ -236,6 +244,7 @@ export function CampaignConfig() {
         setSettings(coreWithDefaults)
         setStatus(d.status)
         setBaseline({ settings: coreWithDefaults, status: d.status })
+        setVersion(typeof d.version === 'number' ? d.version : null)
         const urls: Record<string, string> = {}
         if (webhookUrl) urls.n8nWebhookUrl = webhookUrl
         if (dispatchUrl) urls.n8nDispatchUrl = dispatchUrl
@@ -244,13 +253,20 @@ export function CampaignConfig() {
         if (blastUrl) urls.n8nBlastUrl = blastUrl
         setPreservedN8nUrls(urls)
       })
-      .catch(() => {})
+      .catch(() => {
+        setBaseline(null)
+        setLoadError('Não foi possível carregar as configurações da campanha. Nada pode ser salvo até a leitura dar certo — salvar agora apagaria a integração.')
+      })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { loadSettings() }, [loadSettings])
 
   // ── Actions ───────────────────────────────────────────────────────────────────
 
   async function save() {
+    // Sem baseline não houve leitura bem-sucedida — ver loadSettings/issue #94.
+    if (baseline === null) return
     if (!isValidE164(settings.remetente)) {
       setSaveError('Remetente inválido — use formato E.164 (ex: +5511999990000)')
       return
@@ -269,10 +285,23 @@ export function CampaignConfig() {
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: settingsPayload, status: savedStatus }),
+        body: JSON.stringify({
+          settings: settingsPayload,
+          status: savedStatus,
+          // Trava otimista: a rota devolve 409 se alguém salvou entre o GET e este PUT.
+          ...(version !== null ? { version } : {}),
+        }),
       })
-      if (!res.ok) throw new Error('Falha ao salvar')
-      const data = await res.json() as { ok: boolean; n8nDelivery: N8nDelivery }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string; message?: string }
+        // No conflito a tela recarrega sozinha — inclusive o `version`, senão
+        // todo Salvar seguinte levaria 409 até alguém recarregar na mão. A
+        // mensagem vem da própria rota, para os dois textos não divergirem.
+        if (res.status === 409) loadSettings()
+        throw new Error(err.message ?? err.error ?? 'Falha ao salvar')
+      }
+      const data = await res.json() as { ok: boolean; version?: number; n8nDelivery: N8nDelivery }
+      if (typeof data.version === 'number') setVersion(data.version)
       setN8nDelivery(data.n8nDelivery)
       setBaseline({ settings: savedSettings, status: savedStatus })
       setSaved(true)
@@ -342,6 +371,26 @@ export function CampaignConfig() {
 
   return (
     <div>
+
+      {/* ── Falha ao carregar ─────────────────────────────────────
+          Sem estilo em linha: o alerta sai das classes do design system
+          (mesmos tokens de --danger que .pill-danger usa). */}
+      {loadError && (
+        <div className="mb-4 flex flex-wrap items-start gap-3 rounded-(--radius-md) border border-(--danger-mid) bg-(--danger-dim) p-4">
+          {/* No celular a mensagem ocupa a linha inteira e o botão desce */}
+          <div className="max-md:basis-full flex flex-1 items-start gap-3">
+            <AlertTriangle size={14} className="shrink-0 text-(--danger-text)" />
+            <div className="max-lg:wrap-anywhere text-13 font-medium text-(--danger-text)">
+              {loadError}
+            </div>
+          </div>
+          {/* Sem `disabled`: assim que loadSettings liga o loading a tela volta
+              para o esqueleto, então não dá para clicar duas vezes */}
+          <Button variant="secondary" size="sm" onClick={loadSettings}>
+            <RefreshCw size={13} /> Tentar novamente
+          </Button>
+        </div>
+      )}
 
       {/* ── Nota de integração ───────────────────────────────────── */}
       {hasIntegration ? (
@@ -606,7 +655,7 @@ export function CampaignConfig() {
             variant="primary"
             size="lg"
             onClick={save}
-            disabled={saving || (baseline !== null && !isDirty)}
+            disabled={saving || baseline === null || !isDirty}
           >
             {saving ? 'Salvando...' : 'Salvar alterações'}
           </Button>

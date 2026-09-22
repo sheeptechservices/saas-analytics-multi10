@@ -14,6 +14,7 @@ import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 import { requireRole } from '@/lib/auth-guard'
+import { readN8nSecret } from '@/lib/sdr/settings-merge'
 
 const SOURCE      = 'sdr-n8n'
 const MAX_LEADS   = 100
@@ -74,10 +75,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'enroll_url_nao_configurada' }, { status: 400 })
   }
 
-  const enrollSecret =
-    typeof settings.n8nEnrollSecret === 'string' && settings.n8nEnrollSecret
-      ? settings.n8nEnrollSecret
-      : undefined
+  // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
+  const enrollSecret = readN8nSecret(settings, 'n8nEnrollSecret') ?? undefined
 
   const payload = { tenantId, leadIds, fase, ...(agendarPara ? { agendarPara } : {}) }
 
