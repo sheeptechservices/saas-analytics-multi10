@@ -7,21 +7,19 @@ import { eq, and, isNull } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { getTenantBranding } from '@/lib/tenant'
 import { trustedOrigin } from '@/lib/origin'
-
-function canManage(role: string) {
-  return role === 'admin' || role === 'master'
-}
+import { requireTenantUser } from '@/lib/auth-guard'
+import { isMasterRole, TENANT_ROLE } from '@/lib/roles'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
-  if (!session || !canManage(session.user.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const roleCheck = requireTenantUser(session)
+  if (roleCheck) return roleCheck
 
   const { searchParams } = req.nextUrl
   let tenantId: string
 
-  if (session.user.role === 'master') {
+  if (isMasterRole(session.user.role)) {
     const param = searchParams.get('tenantId')
     if (!param) return NextResponse.json({ error: 'tenantId obrigatório para master' }, { status: 400 })
     tenantId = param
@@ -47,26 +45,29 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await auth()
-  if (!session || !canManage(session.user.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const roleCheck = requireTenantUser(session)
+  if (roleCheck) return roleCheck
 
   const body = await req.json().catch(() => null)
-  const { name, email, role, tenantId: bodyTenantId } = body ?? {}
+  const { name, email, tenantId: bodyTenantId } = body ?? {}
+
+  // Conta única: o papel não entra mais pelo corpo. Se um cliente antigo mandar
+  // `role`, o campo é ignorado em silêncio — a conta nasce sempre como admin do
+  // tenant. Recusar seria pior: quebraria o convite de quem ainda não atualizou a
+  // tela, e não existe mais papel algum para escolher.
+  const role = TENANT_ROLE
 
   // Validations
-  if (!name || !email || !role) {
-    return NextResponse.json({ error: 'name, email e role são obrigatórios.' }, { status: 400 })
+  if (!name || !email) {
+    return NextResponse.json({ error: 'name e email são obrigatórios.' }, { status: 400 })
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'E-mail inválido.' }, { status: 400 })
   }
-  if (!['admin', 'manager', 'user'].includes(role)) {
-    return NextResponse.json({ error: 'Role inválido.' }, { status: 400 })
-  }
 
   let tenantId: string
-  if (session.user.role === 'master') {
+  if (isMasterRole(session.user.role)) {
     if (!bodyTenantId) return NextResponse.json({ error: 'tenantId obrigatório para master.' }, { status: 400 })
     tenantId = bodyTenantId
   } else {

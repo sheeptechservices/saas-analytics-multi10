@@ -1,0 +1,11 @@
+-- Conta única: todo usuário de um cliente é admin do próprio cliente.
+--
+-- Esta migração é LIMPEZA OPCIONAL, não um pré-requisito. O código já não lê
+-- 'manager' nem 'user' como papel de menos acesso: lib/roles.ts trata qualquer
+-- papel que não seja 'master' como usuário do tenant, com acesso completo, e as
+-- rotas passaram a usar requireTenantUser. Uma linha legada funciona igual com ou
+-- sem este UPDATE — ele só alinha o texto gravado na coluna com o que o produto
+-- faz, para o master não ver papel que não existe mais na tela do tenant.
+--
+-- O papel 'master' é da plataforma e fica de fora de propósito.
+UPDATE `users` SET `role` = 'admin' WHERE `role` IN ('manager', 'user');

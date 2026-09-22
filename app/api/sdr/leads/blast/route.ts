@@ -26,7 +26,7 @@ import { dataSources, campaignSettings, blastCampaigns, blastRecipients } from '
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
-import { requireRole } from '@/lib/auth-guard'
+import { requireTenantUser } from '@/lib/auth-guard'
 import { readN8nSecret } from '@/lib/sdr/settings-merge'
 import { randomUUID } from 'crypto'
 import { Client } from 'pg'
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const roleCheck = requireRole(['master', 'admin', 'manager'], session)
+  const roleCheck = requireTenantUser(session)
   if (roleCheck) return roleCheck
 
   const { tenantId } = session.user
