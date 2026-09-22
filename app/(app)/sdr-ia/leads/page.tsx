@@ -858,12 +858,12 @@ export default function NovDisparoPage() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={importing}
                 >
-                  {importing ? 'Importando...' : 'Importar Excel'}
+                  {importing ? 'Importando...' : 'Importar planilha'}
                 </Button>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.csv"
                   style={{ display: 'none' }}
                   onChange={handleFileChange}
                 />
@@ -891,7 +891,7 @@ export default function NovDisparoPage() {
 
               {!importResult && !importing && (
                 <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--gray2)', fontSize: 13 }}>
-                  Faça upload de uma planilha Excel para selecionar destinatários.
+                  Faça upload de uma planilha (.xlsx ou .csv) para selecionar destinatários.
                 </div>
               )}
             </>

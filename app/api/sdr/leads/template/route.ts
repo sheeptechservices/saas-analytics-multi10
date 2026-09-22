@@ -4,7 +4,8 @@
 // grade de bordas em 100 linhas) com as colunas PREENCHÍVEIS da tabela `leads`.
 // Colunas de sistema (id, created_at, phone_adjusted, …) são omitidas.
 //
-// Geração: exceljs (suporta estilos). Leitura de importação usa xlsx — não alterar.
+// Geração: exceljs (suporta estilos). A leitura da importação também é exceljs
+// — ver lib/sdr/import-parse.
 // SOMENTE LEITURA: usa apenas SELECT em information_schema. Nunca escreve.
 
 import { auth } from '@/auth'
