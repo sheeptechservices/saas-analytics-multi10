@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
+import { Button } from '@/components/ui/Button'
 
 type Period = 'all' | '7d' | '30d' | '90d'
 type Metric = 'revenue' | 'won' | 'conversion'
@@ -149,15 +150,17 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(18,19,22,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn .15s ease both' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--white)', borderRadius: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', width: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'panelUp .25s ease both' }}>
+      {/* 680px, never wider than the screen minus 16px on each side; the header
+          and footer stay put and the body scrolls */}
+      <div className="w-[680px] max-w-[calc(100vw-32px)]" style={{ background: 'var(--white)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-modal)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'panelUp .25s ease both' }}>
 
         {/* Modal header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--gray3)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="max-md:min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {isForm && (
-              <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 18, lineHeight: 1, padding: '0 4px' }}>←</button>
+              <button onClick={() => setView('list')} className="touch-target" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 18, lineHeight: 1, padding: '0 4px' }}>←</button>
             )}
-            <div>
+            <div className="max-md:min-w-0 max-md:wrap-break-word">
               <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)' }}>
                 {view === 'list' ? 'Times de Vendas' : view === 'new' ? 'Novo Time' : `Editar: ${editing?.name}`}
               </div>
@@ -166,7 +169,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
               </div>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Fechar" style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'var(--bg)', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="touch-target" style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--bg)', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         {/* Modal body */}
@@ -180,30 +183,37 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                   Nenhum time criado ainda. Clique em "Novo Time" para começar.
                 </div>
               )}
+              {/* On phones the row wraps: dot + name on the first line (the name
+                  block's basis is 100% minus the 12px dot, the 14px gap and 2px
+                  of slack that flex-grow takes back), member count and actions
+                  on the second */}
               {teams.map(t => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: '1px solid var(--gray3)', background: 'var(--bg)' }}>
+                <div key={t.id} className="max-sm:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', background: 'var(--bg)' }}>
                   <div style={{ width: 12, height: 12, borderRadius: '50%', background: t.color, flexShrink: 0, boxShadow: `0 0 0 3px ${t.color}30` }} />
-                  <div style={{ flex: 1 }}>
+                  <div className="flex-1 max-sm:min-w-0 max-sm:basis-[calc(100%-28px)] max-sm:wrap-break-word">
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{t.name}</div>
                     <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 2 }}>
                       {t.members.length === 0 ? 'Sem membros' : t.members.slice(0, 3).join(', ') + (t.members.length > 3 ? ` +${t.members.length - 3}` : '')}
                     </div>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: `${t.color}18`, color: t.color, border: `1px solid ${t.color}40` }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)', background: `${t.color}18`, color: t.color, border: `1px solid ${t.color}40` }}>
                     {t.members.length} {t.members.length === 1 ? 'membro' : 'membros'}
                   </span>
-                  <button onClick={() => openEdit(t)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 12, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>Editar</button>
-                  <button onClick={() => deleteTeam(t)} aria-label="Excluir time" style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(217,48,37,0.2)', background: 'rgba(217,48,37,0.06)', color: 'var(--red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={12} /></button>
+                  <button onClick={() => openEdit(t)} className="max-md:min-h-10" style={{ padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 12, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>Editar</button>
+                  <button onClick={() => deleteTeam(t)} aria-label="Excluir time" className="max-md:min-h-10 max-md:min-w-10" style={{ padding: '6px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(217,48,37,0.2)', background: 'var(--danger-dim)', color: 'var(--red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={12} /></button>
                 </div>
               ))}
             </div>
           )}
 
           {/* ── FORM VIEW (new / edit) ── */}
+          {/* Two columns (200px + rest); below sm they stack. `flex` lives in the
+              classes so the stacked version can drop the 200px basis — as a
+              column, the basis would become a height. */}
           {isForm && (
-            <div style={{ display: 'flex', gap: 24 }}>
+            <div className="max-sm:flex-col" style={{ display: 'flex', gap: 24 }}>
               {/* Left: name + color */}
-              <div style={{ flex: '0 0 200px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="flex-[0_0_200px] max-sm:flex-none" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', display: 'block', marginBottom: 8 }}>Nome do time</label>
                   <input
@@ -212,19 +222,25 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     onChange={e => setName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && save()}
                     placeholder="Ex: SDR, Hunters..."
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid var(--gray3)', fontSize: 13, fontWeight: 600, color: 'var(--black)', outline: 'none', background: 'var(--bg)', fontFamily: 'inherit' }}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', fontSize: 13, fontWeight: 600, color: 'var(--black)', background: 'var(--bg)', fontFamily: 'inherit' }}
                   />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', display: 'block', marginBottom: 8 }}>Cor</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {/* 28px swatches; on phones an invisible 40×40 ::before centred on
+                      each one is its hit area — a fixed size, since insets would count
+                      from inside the 3px border and fall short of 40. The selected
+                      swatch is scaled 1.15, hit area included (46px, 9px past its
+                      edge; the others reach 6px past theirs), so on phones the gap
+                      opens to 16px: 9 + 6 < 16, and no two hit areas overlap */}
+                  <div className="gap-[8px] max-md:gap-[16px]" style={{ display: 'flex', flexWrap: 'wrap' }}>
                     {TEAM_COLORS.map(c => (
-                      <button key={c} onClick={() => setColor(c)} style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: color === c ? `3px solid var(--black)` : '3px solid transparent', cursor: 'pointer', transition: 'transform .15s', transform: color === c ? 'scale(1.15)' : 'scale(1)' }} />
+                      <button key={c} onClick={() => setColor(c)} className="max-md:relative max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-[40px] max-md:before:-translate-1/2" style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: color === c ? `3px solid var(--black)` : '3px solid transparent', cursor: 'pointer', transition: 'transform .15s', transform: color === c ? 'scale(1.15)' : 'scale(1)' }} />
                     ))}
                   </div>
                 </div>
                 {/* Preview */}
-                <div style={{ padding: '12px 14px', borderRadius: 10, background: `${color}12`, border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: `${color}12`, border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color }}>{name || 'Nome do time'}</span>
                   <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: `${color}CC` }}>{members.size} membros</span>
@@ -232,7 +248,7 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
               </div>
 
               {/* Right: reps checkboxes */}
-              <div style={{ flex: 1 }}>
+              <div className="flex-1 max-sm:flex-none">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)' }}>
                     Vendedores ({members.size} selecionados)
@@ -244,13 +260,15 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                     <circle cx="6.5" cy="6.5" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/>
                   </svg>
+                  {/* On phones the right padding clears the clear-button's hit area */}
                   <input
                     value={repSearch}
                     onChange={e => setRepSearch(e.target.value)}
                     placeholder="Buscar vendedor…"
+                    className="py-[7px] pr-[10px] pl-[30px] max-md:pr-[40px]"
                     style={{
-                      width: '100%', padding: '7px 10px 7px 30px',
-                      borderRadius: 8, border: '1px solid var(--gray3)',
+                      width: '100%',
+                      borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
                       fontSize: 12, fontWeight: 500, color: 'var(--black)',
                       outline: 'none', background: 'var(--bg)',
                       fontFamily: 'inherit', boxSizing: 'border-box',
@@ -258,8 +276,12 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                     onFocus={e => { e.target.style.borderColor = color; e.target.style.boxShadow = `0 0 0 3px ${color}22` }}
                     onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
                   />
+                  {/* The × glyph stays as is; on phones an invisible 40×40 ::before
+                      centred on it is the hit area — it covers the input's last 32px,
+                      which the input's phone padding keeps free of text */}
                   {repSearch && (
                     <button onClick={() => setRepSearch('')}
+                      className="max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-[40px] max-md:before:-translate-1/2"
                       style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 14, lineHeight: 1, padding: 0 }}>
                       ×
                     </button>
@@ -274,12 +296,12 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
                   {allReps.filter(rep => rep.toLowerCase().includes(repSearch.toLowerCase())).map(rep => {
                     const checked = members.has(rep)
                     return (
-                      <label key={rep} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, border: `1px solid ${checked ? color + '50' : 'var(--gray3)'}`, background: checked ? `${color}08` : 'var(--bg)', cursor: 'pointer', transition: 'all .15s' }}>
+                      <label key={rep} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--radius-md)', border: `1px solid ${checked ? color + '50' : 'var(--gray3)'}`, background: checked ? `${color}08` : 'var(--bg)', cursor: 'pointer', transition: 'all .15s' }}>
                         <input type="checkbox" checked={checked} onChange={() => toggleMember(rep)} style={{ display: 'none' }} />
-                        <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${checked ? color : 'var(--gray3)'}`, background: checked ? color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
-                          {checked && <span style={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                        <div style={{ width: 18, height: 18, borderRadius: 'var(--radius-sm)', border: `2px solid ${checked ? color : 'var(--gray3)'}`, background: checked ? color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
+                          {checked && <span style={{ color: 'var(--white)', fontSize: 11, lineHeight: 1 }}>✓</span>}
                         </div>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(rep), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(rep), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: 'var(--white)', flexShrink: 0 }}>
                           {rep.trim().charAt(0).toUpperCase()}
                         </div>
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--black)' }}>{rep}</span>
@@ -297,18 +319,18 @@ function TeamsModal({ allReps, onClose }: { allReps: string[]; onClose: () => vo
           {view === 'list' ? (
             <>
               <div />
-              <button onClick={openNew} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: 'var(--primary)', color: 'var(--black)', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+              <Button variant="primary" size="md" onClick={openNew}>
                 + Novo Time
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button onClick={() => setView('list')} style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 13, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>
+              <button onClick={() => setView('list')} className="max-md:min-h-10" style={{ padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', background: 'var(--white)', fontSize: 13, fontWeight: 600, color: 'var(--gray)', cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button onClick={save} disabled={!name.trim() || saving} style={{ padding: '9px 24px', borderRadius: 10, border: 'none', background: name.trim() ? 'var(--primary)' : 'var(--gray3)', color: 'var(--black)', fontSize: 13, fontWeight: 800, cursor: name.trim() ? 'pointer' : 'default', opacity: saving ? 0.7 : 1 }}>
+              <Button variant="primary" size="md" disabled={!name.trim() || saving} onClick={save}>
                 {saving ? 'Salvando…' : 'Salvar'}
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -323,13 +345,13 @@ function PerformanceBadge({ rep }: { rep: Rep }) {
   if (rep.wonLeads === 0) return null
   if (rep.conversionRate >= 70)
     return (
-      <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 99, background: 'rgba(30,138,62,0.10)', color: 'var(--green)', border: '1px solid rgba(30,138,62,0.20)', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, padding: '2px 7px', borderRadius: 'var(--radius-pill)', background: 'var(--success-dim)', color: 'var(--green)', border: '1px solid rgba(30,138,62,0.20)', whiteSpace: 'nowrap' }}>
         🔥 Top
       </span>
     )
   if (rep.conversionRate >= 50)
     return (
-      <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 99, background: 'var(--primary-dim)', color: 'var(--primary-text)', border: '1px solid var(--primary-mid)', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, padding: '2px 7px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', color: 'var(--primary-text)', border: '1px solid var(--primary-mid)', whiteSpace: 'nowrap' }}>
         ↑ Bom
       </span>
     )
@@ -352,15 +374,15 @@ function BreakdownBar({ rep, delay }: { rep: Rep; delay: number }) {
 
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <div style={{ flex: 1, height: 5, borderRadius: 99, overflow: 'hidden', background: 'var(--gray3)', display: 'flex' }}>
+      <div style={{ flex: 1, height: 5, borderRadius: 'var(--radius-pill)', overflow: 'hidden', background: 'var(--gray3)', display: 'flex' }}>
         <div style={{ width: `${wonPct}%`,  background: 'var(--green)', transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)' }} />
         <div style={{ width: `${actPct}%`,  background: '#FFB400', transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1) 0.05s' }} />
         <div style={{ width: `${lostPct}%`, background: 'var(--red)', transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1) 0.1s' }} />
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--green)' }}>●{rep.wonLeads}</span>
-        <span style={{ fontSize: 9, fontWeight: 700, color: '#7A5600' }}>●{rep.activeLeads}</span>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--red)' }}>●{rep.lostLeads}</span>
+        <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--green)' }}>●{rep.wonLeads}</span>
+        <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--warn-text)' }}>●{rep.activeLeads}</span>
+        <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--red)' }}>●{rep.lostLeads}</span>
       </div>
     </div>
   )
@@ -381,10 +403,10 @@ function ProgressBar({ value, max, color, delay }: { value: number; max: number;
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{ flex: 1, height: 6, background: 'var(--gray3)', borderRadius: 99, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, height: 6, background: 'var(--gray3)', borderRadius: 'var(--radius-pill)', overflow: 'hidden', position: 'relative' }}>
         <div style={{
           height: '100%', width: `${width}%`,
-          background: color, borderRadius: 99,
+          background: color, borderRadius: 'var(--radius-pill)',
           transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
           position: 'relative', overflow: 'hidden',
         }}>
@@ -477,7 +499,7 @@ function PodiumCard({ rep, rank, metric, delay }: { rep: Rep; rank: number; metr
           width: avatarSize, height: avatarSize, borderRadius: '50%',
           background: avatarColor(rep.name),
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: avatarSize * 0.38, fontWeight: 900, color: '#fff',
+          fontSize: avatarSize * 0.38, fontWeight: 900, color: 'var(--white)',
           letterSpacing: '-0.03em', position: 'relative', zIndex: 1,
         }}>
           {rep.name.trim().charAt(0).toUpperCase()}
@@ -488,7 +510,7 @@ function PodiumCard({ rep, rank, metric, delay }: { rep: Rep; rank: number; metr
           width: 24, height: 24, borderRadius: '50%',
           background: rs.badge, border: '2px solid var(--white)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 10, fontWeight: 900, color: '#fff',
+          fontSize: 10, fontWeight: 900, color: 'var(--white)',
           boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
         }}>
           {rank}
@@ -506,7 +528,7 @@ function PodiumCard({ rep, rank, metric, delay }: { rep: Rep; rank: number; metr
 
       {/* Metric pill */}
       <div style={{
-        padding: '4px 12px', borderRadius: 99,
+        padding: '4px 12px', borderRadius: 'var(--radius-pill)',
         background: hovered ? rs.ring : rs.pillBg,
         color: hovered ? (isFirst ? '#7A5600' : '#fff') : rs.pillColor,
         fontSize: isFirst ? 13 : 11, fontWeight: 800,
@@ -590,12 +612,14 @@ function LeaderRow({ rep, rank, metric, maxVal, delay, isLast, expanded, onToggl
           </div>
         )}
 
-        {/* Avatar */}
-        <div style={{
+        {/* Avatar — decorative (the initial of the name beside it); dropped
+            below sm so the name and the metric keep their room. `display` is a
+            class so that max-sm:hidden can win. */}
+        <div className="flex max-sm:hidden" style={{
           width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
           background: avatarColor(rep.name),
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, fontWeight: 900, color: '#fff',
+          alignItems: 'center', justifyContent: 'center',
+          fontSize: 14, fontWeight: 900, color: 'var(--white)',
           boxShadow: rs ? `0 0 0 2px ${rs.ring}` : 'none',
           transition: 'transform 0.15s, box-shadow 0.15s',
           transform: hov ? 'scale(1.08)' : 'scale(1)',
@@ -605,8 +629,9 @@ function LeaderRow({ rep, rank, metric, maxVal, delay, isLast, expanded, onToggl
 
         {/* Name + bars */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {/* Below sm the lead count and badge wrap under the name */}
+          <div className="max-sm:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+            <span title={rep.name} style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {rep.name}
             </span>
             <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gray2)', flexShrink: 0 }}>
@@ -639,32 +664,33 @@ function LeaderRow({ rep, rank, metric, maxVal, delay, isLast, expanded, onToggl
         </div>
       </div>
 
-      {/* Expanded detail */}
-      <div style={{
-        maxHeight: expanded ? 80 : 0,
+      {/* Expanded detail — below sm the four figures wrap onto two lines, so
+          the open height grows from 80px to 160px there (max-height is a class
+          for that reason) */}
+      <div className={expanded ? 'max-h-[80px] max-sm:max-h-[160px]' : 'max-h-0'} style={{
         overflow: 'hidden',
         transition: 'max-height 0.3s cubic-bezier(0.4,0,0.2,1)',
       }}>
-        <div style={{
+        <div className="max-sm:flex-wrap" style={{
           padding: '8px 20px 14px 60px',
           display: 'flex', gap: 32, alignItems: 'flex-start',
           animation: expanded ? 'rowExpand 0.25s ease both' : 'none',
           borderBottom: isLast ? 'none' : '1px solid var(--gray3)',
         }}>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Ticket Médio</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Ticket Médio</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--black)' }}>{formatCurrency(rep.avgTicket)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Em negociação</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#7A5600' }}>{rep.activeLeads}</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Em negociação</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--warn-text)' }}>{rep.activeLeads}</div>
           </div>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Perdidos</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 3 }}>Perdidos</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--red)' }}>{rep.lostLeads}</div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 6 }}>Distribuição</div>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', marginBottom: 6 }}>Distribuição</div>
             <BreakdownBar rep={rep} delay={0} />
           </div>
         </div>
@@ -675,33 +701,35 @@ function LeaderRow({ rep, rank, metric, maxVal, delay, isLast, expanded, onToggl
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
+// Below lg it stacks like the real body (podium over leaderboard); flex and
+// align-items live in the classes for that.
 function Skeleton() {
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-      <div style={{ flex: '0 0 300px', background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: 32, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 20 }}>
+    <div className="items-start max-lg:flex-col max-lg:items-stretch" style={{ display: 'flex', gap: 16 }}>
+      <div className="flex-[0_0_300px] max-lg:flex-none" style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', padding: 32, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 20 }}>
         {[70, 90, 58].map((s, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, paddingBottom: i === 1 ? 0 : 20 }}>
             <div className="shimmer-bar" style={{ width: s, height: s, borderRadius: '50%', background: 'var(--gray3)' }} />
-            <div className="shimmer-bar" style={{ width: 60, height: 10, borderRadius: 6, background: 'var(--gray3)' }} />
-            <div className="shimmer-bar" style={{ width: 52, height: 24, borderRadius: 99, background: 'var(--gray3)' }} />
+            <div className="shimmer-bar" style={{ width: 60, height: 10, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
+            <div className="shimmer-bar" style={{ width: 52, height: 24, borderRadius: 'var(--radius-pill)', background: 'var(--gray3)' }} />
           </div>
         ))}
       </div>
-      <div style={{ flex: 1, background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)' }}>
-        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)', borderRadius: '16px 16px 0 0' }}>
-          <div className="shimmer-bar" style={{ width: 120, height: 9, borderRadius: 6, background: 'var(--gray3)' }} />
+      <div className="flex-1 max-lg:flex-none" style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)' }}>
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)', borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0' }}>
+          <div className="shimmer-bar" style={{ width: 120, height: 9, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
         </div>
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: i < 5 ? '1px solid var(--gray3)' : 'none' }}>
-            <div className="shimmer-bar" style={{ width: 20, height: 20, borderRadius: 4, background: 'var(--gray3)' }} />
+            <div className="shimmer-bar" style={{ width: 20, height: 20, borderRadius: 'var(--radius-xs)', background: 'var(--gray3)' }} />
             <div className="shimmer-bar" style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--gray3)' }} />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-              <div className="shimmer-bar" style={{ width: 110, height: 10, borderRadius: 6, background: 'var(--gray3)' }} />
-              <div className="shimmer-bar" style={{ width: '65%', height: 6, borderRadius: 99, background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: 110, height: 10, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: '65%', height: 6, borderRadius: 'var(--radius-pill)', background: 'var(--gray3)' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
-              <div className="shimmer-bar" style={{ width: 60, height: 12, borderRadius: 6, background: 'var(--gray3)' }} />
-              <div className="shimmer-bar" style={{ width: 40, height: 9, borderRadius: 6, background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: 60, height: 12, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
+              <div className="shimmer-bar" style={{ width: 40, height: 9, borderRadius: 'var(--radius-sm)', background: 'var(--gray3)' }} />
             </div>
           </div>
         ))}
@@ -722,11 +750,11 @@ function StatCard({ label, value, accent, sub, dot }: {
       onMouseLeave={() => setHov(false)}
       style={{
         background: 'var(--white)', border: '1px solid var(--gray3)',
-        borderLeft: `4px solid ${accent}`, borderRadius: 12, padding: '16px 20px',
+        borderLeft: `4px solid ${accent}`, borderRadius: 'var(--radius-md)', padding: '16px 20px',
         cursor: 'default',
         transition: 'transform 0.22s ease, box-shadow 0.22s ease',
         transform: hov ? 'translateY(-3px) scale(1.01)' : 'translateY(0) scale(1)',
-        boxShadow: hov ? `0 8px 24px rgba(0,0,0,0.09), inset 0 0 0 1px ${accent}30` : 'var(--shadow)',
+        boxShadow: hov ? `0 8px 24px rgba(0,0,0,0.09), inset 0 0 0 1px color-mix(in srgb, ${accent} 19%, transparent)` : 'var(--shadow)',
         display: 'flex', flexDirection: 'column', gap: 6,
       }}
     >
@@ -791,8 +819,8 @@ export default function RankingPage() {
 
   return (
     <div>
-      {/* ── Header + filters ──────────────────────────────────────── */}
-      <div className="animate-slide-up delay-1" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
+      {/* ── Header + filters — below lg the filters (547px, no shrink) go under the title ── */}
+      <div className="animate-slide-up delay-1 max-lg:flex-col" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>
             Ranking
@@ -804,15 +832,16 @@ export default function RankingPage() {
 
         {/* Metric + Period pills */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
             {([
               { key: 'revenue',    label: 'Receita' },
               { key: 'won',        label: 'Ganhos' },
               { key: 'conversion', label: 'Conversão' },
             ] as { key: Metric; label: string }[]).map(tab => (
               <button key={tab.key} onClick={() => { setMetric(tab.key); setExpandedRow(null) }}
+                className="max-md:min-h-10"
                 style={{
-                  padding: '5px 14px', borderRadius: 100, border: 'none',
+                  padding: '5px 14px', borderRadius: 'var(--radius-pill)', border: 'none',
                   fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   transition: 'all .18s ease',
                   background: metric === tab.key ? 'var(--primary)' : 'transparent',
@@ -823,11 +852,12 @@ export default function RankingPage() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
             {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
               <button key={p} onClick={() => { setPeriod(p); setExpandedRow(null) }}
+                className="max-md:min-h-10"
                 style={{
-                  padding: '5px 14px', borderRadius: 100, border: 'none',
+                  padding: '5px 14px', borderRadius: 'var(--radius-pill)', border: 'none',
                   fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   transition: 'all .18s ease',
                   background: period === p ? 'var(--primary)' : 'transparent',
@@ -840,9 +870,9 @@ export default function RankingPage() {
         </div>
       </div>
 
-      {/* ── Team stat cards ───────────────────────────────────────── */}
+      {/* ── Team stat cards — 1 column on phones, 2 from sm, the original repeat(4, 1fr) from lg ── */}
       {!isLoading && reps.length > 0 && (
-        <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
+        <div className="animate-slide-up delay-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(4,1fr)]" style={{ display: 'grid', gap: 14, marginBottom: 20 }}>
           {[
             { label: 'Total do time',  value: formatCurrency(cTeam),        accent: 'var(--primary)', sub: 'receita acumulada' },
             { label: 'Top 3',          value: formatCurrency(cTop3),        accent: 'var(--primary)', sub: 'soma dos 3 primeiros' },
@@ -858,10 +888,11 @@ export default function RankingPage() {
       <div className="animate-slide-up delay-1" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>Time</span>
 
-        {/* "Todos" pill */}
+        {/* "Todos" pill (the pills wrap; 40px tall on phones) */}
         <button
           onClick={() => { setSelectedTeam(null); setExpandedRow(null) }}
-          style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === null ? 'var(--primary)' : 'var(--gray3)'}`, background: selectedTeam === null ? 'var(--primary-dim)' : 'var(--white)', color: selectedTeam === null ? 'var(--primary-text)' : 'var(--gray)' }}
+          className="max-md:min-h-10"
+          style={{ padding: '5px 14px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === null ? 'var(--primary)' : 'var(--gray3)'}`, background: selectedTeam === null ? 'var(--primary-dim)' : 'var(--white)', color: selectedTeam === null ? 'var(--primary-text)' : 'var(--gray)' }}
         >
           Todos
         </button>
@@ -871,7 +902,8 @@ export default function RankingPage() {
           <button
             key={t.id}
             onClick={() => { setSelectedTeam(t.id === selectedTeam ? null : t.id); setExpandedRow(null) }}
-            style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === t.id ? t.color : 'var(--gray3)'}`, background: selectedTeam === t.id ? `${t.color}18` : 'var(--white)', color: selectedTeam === t.id ? t.color : 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6 }}
+            className="max-md:min-h-10"
+            style={{ padding: '5px 14px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s', border: `1px solid ${selectedTeam === t.id ? t.color : 'var(--gray3)'}`, background: selectedTeam === t.id ? `${t.color}18` : 'var(--white)', color: selectedTeam === t.id ? t.color : 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.color, display: 'inline-block', flexShrink: 0 }} />
             {t.name}
@@ -882,7 +914,8 @@ export default function RankingPage() {
         {/* Manage button */}
         <button
           onClick={() => setTeamsModal(true)}
-          style={{ marginLeft: 'auto', padding: '5px 14px', borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--gray3)', background: 'var(--white)', color: 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s' }}
+          className="max-md:min-h-10"
+          style={{ marginLeft: 'auto', padding: '5px 14px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--gray3)', background: 'var(--white)', color: 'var(--gray)', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s' }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--black)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--white)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--gray)' }}
         >
@@ -895,16 +928,18 @@ export default function RankingPage() {
       {isLoading ? (
         <Skeleton />
       ) : reps.length === 0 ? (
-        <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: 64, textAlign: 'center', color: 'var(--gray2)', fontSize: 14 }}>
+        <div style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', padding: 64, textAlign: 'center', color: 'var(--gray2)', fontSize: 14 }}>
           Nenhum lead com responsável encontrado no período.
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        // Podium (460px) beside the leaderboard from lg; below lg they stack at
+        // full width. flex and align-items live in the classes so the stacked
+        // version can drop the 460px basis (as a column it would be a height).
+        <div className="items-start max-lg:flex-col max-lg:items-stretch" style={{ display: 'flex', gap: 16 }}>
 
           {/* ── Podium panel ───────────────────────────────── */}
-          <div className="animate-slide-up delay-1" style={{
-            flex: '0 0 460px',
-            background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)',
+          <div className="animate-slide-up delay-1 flex-[0_0_460px] max-lg:flex-none" style={{
+            background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)',
             padding: '28px 24px 24px',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             position: 'relative', overflow: 'hidden',
@@ -925,19 +960,26 @@ export default function RankingPage() {
                 top: s.top, left: (s as any).left, right: (s as any).right,
                 width: s.size, height: s.size, borderRadius: '50%',
                 background: (s as any).color,
-                boxShadow: `0 0 ${s.size * 2}px ${(s as any).color}99`,
+                boxShadow: `0 0 ${s.size * 2}px color-mix(in srgb, ${(s as any).color} 60%, transparent)`,
                 animation: `floatBubble ${s.dur} ease-in-out ${s.delay} infinite`,
                 pointerEvents: 'none',
                 opacity: 0.75,
               }} />
             ))}
 
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--gray2)', marginBottom: 24, position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--gray2)', marginBottom: 24, position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
               <SparkleIcon size={9} /> Pódio
             </div>
 
-            {/* Cards */}
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 20, width: '100%', position: 'relative' }}>
+            {/* Cards — 130 + 150 + 130px: wider than a phone. Below sm the row
+                scrolls sideways inside itself (safe center: centred when it
+                fits, start-aligned and scrollable when it doesn't), with a
+                12px gap so the #2 and #1 cards show whole on a 375px screen,
+                and 8px of top room for the hover lift. */}
+            <div
+              className="justify-center gap-[20px] max-sm:justify-center-safe max-sm:gap-[12px] max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:pt-2"
+              style={{ display: 'flex', alignItems: 'flex-end', width: '100%', position: 'relative' }}
+            >
               {podiumOrder.map((rep, i) => (
                 <PodiumCard key={rep.name} rep={rep} rank={podiumRanks[i]} metric={metric} delay={i * 100} />
               ))}
@@ -945,7 +987,7 @@ export default function RankingPage() {
 
             {/* Decorative floor line */}
             <div style={{
-              width: '85%', height: 2, borderRadius: 99, marginTop: 20,
+              width: '85%', height: 2, borderRadius: 'var(--radius-pill)', marginTop: 20,
               background: 'linear-gradient(90deg, transparent, var(--gray3) 20%, var(--primary-mid) 50%, var(--gray3) 80%, transparent)',
             }} />
 
@@ -956,9 +998,9 @@ export default function RankingPage() {
           </div>
 
           {/* ── Leaderboard panel ──────────────────────────── */}
-          <div className="animate-slide-up delay-2" style={{
-            flex: 1, minWidth: 0,
-            background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)',
+          <div className="animate-slide-up delay-2 flex-1 max-lg:flex-none" style={{
+            minWidth: 0,
+            background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)',
             overflow: 'hidden',
           }}>
             {/* Header */}
@@ -968,8 +1010,8 @@ export default function RankingPage() {
               background: 'var(--bg)',
             }}>
               <div style={{ width: 28 }} />
-              <div style={{ flex: 1, fontSize: 9, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Vendedor</div>
-              <div style={{ width: 88, fontSize: 9, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'right' }}>
+              <div style={{ flex: 1, fontSize: 'var(--text-2xs)', fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Vendedor</div>
+              <div style={{ width: 88, fontSize: 'var(--text-2xs)', fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'right' }}>
                 {metric === 'revenue' ? 'Receita' : metric === 'won' ? 'Ganhos' : 'Conversão'}
               </div>
               <div style={{ width: 20 }} />

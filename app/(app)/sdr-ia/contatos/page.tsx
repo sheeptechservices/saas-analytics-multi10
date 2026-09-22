@@ -72,9 +72,9 @@ const COLS: DataTableColumn[] = [
           {tags.map(tag => (
             <span key={tag} style={{
               fontSize: 10, fontWeight: 700,
-              padding: '2px 7px', borderRadius: 99,
+              padding: '2px 7px', borderRadius: 'var(--radius-pill)',
               background: 'rgba(37,211,102,0.08)',
-              color: '#15803d',
+              color: 'var(--success-text)',
               border: '1px solid rgba(37,211,102,0.20)',
             }}>
               {tag}
@@ -152,7 +152,8 @@ export default function ContatosPage() {
           </div>
         </div>
 
-        <div style={{ position: 'relative' }}>
+        {/* On phones the search drops below the title at full width */}
+        <div className="max-md:w-full" style={{ position: 'relative' }}>
           <Search
             size={14}
             style={{
@@ -165,10 +166,11 @@ export default function ContatosPage() {
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="Nome ou telefone..."
+            className="max-md:w-full"
             style={{
               paddingLeft: 34, paddingRight: 14, paddingTop: 9, paddingBottom: 9,
               fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-              border: '1px solid var(--gray3)', borderRadius: 99,
+              border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)',
               background: 'var(--white)', color: 'var(--black)',
               outline: 'none', transition: 'border-color .15s', minWidth: 220,
             }}
@@ -178,9 +180,9 @@ export default function ContatosPage() {
         </div>
       </div>
 
-      {/* ── Status line ────────────────────────────────────────────── */}
+      {/* ── Status line ─ echoes the search, which may be one unbroken word ── */}
       {!loading && !error && data && (
-        <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16 }}>
+        <div className="max-lg:wrap-anywhere" style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16 }}>
           {total.toLocaleString('pt-BR')} contato{total !== 1 ? 's' : ''}
           {debQ && ` para "${debQ}"`}
           {totalPages > 1 && ` — página ${page} de ${totalPages}`}
@@ -195,7 +197,7 @@ export default function ContatosPage() {
       {/* ── Error ──────────────────────────────────────────────────── */}
       {!loading && error && (
         <div style={{ padding: '48px 0', textAlign: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#D93025', marginBottom: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>
             Falha ao carregar contatos
           </div>
           <div style={{ fontSize: 13, color: 'var(--gray2)' }}>
@@ -205,9 +207,11 @@ export default function ContatosPage() {
       )}
 
       {/* ── Table ──────────────────────────────────────────────────── */}
+      {/* Below lg DataTable shows cards, whose empty state echoes the search
+          too: there it may break anywhere. From lg (the table) nothing changes. */}
       {!loading && !error && (
-        <div className="animate-slide-up delay-2" style={{
-          background: 'var(--white)', borderRadius: 16,
+        <div className="animate-slide-up delay-2 max-lg:wrap-anywhere" style={{
+          background: 'var(--white)', borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--gray3)', overflow: 'hidden',
         }}>
           <DataTable
@@ -230,8 +234,9 @@ export default function ContatosPage() {
           <button
             onClick={() => setPage(p => p - 1)}
             disabled={!hasPrev}
+            className="max-md:min-h-10"
             style={{
-              padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit',
+              padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
               fontSize: 13, fontWeight: 700,
               cursor: hasPrev ? 'pointer' : 'not-allowed',
               border: '1px solid var(--gray3)', background: 'var(--white)',
@@ -247,8 +252,9 @@ export default function ContatosPage() {
           <button
             onClick={() => setPage(p => p + 1)}
             disabled={!hasNext}
+            className="max-md:min-h-10"
             style={{
-              padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit',
+              padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
               fontSize: 13, fontWeight: 700,
               cursor: hasNext ? 'pointer' : 'not-allowed',
               border: '1px solid var(--gray3)', background: 'var(--white)',

@@ -101,7 +101,7 @@ export function BrandColorField({ value, onChange, brandName }: Props) {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="h-control rounded-control bg-brand-action px-4 text-14 font-medium text-brand-contrast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-focus"
+            className="h-control rounded-control bg-brand-action px-4 text-14 font-medium text-brand-contrast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-focus max-md:min-h-10"
           >
             Criar disparo
           </button>

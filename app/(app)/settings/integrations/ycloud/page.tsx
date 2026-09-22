@@ -120,9 +120,11 @@ function SecretField({
             e.target.style.boxShadow = 'none'
           }}
         />
+        {/* ~20px eye: on phones an invisible 40×40 band (::before) centred on it */}
         <button
           type="button"
           onClick={onToggle}
+          className="max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-10 max-md:before:-translate-x-1/2 max-md:before:-translate-y-1/2"
           style={{
             position: 'absolute', right: 12, top: '50%',
             transform: 'translateY(-50%)', background: 'none',
@@ -233,9 +235,10 @@ export default function YCloudPage() {
 
   return (
     <div>
-      {/* Back link */}
+      {/* Back link — 40px tall on phones */}
       <Link
         href="/settings?tab=integracoes"
+        className="max-md:min-h-10"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -278,7 +281,8 @@ export default function YCloudPage() {
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} />
               Conectado
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            {/* Masked key and sender are long words in monospace: they wrap below lg */}
+            <div className="max-lg:min-w-0 max-lg:wrap-anywhere" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
               {sourceData.apiKeyMasked && (
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray2)', fontFamily: 'monospace' }}>
                   API Key: {sourceData.apiKeyMasked}
@@ -311,20 +315,20 @@ export default function YCloudPage() {
         >
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            fontSize: 13, fontWeight: 700, color: '#145c2a', marginBottom: 14,
+            fontSize: 13, fontWeight: 700, color: 'var(--success-text)', marginBottom: 14,
           }}>
             <CheckCircle2 size={14} color="var(--green)" />
             Integração salva com sucesso!
           </div>
 
-          <div style={{ fontSize: 13, color: '#145c2a', fontWeight: 500, marginBottom: 12, lineHeight: 1.6 }}>
+          <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, color: 'var(--success-text)', fontWeight: 500, marginBottom: 12, lineHeight: 1.6 }}>
             Cole a URL abaixo no painel do YCloud em{' '}
             <strong>Console → Webhooks</strong> e selecione os eventos{' '}
-            <code style={{ fontSize: 12, background: 'rgba(30,138,62,0.1)', padding: '1px 5px', borderRadius: 4 }}>
+            <code style={{ fontSize: 12, background: 'var(--success-dim)', padding: '1px 5px', borderRadius: 'var(--radius-xs)' }}>
               whatsapp.inbound_message.received
             </code>{' '}
             e{' '}
-            <code style={{ fontSize: 12, background: 'rgba(30,138,62,0.1)', padding: '1px 5px', borderRadius: 4 }}>
+            <code style={{ fontSize: 12, background: 'var(--success-dim)', padding: '1px 5px', borderRadius: 'var(--radius-xs)' }}>
               whatsapp.message.updated
             </code>.
           </div>
@@ -351,7 +355,7 @@ export default function YCloudPage() {
 
         {/* Existing key hint */}
         {sourceData?.configured && sourceData.apiKeyMasked && (
-          <div style={{
+          <div className="max-lg:wrap-anywhere" style={{
             padding: '10px 14px', background: 'var(--bg)',
             border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)',
             marginBottom: 16, fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -396,31 +400,31 @@ export default function YCloudPage() {
 
         {/* Test result badge */}
         {testResult && (
-          <div style={{
+          <div className="max-lg:wrap-anywhere" style={{
             marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-sm)',
             fontSize: 13, fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: 8,
-            background: testResult.valid ? 'rgba(30,138,62,0.06)' : 'rgba(217,48,37,0.06)',
+            background: testResult.valid ? 'var(--success-dim)' : 'var(--danger-dim)',
             border: `1px solid ${testResult.valid ? 'rgba(30,138,62,0.25)' : 'rgba(217,48,37,0.2)'}`,
-            color: testResult.valid ? '#145c2a' : '#b02619',
+            color: testResult.valid ? 'var(--success-text)' : 'var(--danger-text)',
           }}>
             {testResult.valid ? (
               <><CheckCircle2 size={14} color="var(--green)" />API Key válida — conexão bem-sucedida</>
             ) : (
-              <><XCircle size={14} color="#b02619" />{testResult.error ?? 'Falha na conexão'}</>
+              <><XCircle size={14} color="var(--danger-text)" />{testResult.error ?? 'Falha na conexão'}</>
             )}
           </div>
         )}
 
         {/* Save error */}
         {saveError && (
-          <div style={{
+          <div className="max-lg:wrap-anywhere" style={{
             marginBottom: 16, padding: '10px 14px', borderRadius: 'var(--radius-sm)',
-            fontSize: 13, fontWeight: 600, color: '#b02619',
-            background: 'rgba(217,48,37,0.06)', border: '1px solid rgba(217,48,37,0.2)',
+            fontSize: 13, fontWeight: 600, color: 'var(--danger-text)',
+            background: 'var(--danger-dim)', border: '1px solid rgba(217,48,37,0.2)',
             display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            <XCircle size={14} color="#b02619" />{saveError}
+            <XCircle size={14} color="var(--danger-text)" />{saveError}
           </div>
         )}
 
@@ -430,6 +434,7 @@ export default function YCloudPage() {
             type="button"
             onClick={testConnection}
             disabled={!canTest}
+            className="max-md:min-h-10"
             style={{
               padding: '10px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
               background: 'var(--bg)', border: '1px solid var(--gray3)',
@@ -446,6 +451,7 @@ export default function YCloudPage() {
             type="button"
             onClick={saveSource}
             disabled={!canSave}
+            className="max-md:min-h-10"
             style={{
               padding: '10px 22px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
               background: 'var(--primary)', border: 'none',
@@ -483,13 +489,14 @@ function WebhookUrlBox({ url, copied, onCopy }: { url: string; copied: boolean; 
         type="button"
         onClick={() => onCopy(url)}
         title="Copiar URL"
+        className="max-md:min-h-10"
         style={{
           flexShrink: 0, padding: '6px 12px',
           fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-          background: copied ? 'rgba(30,138,62,0.08)' : 'var(--white)',
+          background: copied ? 'var(--success-dim)' : 'var(--white)',
           border: `1px solid ${copied ? 'rgba(30,138,62,0.3)' : 'var(--gray3)'}`,
           borderRadius: 'var(--radius-sm)',
-          color: copied ? '#145c2a' : 'var(--gray)',
+          color: copied ? 'var(--success-text)' : 'var(--gray)',
           cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 5,
           transition: 'all .15s',

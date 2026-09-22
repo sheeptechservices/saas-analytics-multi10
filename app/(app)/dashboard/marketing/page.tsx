@@ -80,14 +80,14 @@ function ChangeBadge({ value }: { value: number | null }) {
   const positive = value > 0
   const zero = value === 0
   const color = zero ? 'var(--gray2)' : positive ? 'var(--green)' : 'var(--red)'
-  const bg = zero ? 'rgba(170,170,170,0.10)' : positive ? 'rgba(30,138,62,0.08)' : 'rgba(217,48,37,0.08)'
+  const bg = zero ? 'rgba(170,170,170,0.10)' : positive ? 'var(--success-dim)' : 'var(--danger-dim)'
   const Arrow = zero ? ArrowRight : positive ? ArrowUp : ArrowDown
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 3,
       fontSize: 11, fontWeight: 700, color,
-      background: bg, border: `1px solid ${color}30`,
-      borderRadius: 100, padding: '2px 8px', marginTop: 8,
+      background: bg, border: `1px solid color-mix(in srgb, ${color} 19%, transparent)`,
+      borderRadius: 'var(--radius-pill)', padding: '2px 8px', marginTop: 8,
     }}>
       <Arrow size={11} /> {Math.abs(value)}% <span style={{ fontWeight: 500, opacity: 0.7 }}>vs ant.</span>
     </span>
@@ -117,13 +117,13 @@ function SummaryCard({ label, value, format, accent = 'var(--primary)', sub, del
         background: 'var(--white)',
         border: '1px solid var(--gray3)',
         borderLeft: `4px solid ${accent}`,
-        borderRadius: 12,
+        borderRadius: 'var(--radius-md)',
         padding: '18px 20px',
         cursor: 'default',
         transition: 'transform 0.22s ease, box-shadow 0.22s ease',
         transform: hov ? 'translateY(-4px) scale(1.01)' : 'translateY(0) scale(1)',
         boxShadow: hov
-          ? `0 10px 28px rgba(0,0,0,0.10), inset 0 0 0 1px ${accent}30`
+          ? `0 10px 28px rgba(0,0,0,0.10), inset 0 0 0 1px color-mix(in srgb, ${accent} 19%, transparent)`
           : 'var(--shadow)',
         display: 'flex', flexDirection: 'column',
       }}
@@ -160,14 +160,16 @@ function FilterBar<T extends string>({ options, labels, value, onChange }: {
   value: T
   onChange: (v: T) => void
 }) {
+  // On phones the buttons wrap (four providers don't fit in one row) and are 40px tall
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
+    <div className="max-md:flex-wrap" style={{ display: 'flex', gap: 6 }}>
       {options.map(opt => (
         <button
           key={opt}
           onClick={() => onChange(opt)}
+          className="max-md:min-h-10"
           style={{
-            padding: '6px 14px', borderRadius: 8,
+            padding: '6px 14px', borderRadius: 'var(--radius-sm)',
             border: `1px solid ${value === opt ? 'var(--primary)' : 'var(--gray3)'}`,
             background: value === opt ? 'var(--primary)' : 'var(--white)',
             color: value === opt ? 'var(--primary-contrast)' : 'var(--gray)',
@@ -189,7 +191,7 @@ function SpendTooltip({ active, payload, label }: any) {
   return (
     <div style={{
       background: 'var(--white)', border: '1px solid var(--gray3)',
-      borderRadius: 8, padding: '10px 14px', boxShadow: 'var(--shadow)', fontSize: 12,
+      borderRadius: 'var(--radius-sm)', padding: '10px 14px', boxShadow: 'var(--shadow)', fontSize: 12,
     }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {payload.map((p: any) => (
@@ -207,7 +209,7 @@ function RoasTooltip({ active, payload }: any) {
   return (
     <div style={{
       background: 'var(--white)', border: '1px solid var(--gray3)',
-      borderRadius: 8, padding: '10px 14px', boxShadow: 'var(--shadow)', fontSize: 12,
+      borderRadius: 'var(--radius-sm)', padding: '10px 14px', boxShadow: 'var(--shadow)', fontSize: 12,
     }}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>{PROVIDER_DISPLAY[d?.provider] ?? d?.provider}</div>
       <div>ROAS: {Number(d?.roas ?? 0).toFixed(2)}x</div>
@@ -273,8 +275,10 @@ export default function MarketingPage() {
     )
   }
 
+  // The page adds its own 28/24px padding on top of <main>'s; on phones <main>'s
+  // 16px is the only gutter, so the content keeps the full width.
   return (
-    <div style={{ padding: '28px 24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div className="px-[24px] py-[28px] max-md:p-0" style={{ maxWidth: 1200, margin: '0 auto' }}>
 
       {/* ── Header + Filters ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
@@ -302,10 +306,9 @@ export default function MarketingPage() {
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className="animate-slide-up" style={{
+      {/* ── KPI Cards — one column on phones, auto-fill from sm ── */}
+      <div className="animate-slide-up grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]" style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
         gap: 14,
         marginBottom: 28,
       }}>
@@ -317,10 +320,10 @@ export default function MarketingPage() {
         <SummaryCard label="Conversões" value={totals.totalConversions ?? 0} format={fmtNum} accent="#EA4335" delay={300} />
       </div>
 
-      {/* ── Charts ── */}
-      <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 28 }}>
+      {/* ── Charts — stacked below lg, side by side from lg ── */}
+      <div className="animate-slide-up delay-3 grid-cols-1 lg:grid-cols-[1fr_1fr]" style={{ display: 'grid', gap: 18, marginBottom: 28 }}>
 
-        <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 12, padding: '20px 16px', boxShadow: 'var(--shadow)' }}>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '20px 16px', boxShadow: 'var(--shadow)' }}>
           <SectionTitle>Gasto Diário por Plataforma</SectionTitle>
           {isLoading ? (
             <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray2)', fontSize: 13 }}>Carregando...</div>
@@ -350,7 +353,7 @@ export default function MarketingPage() {
           )}
         </div>
 
-        <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 12, padding: '20px 16px', boxShadow: 'var(--shadow)' }}>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '20px 16px', boxShadow: 'var(--shadow)' }}>
           <SectionTitle>ROAS por Plataforma</SectionTitle>
           {isLoading ? (
             <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray2)', fontSize: 13 }}>Carregando...</div>
@@ -375,7 +378,7 @@ export default function MarketingPage() {
       </div>
 
       {/* ── Top 10 Campaigns ── */}
-      <div className="animate-slide-up delay-5" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 12, padding: '20px 16px', boxShadow: 'var(--shadow)' }}>
+      <div className="animate-slide-up delay-5" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '20px 16px', boxShadow: 'var(--shadow)' }}>
         <SectionTitle>Top 10 Campanhas por Gasto</SectionTitle>
         {isLoading ? (
           <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--gray2)', fontSize: 13 }}>Carregando...</div>
@@ -404,12 +407,12 @@ export default function MarketingPage() {
                     onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(0,0,0,0.025)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = '' }}
                   >
-                    <td style={{ padding: '10px 12px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                    <td title={row.name} style={{ padding: '10px 12px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
                       {row.name}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                       <span style={{
-                        display: 'inline-block', padding: '2px 8px', borderRadius: 100,
+                        display: 'inline-block', padding: '2px 8px', borderRadius: 'var(--radius-pill)',
                         background: `${PROVIDER_COLORS[row.provider] ?? '#888'}18`,
                         color: PROVIDER_COLORS[row.provider] ?? '#888',
                         fontWeight: 700, fontSize: 11,

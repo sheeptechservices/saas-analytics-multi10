@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button'
 type Tom         = 'formal' | 'consultivo' | 'direto'
 type Status      = 'draft' | 'active' | 'paused'
 type N8nDelivery = { ok: boolean; status?: number; error?: string } | null
-type AreaId      = 'campanha' | 'ia-conteudo' | 'teste-disparo' | 'avancado'
+type AreaId      = typeof AREA_IDS[number]
 
 interface Settings {
   tom:              Tom
@@ -62,20 +62,22 @@ const DIAS = [
   { num: 0, label: 'Dom' },
 ]
 
-const TOM_DESC: Record<Tom, string> = {
-  formal:     'Profissional e estruturado',
-  consultivo: 'Empático e orientado a valor',
-  direto:     'Objetivo e direto ao ponto',
-}
+const AREAS_KEY              = 'sdr-parametros-areas'
+const AREA_IDS               = ['campanha', 'teste-disparo', 'avancado'] as const
+const AREA_DEFAULT: AreaId[] = ['campanha']
 
-const AREAS_KEY     = 'sdr-parametros-areas'
-const AREA_DEFAULT: AreaId[] = ['campanha', 'ia-conteudo']
+// Descarta ids que não existem mais (ex: 'ia-conteudo') salvos no localStorage
+function isAreaId(v: unknown): v is AreaId {
+  return typeof v === 'string' && (AREA_IDS as readonly string[]).includes(v)
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// No celular o cartão fica dentro da área colapsável (também com borda e
+// respiro): as margens laterais encolhem para sobrar largura aos campos.
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: '20px 24px', marginBottom: 16 }}>
+    <div className="px-4 py-5 md:px-6" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', marginBottom: 16 }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 18 }}>
         {title}
       </div>
@@ -100,7 +102,7 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
       onChange={e => onChange(e.target.value)}
       style={{
         fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-        border: '1px solid var(--gray3)', borderRadius: 8, padding: '7px 10px',
+        border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', padding: '7px 10px',
         background: 'var(--bg)', color: 'var(--black)', outline: 'none',
         transition: 'border-color .15s',
       }}
@@ -119,7 +121,7 @@ function CollapsibleArea({
     <div style={{
       marginBottom: 8,
       border: '1px solid var(--gray3)',
-      borderRadius: 16,
+      borderRadius: 'var(--radius-lg)',
       overflow: 'hidden',
     }}>
       <button
@@ -151,7 +153,7 @@ function CollapsibleArea({
         />
       </button>
       {open && (
-        <div id={`area-${id}`} style={{ padding: '20px 20px 4px', background: 'var(--bg)' }}>
+        <div id={`area-${id}`} className="px-3 pt-5 pb-1 md:px-5" style={{ background: 'var(--bg)' }}>
           {children}
         </div>
       )}
@@ -191,7 +193,7 @@ export function CampaignConfig() {
       const raw = localStorage.getItem(AREAS_KEY)
       if (raw) {
         const arr = JSON.parse(raw) as unknown
-        if (Array.isArray(arr)) return new Set(arr as AreaId[])
+        if (Array.isArray(arr)) return new Set(arr.filter(isAreaId))
       }
     } catch {}
     return new Set(AREA_DEFAULT)
@@ -323,22 +325,15 @@ export function CampaignConfig() {
     }))
   }
 
-  function updTemplate(i: number, value: string) {
-    const next = [...settings.templates]
-    next[i] = value
-    upd('templates', next)
-  }
-
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <SkeletonBlock height={56} style={{ borderRadius: 12 }} />
+        <SkeletonBlock height={56} style={{ borderRadius: 'var(--radius-md)' }} />
         <SkeletonForm rows={5} />
       </div>
     )
   }
 
-  const hasTemplates  = settings.templates.length > 0
   const hasIntegration = !!(preservedN8nUrls.n8nWebhookUrl || preservedN8nUrls.n8nDispatchUrl)
   const isDirty = baseline !== null && (
     JSON.stringify(settings) !== JSON.stringify(baseline.settings) ||
@@ -353,7 +348,7 @@ export function CampaignConfig() {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           background: 'var(--bg)', border: '1px solid var(--gray3)',
-          borderRadius: 10, padding: '9px 14px', marginBottom: 16,
+          borderRadius: 'var(--radius-md)', padding: '9px 14px', marginBottom: 16,
           fontSize: 12, color: 'var(--gray)', fontWeight: 500,
         }}>
           <Info size={13} style={{ flexShrink: 0, color: 'var(--gray2)' }} />
@@ -363,7 +358,7 @@ export function CampaignConfig() {
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 12,
           background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.30)',
-          borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+          borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 16,
         }}>
           <AlertTriangle size={14} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.5 }}>
@@ -385,17 +380,19 @@ export function CampaignConfig() {
       >
         {/* Status da campanha */}
         <SectionCard title="Status da campanha">
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          {/* No celular os três botões não cabem numa linha: quebram, cada um
+              inteiro numa linha só e com 40px de altura */}
+          <div className="max-md:flex-wrap" style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             {(['active', 'paused', 'draft'] as Status[]).map(s => {
               const labels:  Record<Status, string> = { active: '● Ativa', paused: '⏸ Pausada', draft: '✏ Rascunho' }
               const colors:  Record<Status, string> = { active: 'var(--green)', paused: 'var(--gray2)', draft: 'var(--primary-text)' }
               const on = status === s
               return (
-                <button key={s} onClick={() => setStatus(s)} style={{
-                  padding: '7px 18px', borderRadius: 99, fontFamily: 'inherit',
+                <button key={s} onClick={() => setStatus(s)} className="max-md:min-h-10 max-md:whitespace-nowrap" style={{
+                  padding: '7px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
                   fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   border:      `1.5px solid ${on ? colors[s] : 'var(--gray3)'}`,
-                  background:  on ? `${colors[s]}18` : 'transparent',
+                  background:  on ? `color-mix(in srgb, ${colors[s]} 9%, transparent)` : 'transparent',
                   color:       on ? colors[s] : 'var(--gray2)',
                   transition: 'all .15s',
                 }}>
@@ -435,7 +432,7 @@ export function CampaignConfig() {
                 style={{
                   width: '100%', fontFamily: 'inherit', fontSize: 13,
                   border: `1px solid ${remetenteError ? 'var(--red)' : 'var(--gray3)'}`,
-                  borderRadius: 10, padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)', padding: '10px 14px',
                   background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                   boxSizing: 'border-box', transition: 'border-color .15s',
                 }}
@@ -450,7 +447,8 @@ export function CampaignConfig() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            {/* Toques e intervalo: um embaixo do outro no celular, lado a lado do md */}
+            <div className="grid-cols-1 md:grid-cols-[1fr_1fr]" style={{ display: 'grid', gap: 24 }}>
               <div>
                 <FieldLabel>
                   Toques na sequência{' '}
@@ -464,7 +462,7 @@ export function CampaignConfig() {
                     onChange={e => upd('numToques', Math.max(1, Math.min(20, Number(e.target.value))))}
                     style={{
                       width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', padding: '8px 12px',
                       background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                       textAlign: 'center', transition: 'border-color .15s',
                     }}
@@ -491,7 +489,7 @@ export function CampaignConfig() {
                     onChange={e => upd('intervaloDias', Math.max(1, Math.min(30, Number(e.target.value))))}
                     style={{
                       width: 80, fontFamily: 'inherit', fontSize: 16, fontWeight: 800,
-                      border: '1px solid var(--gray3)', borderRadius: 8, padding: '8px 12px',
+                      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', padding: '8px 12px',
                       background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                       textAlign: 'center', transition: 'border-color .15s',
                     }}
@@ -522,10 +520,12 @@ export function CampaignConfig() {
             </FieldLabel>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
               <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>10</span>
+              {/* 40px de altura no celular: a faixa inteira responde ao toque */}
               <input
                 type="range" min={10} max={1000} step={10}
                 value={settings.limiteDiario}
                 onChange={e => upd('limiteDiario', Number(e.target.value))}
+                className="max-md:h-10"
                 style={{ flex: 1, accentColor: 'var(--primary)' }}
               />
               <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>1000</span>
@@ -536,8 +536,8 @@ export function CampaignConfig() {
               {DIAS.map(({ num, label }) => {
                 const on = settings.diasAtivos.includes(num)
                 return (
-                  <button key={num} onClick={() => toggleDia(num)} style={{
-                    padding: '6px 14px', borderRadius: 99, fontFamily: 'inherit',
+                  <button key={num} onClick={() => toggleDia(num)} className="max-md:min-h-10" style={{
+                    padding: '6px 14px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
                     background: on ? 'var(--primary-dim)' : 'transparent',
@@ -554,142 +554,7 @@ export function CampaignConfig() {
         </div>{/* /Sequência+Cadência grid */}
       </CollapsibleArea>
 
-      {/* ━━━ Área 2: IA & Conteúdo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <CollapsibleArea
-        id="ia-conteudo"
-        title="IA & Conteúdo"
-        open={openAreas.has('ia-conteudo')}
-        onToggle={() => toggleArea('ia-conteudo')}
-      >
-        {/* Tom e objetivo */}
-        <SectionCard title="Tom e objetivo">
-          <FieldLabel>Tom da IA</FieldLabel>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 22 }}>
-            {(['formal', 'consultivo', 'direto'] as Tom[]).map(t => {
-              const on = settings.tom === t
-              return (
-                <button key={t} onClick={() => upd('tom', t)} style={{
-                  flex: 1, padding: '10px 14px', borderRadius: 10, fontFamily: 'inherit',
-                  fontSize: 12, cursor: 'pointer', textAlign: 'left',
-                  border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
-                  background: on ? 'var(--primary-dim)' : 'transparent',
-                  color:      on ? 'var(--primary-text)' : 'var(--gray)',
-                  transition: 'all .15s',
-                  display: 'flex', flexDirection: 'column', gap: 3,
-                }}>
-                  <span style={{ fontWeight: 700 }}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </span>
-                  <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>
-                    {TOM_DESC[t]}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          <FieldLabel>Objetivo da campanha</FieldLabel>
-          <textarea
-            value={settings.objetivo}
-            onChange={e => upd('objetivo', e.target.value)}
-            placeholder="Ex: Qualificar leads e agendar reuniões com o closer..."
-            rows={3}
-            style={{
-              width: '100%', fontFamily: 'inherit', fontSize: 13, resize: 'vertical',
-              border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-              background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-              boxSizing: 'border-box', transition: 'border-color .15s', lineHeight: 1.5,
-            }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-            onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
-          />
-        </SectionCard>
-
-        {/* Templates de mensagem */}
-        <SectionCard title="Templates de mensagem">
-          {hasTemplates && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginBottom: 14 }}>
-              {settings.templates.map((tmpl, i) => {
-                const dia   = 1 + i * settings.intervaloDias
-                const empty = !tmpl.trim()
-                return (
-                  <div key={i}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>
-                        Toque {i + 1} · dia {dia}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--gray2)', fontWeight: 500 }}>
-                        {'{{nome}}'} · {'{{empresa}}'}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <textarea
-                        value={tmpl}
-                        onChange={e => updTemplate(i, e.target.value)}
-                        rows={4}
-                        placeholder={`Mensagem do toque ${i + 1}...`}
-                        style={{
-                          flex: 1, minWidth: 0, fontFamily: 'inherit', fontSize: 13,
-                          resize: 'vertical', lineHeight: 1.55,
-                          border: `1px solid ${empty ? 'rgba(239,68,68,0.5)' : 'var(--gray3)'}`,
-                          borderRadius: 10, padding: '10px 14px',
-                          background: 'var(--bg)', color: 'var(--black)', outline: 'none',
-                          boxSizing: 'border-box', transition: 'border-color .15s',
-                        }}
-                        onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                        onBlur={e  => (e.currentTarget.style.borderColor = empty ? 'rgba(239,68,68,0.5)' : 'var(--gray3)')}
-                      />
-                      {settings.templates.length > 1 && (
-                        <button
-                          onClick={() => upd('templates', settings.templates.filter((_, idx) => idx !== i))}
-                          title="Remover template"
-                          style={{
-                            padding: '7px 10px', borderRadius: 8, fontFamily: 'inherit',
-                            fontSize: 16, fontWeight: 700, cursor: 'pointer',
-                            border: '1px solid var(--gray3)', background: 'transparent',
-                            color: 'var(--gray2)', transition: 'all .15s', lineHeight: 1, flexShrink: 0,
-                          }}
-                          onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--red)'; b.style.color = 'var(--red)' }}
-                          onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                    {empty && (
-                      <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 600, marginTop: 4 }}>
-                        Vazio — preencha ou remova este toque.
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          <button
-            onClick={() => upd('templates', [...settings.templates, ''])}
-            style={{
-              padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit',
-              fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              border: '1.5px dashed var(--gray3)', background: 'transparent',
-              color: 'var(--gray2)', transition: 'all .15s',
-            }}
-            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--primary)'; b.style.color = 'var(--primary-text)' }}
-            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = 'var(--gray3)'; b.style.color = 'var(--gray2)' }}
-          >
-            + Adicionar template
-          </button>
-
-          {settings.templates.length !== settings.numToques && (
-            <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 12 }}>
-              {settings.templates.length} template{settings.templates.length !== 1 ? 's' : ''} configurado{settings.templates.length !== 1 ? 's' : ''} para {settings.numToques} toque{settings.numToques !== 1 ? 's' : ''} — os toques restantes não terão conteúdo.
-            </div>
-          )}
-        </SectionCard>
-      </CollapsibleArea>
-
-      {/* ━━━ Área 5: Avançado ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* ━━━ Área 2: Avançado ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <CollapsibleArea
         id="avancado"
         title="Avançado"
@@ -698,11 +563,11 @@ export function CampaignConfig() {
       >
         <SectionCard title="Integração">
           {hasIntegration ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#15803d', flexWrap: 'wrap' as const }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--success-text)', flexWrap: 'wrap' as const }}>
               <Check size={14} style={{ flexShrink: 0 }} />
               Integração configurada
               <span style={{ color: 'var(--gray3)' }}>·</span>
-              <Link href="/settings/integrations/credenciais" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
+              <Link href="/settings/integrations/credenciais" className="max-md:inline-flex max-md:min-h-10 max-md:items-center" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
                 gerenciar em Credenciais
               </Link>
             </div>
@@ -710,7 +575,7 @@ export function CampaignConfig() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--gray)', flexWrap: 'wrap' as const }}>
               <span style={{ fontWeight: 500 }}>Não configurada</span>
               <span style={{ color: 'var(--gray3)' }}>·</span>
-              <Link href="/settings/integrations/credenciais" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
+              <Link href="/settings/integrations/credenciais" className="max-md:inline-flex max-md:min-h-10 max-md:items-center" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
                 configurar em Credenciais
               </Link>
             </div>
@@ -722,11 +587,11 @@ export function CampaignConfig() {
             A conexão com a fonte de dados e a integração são configuradas separadamente.
             As configurações de campanha acima serão aplicadas quando a fonte estiver conectada e a integração ativada.
           </div>
-          <Link href="/settings/integrations/sdr-source" style={{
+          <Link href="/settings/integrations/sdr-source" className="max-md:min-h-10" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
             background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
-            borderRadius: 99, padding: '8px 18px', textDecoration: 'none',
+            borderRadius: 'var(--radius-pill)', padding: '8px 18px', textDecoration: 'none',
           }}>
             <ExternalLink size={13} /> Configurar fonte de dados
           </Link>
@@ -735,7 +600,8 @@ export function CampaignConfig() {
 
       {/* ── Salvar — sempre visível ──────────────────────────────── */}
       <div style={{ marginTop: 16, paddingBottom: 48 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+        {/* No celular o aviso ao lado do botão desce para a linha de baixo */}
+        <div className="max-md:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <Button
             variant="primary"
             size="lg"
@@ -757,7 +623,7 @@ export function CampaignConfig() {
             </span>
           )}
           {saveError && !saved && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
+            <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
               ✗ {saveError}
             </span>
           )}
@@ -775,7 +641,7 @@ export function CampaignConfig() {
             fontSize: 12, fontWeight: 700,
             background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
             border: '1px solid rgba(34,197,94,0.25)',
-            borderRadius: 99, padding: '5px 14px',
+            borderRadius: 'var(--radius-pill)', padding: '5px 14px',
           }}>
             ✓ Integração atualizada
             {n8nDelivery.status !== undefined && (
@@ -784,12 +650,12 @@ export function CampaignConfig() {
           </div>
         )}
         {n8nDelivery !== null && n8nDelivery !== undefined && !n8nDelivery.ok && (
-          <div style={{
+          <div className="max-md:flex-wrap max-lg:wrap-anywhere" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 12, fontWeight: 700,
-            background: 'rgba(245,158,11,0.10)', color: '#b45309',
+            background: 'var(--warn-dim)', color: 'var(--warn-text)',
             border: '1px solid rgba(245,158,11,0.30)',
-            borderRadius: 99, padding: '5px 14px',
+            borderRadius: 'var(--radius-pill)', padding: '5px 14px',
           }}>
             ⚠ Falha ao atualizar a integração
             {(n8nDelivery.error ?? n8nDelivery.status) !== undefined && (
@@ -806,6 +672,7 @@ export function CampaignConfig() {
       <div style={{ marginTop: 40, borderTop: '1.5px solid var(--gray3)', paddingTop: 28, paddingBottom: 48 }}>
         <button
           onClick={() => setFerramentasOpen(o => !o)}
+          className="max-md:min-h-10"
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: 'none', border: 'none', cursor: 'pointer',
@@ -828,7 +695,7 @@ export function CampaignConfig() {
             <div style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
               background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.22)',
-              borderRadius: 10, padding: '10px 14px', marginBottom: 20,
+              borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 20,
               fontSize: 12, color: 'var(--red)', fontWeight: 500, lineHeight: 1.55,
             }}>
               <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -842,8 +709,8 @@ export function CampaignConfig() {
                 onChange={e => setTestTemplateName(e.target.value)}
                 style={{
                   width: '100%', fontFamily: 'inherit', fontSize: 13,
-                  border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
-                  background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                  border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
+                  background: 'var(--bg)', color: 'var(--black)',
                   boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 8,
                   cursor: 'pointer',
                 }}
@@ -861,7 +728,7 @@ export function CampaignConfig() {
               placeholder="nome_do_template (ou digite manualmente)"
               style={{
                 width: '100%', fontFamily: 'inherit', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                 background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                 boxSizing: 'border-box', transition: 'border-color .15s', marginBottom: 20,
               }}
@@ -869,7 +736,8 @@ export function CampaignConfig() {
               onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
             />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16, marginBottom: 20 }}>
+            {/* Idioma e variáveis: um embaixo do outro no celular */}
+            <div className="grid-cols-1 md:grid-cols-[120px_1fr]" style={{ display: 'grid', gap: 16, marginBottom: 20 }}>
               <div>
                 <FieldLabel>Idioma</FieldLabel>
                 <input
@@ -879,7 +747,7 @@ export function CampaignConfig() {
                   placeholder="pt_BR"
                   style={{
                     width: '100%', fontFamily: 'inherit', fontSize: 13,
-                    border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                    border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                     background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                     boxSizing: 'border-box', transition: 'border-color .15s',
                   }}
@@ -896,7 +764,7 @@ export function CampaignConfig() {
                   placeholder="João Silva, Empresa Ltda"
                   style={{
                     width: '100%', fontFamily: 'inherit', fontSize: 13,
-                    border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                    border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                     background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                     boxSizing: 'border-box', transition: 'border-color .15s',
                   }}
@@ -917,7 +785,7 @@ export function CampaignConfig() {
               placeholder={'+5554999990000\n+5551988880000'}
               style={{
                 width: '100%', fontFamily: 'monospace', fontSize: 13,
-                border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
                 background: 'var(--bg)', color: 'var(--black)', outline: 'none',
                 boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6,
                 transition: 'border-color .15s', marginBottom: 4,
@@ -938,18 +806,18 @@ export function CampaignConfig() {
                 {testSending ? 'Enviando...' : 'Enviar teste'}
               </Button>
               {testError && (
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
+                <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
               )}
             </div>
 
             {testResults && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {testResults.map((r, i) => (
-                  <div key={i} style={{
+                  <div key={i} className="max-md:flex-wrap max-lg:wrap-anywhere" style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
                     border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-                    borderRadius: 10, padding: '8px 14px',
+                    borderRadius: 'var(--radius-md)', padding: '8px 14px',
                   }}>
                     <span style={{ fontWeight: 800, color: r.ok ? 'var(--green)' : 'var(--red)', flexShrink: 0, fontSize: 14 }}>
                       {r.ok ? '✓' : '✗'}
