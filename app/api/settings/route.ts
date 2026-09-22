@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tenants, users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { requireMaster } from '@/lib/auth-guard'
 
 export async function GET() {
   const session = await auth()
@@ -31,7 +32,12 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (session.user.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Exceção à conta única, por decisão do dono: a marca é da plataforma. O mesmo
+  // tenant já é editado em /master (TenantEditor → PATCH /api/master/tenants/:id);
+  // este PUT continua existindo só para o master. O GET acima segue aberto: sem
+  // ler a marca a aplicação não pinta a tela.
+  const roleCheck = requireMaster(session)
+  if (roleCheck) return roleCheck
 
   const body = await req.json()
   const { primaryColor, logoUrl, name } = body

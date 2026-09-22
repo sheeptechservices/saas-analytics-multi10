@@ -14,6 +14,7 @@ import { useModules } from '@/components/ModulesProvider'
 import { CampaignConfig } from '@/app/(app)/sdr-ia/parametros/CampaignConfig'
 import { BrandColorField } from '@/components/settings/BrandColorField'
 import { DEFAULT_PRIMARY, DEFAULT_BRAND_NAME } from '@/lib/brand'
+import { isMasterRole, roleLabel } from '@/lib/roles'
 
 const PRESET_COLORS = [
   '#FFB400', '#2563eb', '#1E8A3E', '#D93025',
@@ -22,13 +23,16 @@ const PRESET_COLORS = [
 
 type TabKey = 'perfil' | 'marca' | 'integracoes' | 'equipe' | 'auditoria' | 'campanha-sdr'
 type IntegStatus = 'loading' | 'connected' | 'disconnected' | 'error' | 'pending'
-const TABS: { id: TabKey; label: string; adminOnly?: boolean; moduleGate?: string }[] = [
+// Conta única: todo usuário do cliente é admin do próprio cliente, então nenhuma
+// aba é restrita por papel de tenant. O que ainda esconde aba é o módulo
+// contratado — e a Marca, que por decisão do dono virou coisa da plataforma.
+const TABS: { id: TabKey; label: string; masterOnly?: boolean; moduleGate?: string }[] = [
   { id: 'integracoes',  label: 'Integrações' },
   { id: 'campanha-sdr', label: 'Campanha SDR', moduleGate: 'sdr.parametros' },
   { id: 'equipe',       label: 'Equipe' },
   { id: 'perfil',       label: 'Perfil' },
-  { id: 'marca',        label: 'Marca',     adminOnly: true },
-  { id: 'auditoria',    label: 'Auditoria', adminOnly: true },
+  { id: 'marca',        label: 'Marca', masterOnly: true },
+  { id: 'auditoria',    label: 'Auditoria' },
 ]
 
 // ─── Integration icons ────────────────────────────────────────────────────────
@@ -338,9 +342,9 @@ export default function SettingsPage() {
 
   const users = data?.users ?? []
   const me = meData?.user
-  const isAdmin = me?.role === 'admin' || me?.role === 'master'
+  const isMaster = isMasterRole(me?.role)
   const visibleTabs = TABS.filter(t =>
-    (!t.adminOnly || isAdmin) &&
+    (!t.masterOnly || isMaster) &&
     (!t.moduleGate || modules.includes(t.moduleGate))
   )
   const equipeQ = equipeSearch.trim().toLowerCase()
@@ -465,13 +469,13 @@ export default function SettingsPage() {
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>{profileName || me?.name}</div>
               <div style={{ fontSize: 12, color: 'var(--gray2)', marginTop: 2 }}>{me?.email}</div>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{me?.role}</span>
+            <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{roleLabel(me?.role)}</span>
           </div>
         </div>
       )}
 
       {/* ── Marca ──────────────────────────────────────────────────────────── */}
-      {tab === 'marca' && isAdmin && (
+      {tab === 'marca' && isMaster && (
         <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {/* Coluna esquerda — formulário */}
           <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: 28, boxShadow: 'var(--shadow)', flex: '1 1 380px', maxWidth: 520 }}>
@@ -670,7 +674,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {tab === 'auditoria' && isAdmin && (
+      {tab === 'auditoria' && (
         <div className="animate-slide-up delay-2">
           <AuditSection />
         </div>
@@ -711,7 +715,10 @@ export default function SettingsPage() {
                 onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
               />
             </div>
-            {me?.role === 'admin' && (
+            {/* Conta única: gerenciar a equipe não é mais privilégio de papel algum —
+                todo usuário do cliente entra aqui. O que sobra é esperar o /api/me
+                responder, porque a lista abaixo precisa saber quem é você. */}
+            {me && (
               manageEquipe ? (
                 <button
                   onClick={() => setInviteOpen(true)}
@@ -733,8 +740,8 @@ export default function SettingsPage() {
           </div>
 
           {/* Body */}
-          {me?.role === 'admin' && manageEquipe ? (
-            <UsersSection meId={me.id} search={equipeSearch} inviteOpen={inviteOpen} onInviteOpenChange={setInviteOpen} />
+          {me && manageEquipe ? (
+            <UsersSection meId={me.id} canDelete={isMaster} search={equipeSearch} inviteOpen={inviteOpen} onInviteOpenChange={setInviteOpen} />
           ) : (
             <div>
               {filteredEquipeUsers.length === 0 && equipeQ ? (
@@ -748,9 +755,6 @@ export default function SettingsPage() {
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{u.name}</div>
                     <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>{u.email}</div>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)' }}>
-                    {u.role}
-                  </span>
                 </div>
               ))}
             </div>
@@ -772,19 +776,6 @@ type UserRow = {
   avatarBg: string
   createdAt: string | number
 }
-
-const ROLE_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-  admin:   { bg: '#dbeafe', color: 'var(--info-text)', label: 'Admin' },
-  manager: { bg: '#fef3c7', color: 'var(--warn-text)', label: 'Gerente' },
-  user:    { bg: '#f3f4f6', color: '#374151', label: 'Usuário' },
-  master:  { bg: '#ede9fe', color: '#5b21b6', label: 'Master' },
-}
-
-const ROLE_OPTIONS = [
-  { value: 'admin',   label: 'Administrador' },
-  { value: 'manager', label: 'Gerente' },
-  { value: 'user',    label: 'Usuário' },
-]
 
 const fieldStyle: React.CSSProperties = {
   width: '100%', padding: '10px 14px',
@@ -879,7 +870,7 @@ function ErrorBanner({ msg }: { msg: string }) {
 
 // ─── UsersSection ─────────────────────────────────────────────────────────────
 
-function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: string; search: string; inviteOpen: boolean; onInviteOpenChange: (v: boolean) => void }) {
+function UsersSection({ meId, canDelete, search, inviteOpen, onInviteOpenChange }: { meId: string; canDelete: boolean; search: string; inviteOpen: boolean; onInviteOpenChange: (v: boolean) => void }) {
   const qc = useQueryClient()
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -889,14 +880,12 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
 
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('user')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState(false)
 
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [editName, setEditName] = useState('')
-  const [editRole, setEditRole] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
 
@@ -911,13 +900,13 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
 
   useEffect(() => {
     if (inviteOpen) {
-      setInviteName(''); setInviteEmail(''); setInviteRole('user')
+      setInviteName(''); setInviteEmail('')
       setInviteError(''); setInviteSuccess(false)
     }
   }, [inviteOpen])
 
   function openEdit(u: UserRow) {
-    setEditUser(u); setEditName(u.name); setEditRole(u.role); setEditError('')
+    setEditUser(u); setEditName(u.name); setEditError('')
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -926,7 +915,9 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
     const res = await fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: inviteName, email: inviteEmail, role: inviteRole }),
+      // Conta única: quem entra já entra como admin do cliente — a API decide o
+      // papel sozinha e não há o que mandar aqui.
+      body: JSON.stringify({ name: inviteName, email: inviteEmail }),
     })
     const body = await res.json()
     setInviteLoading(false)
@@ -946,7 +937,7 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
     const res = await fetch(`/api/users/${editUser.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName, role: editRole }),
+      body: JSON.stringify({ name: editName }),
     })
     const body = await res.json()
     setEditLoading(false)
@@ -965,7 +956,7 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
 
   return (
     <>
-      {/* Abaixo do lg as seis colunas não cabem: a tabela rola de lado dentro
+      {/* Abaixo do lg as colunas não cabem: a tabela rola de lado dentro
           deste quadro, sem alargar a página */}
       <div className="animate-slide-up delay-4 max-lg:overflow-x-auto" style={{ marginTop: 4 }}>
           {isLoading && (
@@ -984,7 +975,7 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--bg)' }}>
-                  {['', 'Nome', 'E-mail', 'Role', 'Membro desde', ''].map((h, i) => (
+                  {['', 'Nome', 'E-mail', 'Membro desde', ''].map((h, i) => (
                     <th key={i} style={{ padding: '8px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--gray2)', letterSpacing: '0.06em', borderBottom: '1px solid var(--gray3)' }}>
                       {h}
                     </th>
@@ -993,7 +984,6 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
               </thead>
               <tbody>
                 {filteredList.map((u, i) => {
-                  const badge = ROLE_BADGE[u.role] ?? ROLE_BADGE.user
                   const isMe = u.id === meId
                   return (
                     <tr key={u.id} style={{ borderBottom: i < filteredList.length - 1 ? '1px solid var(--gray3)' : 'none' }}>
@@ -1007,11 +997,6 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
                         {isMe && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--gray2)' }}>(você)</span>}
                       </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--gray)' }}>{u.email}</td>
-                      <td style={{ padding: '10px 16px' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, background: badge.bg, color: badge.color, padding: '3px 8px', borderRadius: 'var(--radius-xs)', letterSpacing: '0.04em' }}>
-                          {badge.label}
-                        </span>
-                      </td>
                       <td style={{ padding: '10px 16px', fontSize: 12, color: 'var(--gray2)', whiteSpace: 'nowrap' }}>
                         {fmtDate(u.createdAt)}
                       </td>
@@ -1020,7 +1005,7 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
                           <IconBtn title="Editar" onClick={() => openEdit(u)} hoverColor="var(--primary-text)" hoverBorder="var(--primary)">
                             <Pencil size={13} />
                           </IconBtn>
-                          {!isMe && (
+                          {!isMe && canDelete && (
                             <IconBtn title="Remover" onClick={() => setDeleteUser(u)} hoverColor="var(--red)" hoverBorder="var(--red)">
                               <Trash2 size={13} />
                             </IconBtn>
@@ -1031,7 +1016,7 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
                   )
                 })}
                 {filteredList.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Nenhum usuário encontrado.</td></tr>
+                  <tr><td colSpan={5} style={{ padding: '32px 16px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Nenhum usuário encontrado.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1050,12 +1035,6 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
             <form onSubmit={handleInvite} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div><FieldLabel>NOME *</FieldLabel><Field value={inviteName} onChange={e => setInviteName((e.target as HTMLInputElement).value)} placeholder="Nome completo" required /></div>
               <div><FieldLabel>E-MAIL *</FieldLabel><Field type="email" value={inviteEmail} onChange={e => setInviteEmail((e.target as HTMLInputElement).value)} placeholder="email@exemplo.com" required /></div>
-              <div>
-                <FieldLabel>PERFIL *</FieldLabel>
-                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
-                  {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
               {inviteError && <ErrorBanner msg={inviteError} />}
               <BtnRow><CancelBtn onClick={() => onInviteOpenChange(false)} /><SubmitBtn loading={inviteLoading}>{inviteLoading ? 'Enviando…' : 'Enviar convite'}</SubmitBtn></BtnRow>
             </form>
@@ -1069,16 +1048,6 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
           <form onSubmit={handleEdit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div><FieldLabel>E-MAIL</FieldLabel><Field value={editUser.email} disabled /></div>
             <div><FieldLabel>NOME</FieldLabel><Field value={editName} onChange={e => setEditName((e.target as HTMLInputElement).value)} placeholder="Nome completo" required /></div>
-            <div>
-              <FieldLabel>PERFIL</FieldLabel>
-              {editUser.id === meId ? (
-                <Field value={ROLE_BADGE[editUser.role]?.label ?? editUser.role} disabled />
-              ) : (
-                <select value={editRole} onChange={e => setEditRole(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
-                  {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              )}
-            </div>
             {editError && <ErrorBanner msg={editError} />}
             <BtnRow><CancelBtn onClick={() => setEditUser(null)} /><SubmitBtn loading={editLoading}>{editLoading ? 'Salvando…' : 'Salvar'}</SubmitBtn></BtnRow>
           </form>
