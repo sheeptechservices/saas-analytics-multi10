@@ -1,6 +1,6 @@
 // POST /api/sdr/leads/import
 //
-// Recebe multipart/form-data com campo "file" (.xlsx/.xls), parseia,
+// Recebe multipart/form-data com campo "file" (.xlsx/.csv), parseia,
 // valida/normaliza/deduplica (ETL na app) e envia os leads NOVOS ao n8nImportUrl.
 //
 // REGRA CRÍTICA: a app nunca escreve no Supabase.
@@ -17,14 +17,18 @@ import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { Client } from 'pg'
-import * as XLSX from 'xlsx'
 import { mapKey, normalizePhone, phoneKey, firstWord } from '@/lib/sdr/leads-etl'
+import {
+  IMPORT_ERRORS,
+  exceedsContentLength,
+  exceedsSize,
+  extensionError,
+  parseImportFile,
+} from '@/lib/sdr/import-parse'
 import { readN8nSecret } from '@/lib/sdr/settings-merge'
 
 const PROVIDER_KEY   = 'supabase-n8n'
 const SOURCE         = 'sdr-n8n'
-const MAX_FILE_BYTES = 5 * 1024 * 1024  // 5 MB
-const MAX_ROWS       = 1000
 const AMOSTRA_MAX    = 20
 
 export async function POST(request: Request) {
@@ -34,6 +38,11 @@ export async function POST(request: Request) {
   const { tenantId } = session.user
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
   if (denied) return denied
+
+  // Tamanho primeiro: recusa antes de bufferizar o corpo (e antes de ir ao banco).
+  if (exceedsContentLength(request.headers.get('content-length'))) {
+    return NextResponse.json({ error: IMPORT_ERRORS.tamanho }, { status: 400 })
+  }
 
   // ── Load n8nImportUrl + secret early — prerequisite for the whole operation ───
   const [csRow] = await db
@@ -73,36 +82,27 @@ export async function POST(request: Request) {
   }
   const file = fileField as File
 
-  if (!file.name.match(/\.(xlsx|xls)$/i)) {
-    return NextResponse.json({ error: 'Arquivo deve ser .xlsx ou .xls' }, { status: 400 })
+  // Tamanho e extensão antes de copiar o arquivo para a memória.
+  if (exceedsSize(file.size)) {
+    return NextResponse.json({ error: IMPORT_ERRORS.tamanho }, { status: 400 })
   }
-  if (file.size > MAX_FILE_BYTES) {
-    return NextResponse.json({ error: 'Arquivo muito grande (máximo 5 MB)' }, { status: 400 })
-  }
-
-  // ── Parse xlsx ────────────────────────────────────────────────────────────────
-  let rawRows: Record<string, unknown>[]
-  try {
-    const arrayBuffer = await file.arrayBuffer()
-    const wb = XLSX.read(Buffer.from(arrayBuffer), { type: 'buffer' })
-    const wsName = wb.SheetNames[0]
-    if (!wsName) {
-      return NextResponse.json({ error: 'Arquivo sem abas' }, { status: 400 })
-    }
-    rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wsName], { defval: '' })
-  } catch {
-    return NextResponse.json({ error: 'Falha ao ler o arquivo xlsx' }, { status: 400 })
+  const extErro = extensionError(file.name)
+  if (extErro) {
+    return NextResponse.json({ error: extErro }, { status: 400 })
   }
 
-  if (rawRows.length === 0) {
-    return NextResponse.json({ error: 'Arquivo sem linhas de dados' }, { status: 400 })
+  // ── Parse .xlsx/.csv (exceljs — ver lib/sdr/import-parse) ────────────────────
+  // Devolve exatamente as mesmas linhas que o SheetJS devolvia; o ETL abaixo
+  // não muda. Mensagens de erro já vêm prontas para o usuário.
+  const parsed = await parseImportFile({
+    fileName: file.name,
+    size:     file.size,
+    data:     new Uint8Array(await file.arrayBuffer()),
+  })
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
-  if (rawRows.length > MAX_ROWS) {
-    return NextResponse.json(
-      { error: `Máximo de ${MAX_ROWS} linhas por importação (arquivo tem ${rawRows.length})` },
-      { status: 400 },
-    )
-  }
+  const rawRows = parsed.rows
 
   // ── ETL: normalize + classify + dedup within file ────────────────────────────
   type IgnoredEntry  = { linha: number; motivo: string }

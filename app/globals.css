@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* O pacote de handoff de design nunca é importado pela app — tsconfig.json e
+   eslint.config.mjs já o excluem, e esta linha o tira da varredura automática
+   do Tailwind, que senão gera as classes de lá junto (~11 KB de CSS a mais). */
+@source not "../design-handoff";
+
 /* ============================================================
    CONSOLE EDITORIAL — sistema de tokens (fonte única de verdade)
    Nenhum hexadecimal existe fora deste arquivo.
