@@ -325,7 +325,7 @@ export async function GET(request: Request) {
   //  Daily series: JS bucketisation over the capped row fetch (chart only).
   //  occurredAt is mode:'timestamp' → Drizzle returns Date; .getTime() = epoch ms.
   //  Local-time bucket (toYMD) matches toYearMonth convention; avoids SQLite
-  //  date() UTC ambiguity — same pattern as /api/bi leadsPerWeek.
+  //  date() UTC ambiguity.
 
   const waTotals: WaBucket = {
     sent:      Number(yMsgCounts?.sent      ?? 0),

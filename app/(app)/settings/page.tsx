@@ -7,7 +7,7 @@ import { useWhiteLabel } from '@/stores/whiteLabelStore'
 import { useUser } from '@/stores/userStore'
 import { initials } from '@/lib/utils'
 import { fmtDateBr } from '@/lib/date'
-import { Pencil, Trash2, Clock, Search, Check, Database, KeyRound } from 'lucide-react'
+import { Pencil, Trash2, Search, Check, Database, KeyRound } from 'lucide-react'
 import { ACTION_LABELS, fmtDateTime, fmtDetail } from '@/lib/audit-format'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { useModules } from '@/components/ModulesProvider'
@@ -82,20 +82,6 @@ interface IntegrationItem {
 }
 
 const INTEGRATION_GROUPS: { group: string; items: IntegrationItem[] }[] = [
-  {
-    group: 'CRM',
-    items: [
-      {
-        slug: 'kommo',
-        label: 'Kommo CRM',
-        desc: 'Sincronize leads e funis do seu CRM Kommo.',
-        href: '/settings/integrations/kommo',
-        iconBg: '#fff7ed',
-        iconColor: '#ea580c',
-        icon: <Clock size={20} />,
-      },
-    ],
-  },
   {
     group: 'Fontes de Dados',
     items: [
@@ -278,17 +264,16 @@ export default function SettingsPage() {
   useEffect(() => {
     if (tab !== 'integracoes' || integFetched) return
     setIntegFetched(true)
-    setIntegStatuses({ kommo: 'loading', 'google-ads': 'loading', 'meta-ads': 'loading', 'tiktok-ads': 'loading', ai: 'loading', 'sdr-source': 'loading', 'ycloud-whatsapp': 'loading' })
+    setIntegStatuses({ 'google-ads': 'loading', 'meta-ads': 'loading', 'tiktok-ads': 'loading', ai: 'loading', 'sdr-source': 'loading', 'ycloud-whatsapp': 'loading' })
 
     Promise.all([
-      fetch('/api/kommo/sync').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ads/google_ads').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ads/meta_ads').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ads/tiktok_ads').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ai-settings').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/sdr/source').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/ycloud/source').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([kommo, google, meta, tiktok, ai, sdrSource, ycloud]) => {
+    ]).then(([google, meta, tiktok, ai, sdrSource, ycloud]) => {
       const sdrStatus: IntegStatus = !sdrSource?.configured
         ? 'disconnected'
         : sdrSource.lastSyncStatus === 'error'
@@ -297,7 +282,6 @@ export default function SettingsPage() {
             ? 'connected'
             : 'pending'
       setIntegStatuses({
-        'kommo':            kommo?.status === 'connected' ? 'connected' : 'disconnected',
         'google-ads':       google?.accountId != null ? 'connected' : 'disconnected',
         'meta-ads':         meta?.accountId != null ? 'connected' : 'disconnected',
         'tiktok-ads':       tiktok?.accountId != null ? 'connected' : 'disconnected',

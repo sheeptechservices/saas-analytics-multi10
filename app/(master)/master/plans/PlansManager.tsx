@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MODULES } from '@/lib/modules'
+import { MODULES, isModuleHidden } from '@/lib/modules'
 
 const MODULE_GROUPS = [
   { label: 'Sidebar', type: 'sidebar' as const },
@@ -165,6 +165,9 @@ export function PlansManager({ initialPlans }: { initialPlans: Plan[] }) {
                           <div>
                             <span style={{ fontSize: 13, fontWeight: 600, color: '#121316' }}>{m.label}</span>
                             <span style={{ fontSize: 11, color: '#bbb', marginLeft: 8, fontFamily: 'monospace' }}>{m.key}</span>
+                            {isModuleHidden(m.key) && (
+                              <span className="ml-2 text-11 font-semibold text-warning-text" title="Tela oculta até ser refeita sobre os dados do SDR: ligar o módulo não mostra nada por enquanto">(oculto)</span>
+                            )}
                           </div>
                           <button
                             type="button"

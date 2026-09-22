@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 /* A02 — Correção da auditoria de 21/09/2026.
    Seis geometrias de botão primário circulavam pelas telas. Duas propriedades
    novas absorvem todas: `shape` ("rounded" | "pill") e `fullWidth`. O pill era
-   o improviso mais comum (settings, ai, kommo, credenciais), então virou uma
+   o improviso mais comum (settings, ai, credenciais), então virou uma
    opção legítima em vez de continuar sendo reescrito inline.
 
    A03 — o primário usa sempre --primary-contrast, nunca --black. */
@@ -41,7 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = 'Button'
 
 /* Botão de ícone: quadrado, sem label. Substitui os botões 26×26, 30×30 e
-   32×32 escritos inline em dashboard/layout, ranking e kommo. `allow-small`
+   32×32 que eram escritos inline nas telas. `allow-small`
    isenta do mínimo de 44px no mobile quando há um alvo maior ao redor; quando
    não há, passe className="touch-target" (44×44 só abaixo de 768px). */
 
