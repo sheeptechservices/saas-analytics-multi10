@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'crypto'
+import { timingSafeEqualStrings } from '@/lib/timing-safe'
 
 // Autorização das rotas de /api/cron/*, chamadas por agendador externo (sem sessão).
 //
@@ -14,9 +14,6 @@ export function isCronAuthorized(request: Request): boolean {
     return false
   }
 
-  const received = Buffer.from(request.headers.get('authorization') ?? '', 'utf8')
-  const expected = Buffer.from(`Bearer ${secret}`, 'utf8')
-  // timingSafeEqual lança exceção com tamanhos diferentes; comparar o tamanho antes
-  // não vaza nada além do comprimento, que o formato do segredo já torna público.
-  return received.length === expected.length && timingSafeEqual(received, expected)
+  // Comparação em tempo constante — ver lib/timing-safe.ts.
+  return timingSafeEqualStrings(request.headers.get('authorization') ?? '', `Bearer ${secret}`)
 }

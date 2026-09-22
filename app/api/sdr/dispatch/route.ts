@@ -6,6 +6,7 @@ import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 import { requireRole } from '@/lib/auth-guard'
+import { readN8nSecret } from '@/lib/sdr/settings-merge'
 
 const SOURCE = 'sdr-n8n'
 
@@ -40,10 +41,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'dispatch_url_nao_configurada' }, { status: 400 })
   }
 
-  const dispatchSecret =
-    typeof settings.n8nDispatchSecret === 'string' && settings.n8nDispatchSecret
-      ? settings.n8nDispatchSecret
-      : undefined
+  // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
+  const dispatchSecret = readN8nSecret(settings, 'n8nDispatchSecret') ?? undefined
 
   const limiteDiario =
     typeof settings.limiteDiario === 'number' ? settings.limiteDiario : null

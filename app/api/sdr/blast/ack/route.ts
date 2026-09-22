@@ -13,6 +13,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { blastCampaigns, blastRecipients, campaignSettings } from '@/lib/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
+import { readN8nSecret } from '@/lib/sdr/settings-merge'
+import { timingSafeEqualStrings } from '@/lib/timing-safe'
 
 const SOURCE = 'sdr-n8n'
 
@@ -42,9 +44,8 @@ export async function POST(req: NextRequest) {
   if (csRow) {
     try {
       const settings = JSON.parse(csRow.settings) as Record<string, unknown>
-      blastSecret = typeof settings.n8nBlastSecret === 'string' && settings.n8nBlastSecret
-        ? settings.n8nBlastSecret
-        : null
+      // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
+      blastSecret = readN8nSecret(settings, 'n8nBlastSecret')
     } catch {}
   }
 
@@ -56,7 +57,9 @@ export async function POST(req: NextRequest) {
   // ── Verify Bearer token ───────────────────────────────────────────────────────
   const authHeader = req.headers.get('Authorization') ?? ''
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
-  if (!bearer || bearer !== blastSecret) {
+  // Comparação em tempo constante: `!==` sai no primeiro byte diferente e deixa
+  // o segredo ser descoberto byte a byte pelo tempo de resposta.
+  if (!bearer || !timingSafeEqualStrings(bearer, blastSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -27,6 +27,7 @@ import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { requireRole } from '@/lib/auth-guard'
+import { readN8nSecret } from '@/lib/sdr/settings-merge'
 import { randomUUID } from 'crypto'
 import { Client } from 'pg'
 
@@ -141,10 +142,8 @@ export async function POST(request: Request) {
   if (!blastUrl) {
     return NextResponse.json({ error: 'blast_url_nao_configurada' }, { status: 400 })
   }
-  const blastSecret =
-    typeof csSettings.n8nBlastSecret === 'string' && csSettings.n8nBlastSecret
-      ? csSettings.n8nBlastSecret
-      : undefined
+  // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
+  const blastSecret = readN8nSecret(csSettings, 'n8nBlastSecret') ?? undefined
 
   // ── Load Supabase connection string ───────────────────────────────────────────
   const dsRow = await db
