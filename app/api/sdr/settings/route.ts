@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/audit'
 import { campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
+import { isStaleVersion, mergeSdrSettings, readN8nSecret } from '@/lib/sdr/settings-merge'
 import { randomUUID } from 'crypto'
 
 const SOURCE = 'sdr-n8n'
@@ -131,7 +132,7 @@ export async function PUT(request: Request) {
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
   if (denied) return denied
 
-  let body: { settings?: unknown; status?: string }
+  let body: { settings?: unknown; status?: string; version?: unknown }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
@@ -226,32 +227,28 @@ export async function PUT(request: Request) {
     .where(and(eq(campaignSettings.tenantId, tenantId), eq(campaignSettings.source, SOURCE)))
     .limit(1)
 
-  // Preserve stored secrets when the incoming PUT omits or clears them.
-  // (GET strips secrets, so the UI cannot re-send them on subsequent saves.)
-  if (existing && (!rawSettings.n8nWebhookSecret || !rawSettings.n8nDispatchSecret || !rawSettings.n8nEnrollSecret || !rawSettings.n8nImportSecret || !rawSettings.n8nBlastSecret)) {
-    try {
-      const stored = JSON.parse(existing.settings) as Record<string, unknown>
-      if (!rawSettings.n8nWebhookSecret && typeof stored.n8nWebhookSecret === 'string' && stored.n8nWebhookSecret) {
-        rawSettings.n8nWebhookSecret = stored.n8nWebhookSecret
-      }
-      if (!rawSettings.n8nDispatchSecret && typeof stored.n8nDispatchSecret === 'string' && stored.n8nDispatchSecret) {
-        rawSettings.n8nDispatchSecret = stored.n8nDispatchSecret
-      }
-      if (!rawSettings.n8nEnrollSecret && typeof stored.n8nEnrollSecret === 'string' && stored.n8nEnrollSecret) {
-        rawSettings.n8nEnrollSecret = stored.n8nEnrollSecret
-      }
-      if (!rawSettings.n8nImportSecret && typeof stored.n8nImportSecret === 'string' && stored.n8nImportSecret) {
-        rawSettings.n8nImportSecret = stored.n8nImportSecret
-      }
-      if (!rawSettings.n8nBlastSecret && typeof stored.n8nBlastSecret === 'string' && stored.n8nBlastSecret) {
-        rawSettings.n8nBlastSecret = stored.n8nBlastSecret
-      }
-    } catch { /* corrupt stored JSON — skip merge */ }
+  // Concorrência otimista: `version` é opcional (cliente legado não manda), mas
+  // quem manda um número diferente do guardado escreveu em cima de uma leitura
+  // velha e leva 409 — ver lib/sdr/settings-merge.
+  if (existing && isStaleVersion(existing.version, body.version)) {
+    return NextResponse.json(
+      {
+        error: 'versao_conflito',
+        message: 'As configurações foram alteradas em outro lugar — os valores em tela foram recarregados. Confira e refaça as alterações.',
+        currentVersion: existing.version,
+      },
+      { status: 409 },
+    )
   }
 
-  // n8nWebhookSecret fica no settings JSON por ora (coluna não exposta a anon).
-  // Follow-up futuro: criptografar antes de persistir.
-  const settingsJson = JSON.stringify(rawSettings)
+  // JSON guardado corrompido: o merge segue sem base e este PUT reescreve.
+  let stored: Record<string, unknown> | null = null
+  if (existing) { try { stored = JSON.parse(existing.settings) as Record<string, unknown> } catch {} }
+
+  // URL omitida no PUT mantém a guardada; segredo só sobrevive enquanto a URL
+  // dele não muda; os cinco segredos vão cifrados para o banco.
+  const mergedSettings = mergeSdrSettings(stored, rawSettings)
+  const settingsJson = JSON.stringify(mergedSettings)
 
   let newVersion: number
   if (existing) {
@@ -278,13 +275,12 @@ export async function PUT(request: Request) {
 
   // Deliver to n8n webhook if a valid URL is configured
   const webhookUrl =
-    typeof rawSettings.n8nWebhookUrl === 'string' && rawSettings.n8nWebhookUrl
-      ? rawSettings.n8nWebhookUrl
+    typeof mergedSettings.n8nWebhookUrl === 'string' && mergedSettings.n8nWebhookUrl
+      ? mergedSettings.n8nWebhookUrl
       : null
-  const webhookSecret =
-    typeof rawSettings.n8nWebhookSecret === 'string' && rawSettings.n8nWebhookSecret
-      ? rawSettings.n8nWebhookSecret
-      : undefined
+  // Se a URL mudou e o PUT não trouxe segredo novo, o merge já apagou o segredo:
+  // a entrega vai para o destino novo SEM Authorization.
+  const webhookSecret = readN8nSecret(mergedSettings, 'n8nWebhookSecret') ?? undefined
 
   if (webhookUrl) {
     // Strip n8n integration config (URLs + secrets) from the payload sent to n8n
@@ -300,7 +296,7 @@ export async function PUT(request: Request) {
       n8nBlastUrl: _bu,
       n8nBlastSecret: _bs,
       ...settingsPayload
-    } = rawSettings
+    } = mergedSettings
     void _u; void _s; void _du; void _ds; void _eu; void _es; void _iu; void _is; void _bu; void _bs
     const payload = {
       tenantId,
@@ -310,8 +306,8 @@ export async function PUT(request: Request) {
       sentAt: new Date().toISOString(),
     }
     const n8nDelivery = await deliverToN8n(webhookUrl, webhookSecret, payload)
-    return NextResponse.json({ ok: true, n8nDelivery })
+    return NextResponse.json({ ok: true, version: newVersion, n8nDelivery })
   }
 
-  return NextResponse.json({ ok: true, n8nDelivery: null })
+  return NextResponse.json({ ok: true, version: newVersion, n8nDelivery: null })
 }

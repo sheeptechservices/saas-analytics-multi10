@@ -1,9 +1,15 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Eye, EyeOff } from 'lucide-react'
+import { AlertTriangle, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
+
+// As cinco URLs de n8n que esta tela edita. A rota trata cada par URL/segredo
+// separadamente: URL ausente no PUT mantém a guardada, URL diferente derruba o
+// segredo dela. Ver lib/sdr/settings-merge.
+const URL_KEYS = ['n8nWebhookUrl', 'n8nDispatchUrl', 'n8nEnrollUrl', 'n8nImportUrl', 'n8nBlastUrl'] as const
+type UrlKey = typeof URL_KEYS[number]
 
 // ─── SecretInput ──────────────────────────────────────────────────────────────
 
@@ -182,6 +188,10 @@ export default function CredenciaisPage() {
   const [secretsSet,   setSecretsSet]   = useState<Record<string, boolean>>({})
 
   const [loading,      setLoading]      = useState(true)
+  const [loaded,       setLoaded]       = useState(false)
+  const [loadError,    setLoadError]    = useState<string | null>(null)
+  const [loadedUrlKeys, setLoadedUrlKeys] = useState<string[]>([])
+  const [version,      setVersion]      = useState<number | null>(null)
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
   const [saveError,    setSaveError]    = useState<string | null>(null)
@@ -189,10 +199,16 @@ export default function CredenciaisPage() {
   const [dispatching,   setDispatching]   = useState(false)
   const [dispatchResult, setDispatchResult] = useState<{ ok: boolean; status?: number; error?: string } | undefined>(undefined)
 
-  useEffect(() => {
+  // Um GET que falha em silêncio é destrutivo nesta tela: sem as URLs carregadas
+  // o save seguinte mandaria as cinco vazias, e a rota trata URL vazia como URL
+  // trocada — derrubando junto os segredos, que o GET nunca devolve e ninguém
+  // consegue recuperar pela interface. Mesmo defeito da Campanha SDR (issue #94).
+  const loadSettings = useCallback(() => {
+    setLoading(true)
+    setLoadError(null)
     fetch('/api/sdr/settings')
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then((d: { configured: boolean; status: string; settings: Record<string, unknown>; secretsSet?: Record<string, boolean> }) => {
+      .then((d: { configured: boolean; status: string; version?: number; settings: Record<string, unknown>; secretsSet?: Record<string, boolean> }) => {
         const {
           n8nWebhookUrl: wh, n8nDispatchUrl: di, n8nEnrollUrl: en,
           n8nImportUrl: im, n8nBlastUrl: bl,
@@ -201,28 +217,46 @@ export default function CredenciaisPage() {
         setFullSettings(rest)
         setFullStatus(d.status)
         setSecretsSet(d.secretsSet ?? {})
+        setVersion(typeof d.version === 'number' ? d.version : null)
+        setLoadedUrlKeys(URL_KEYS.filter(k => typeof d.settings[k] === 'string'))
         setN8nWebhookUrl(typeof wh === 'string' ? wh : '')
         setN8nDispatchUrl(typeof di === 'string' ? di : '')
         setN8nEnrollUrl(typeof en === 'string' ? en : '')
         setN8nImportUrl(typeof im === 'string' ? im : '')
         setN8nBlastUrl(typeof bl === 'string' ? bl : '')
+        setLoaded(true)
       })
-      .catch(() => {})
+      .catch(() => {
+        setLoaded(false)
+        setLoadedUrlKeys([])
+        setLoadError('Não foi possível carregar as credenciais. Nada pode ser salvo até a leitura dar certo — salvar agora apagaria as URLs e os segredos já configurados.')
+      })
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => { loadSettings() }, [loadSettings])
+
   async function save() {
+    // Sem leitura bem-sucedida não há o que preservar — ver loadSettings.
+    if (!loaded) return
     setSaving(true)
     setSaved(false)
     setSaveError(null)
     try {
+      const campos: Record<UrlKey, string> = {
+        n8nWebhookUrl, n8nDispatchUrl, n8nEnrollUrl, n8nImportUrl, n8nBlastUrl,
+      }
+      // Defesa em profundidade: URL que nunca veio do GET e segue vazia fica de
+      // fora do PUT, e a rota mantém a guardada em vez de apagá-la (e o segredo
+      // dela junto). Campo carregado vai sempre, inclusive vazio — é assim que
+      // apagar uma URL de propósito continua funcionando.
+      const urls: Record<string, string> = {}
+      for (const k of URL_KEYS) {
+        if (campos[k] || loadedUrlKeys.includes(k)) urls[k] = campos[k]
+      }
       const settingsPayload: Record<string, unknown> = {
         ...fullSettings,
-        n8nWebhookUrl,
-        n8nDispatchUrl,
-        n8nEnrollUrl,
-        n8nImportUrl,
-        n8nBlastUrl,
+        ...urls,
         ...(n8nWebhookSecret  ? { n8nWebhookSecret }  : {}),
         ...(n8nDispatchSecret ? { n8nDispatchSecret } : {}),
         ...(n8nEnrollSecret   ? { n8nEnrollSecret }   : {}),
@@ -232,12 +266,22 @@ export default function CredenciaisPage() {
       const res = await fetch('/api/sdr/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: settingsPayload, status: fullStatus }),
+        body: JSON.stringify({
+          settings: settingsPayload,
+          status: fullStatus,
+          // Trava otimista: 409 se alguém salvou entre o GET e este PUT.
+          ...(version !== null ? { version } : {}),
+        }),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(data.error ?? 'Falha ao salvar')
+        const data = await res.json().catch(() => ({})) as { error?: string; message?: string }
+        // No conflito a tela recarrega sozinha para mostrar o que está valendo;
+        // a mensagem vem da própria rota, para os dois textos não divergirem.
+        if (res.status === 409) loadSettings()
+        throw new Error(data.message ?? data.error ?? 'Falha ao salvar')
       }
+      const ok = await res.json().catch(() => ({})) as { version?: number }
+      if (typeof ok.version === 'number') setVersion(ok.version)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (e) {
@@ -299,6 +343,22 @@ export default function CredenciaisPage() {
           URLs e segredos de integração usados pela automação de campanha.
         </div>
       </div>
+
+      {/* Falha ao carregar — sem estilo em linha: classes do design system */}
+      {loadError && (
+        <div className="mb-4 flex flex-wrap items-start gap-3 rounded-(--radius-md) border border-(--danger-mid) bg-(--danger-dim) p-4">
+          {/* No celular a mensagem ocupa a linha inteira e o botão desce */}
+          <div className="max-md:basis-full flex flex-1 items-start gap-3">
+            <AlertTriangle size={14} className="shrink-0 text-(--danger-text)" />
+            <div className="max-lg:wrap-anywhere text-13 font-medium text-(--danger-text)">
+              {loadError}
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" onClick={loadSettings}>
+            <RefreshCw size={13} /> Tentar novamente
+          </Button>
+        </div>
+      )}
 
       {/* Card 1: URL de integração */}
       <div className="animate-slide-up delay-2">
@@ -416,7 +476,7 @@ export default function CredenciaisPage() {
 
         {/* Save bar — on phones the result message drops below the button */}
         <div className="max-md:flex-wrap" style={{ marginTop: 8, paddingBottom: 48, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Button variant="primary" size="lg" onClick={save} disabled={saving}>
+          <Button variant="primary" size="lg" onClick={save} disabled={saving || !loaded}>
             {saving ? 'Salvando...' : 'Salvar credenciais'}
           </Button>
 

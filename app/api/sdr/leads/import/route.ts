@@ -19,6 +19,7 @@ import { assertEntitlement } from '@/lib/entitlements'
 import { Client } from 'pg'
 import * as XLSX from 'xlsx'
 import { mapKey, normalizePhone, phoneKey, firstWord } from '@/lib/sdr/leads-etl'
+import { readN8nSecret } from '@/lib/sdr/settings-merge'
 
 const PROVIDER_KEY   = 'supabase-n8n'
 const SOURCE         = 'sdr-n8n'
@@ -55,10 +56,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'import_url_nao_configurada' }, { status: 400 })
   }
 
-  const importSecret =
-    typeof csSettings.n8nImportSecret === 'string' && csSettings.n8nImportSecret
-      ? csSettings.n8nImportSecret
-      : undefined
+  // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
+  const importSecret = readN8nSecret(csSettings, 'n8nImportSecret') ?? undefined
 
   // ── Parse multipart/form-data ─────────────────────────────────────────────────
   let formData: FormData
