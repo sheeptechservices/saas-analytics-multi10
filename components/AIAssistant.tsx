@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { X, ArrowUp } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
+import { cn } from '@/lib/utils'
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; streaming?: boolean }
 
@@ -174,8 +175,12 @@ export function AIAssistant() {
 
   return (
     <>
+      {/* data-ai-launcher on the glow ring, the hint and the FAB: below lg they step
+          aside while the page shows a composer of its own at the bottom of the
+          screen and says so with data-hides-ai-launcher (e.g. an open Conversas
+          thread) — rule in the RESPONSIVO section of app/globals.css */}
       {/* Breathing glow ring behind button */}
-      <div style={{
+      <div data-ai-launcher style={{
         position: 'fixed', bottom: 24, right: 24, zIndex: 208,
         width: 52, height: 52, borderRadius: '50%',
         background: 'var(--primary)',
@@ -187,7 +192,7 @@ export function AIAssistant() {
 
       {/* Hint bubble */}
       {hint && (
-        <div style={{
+        <div data-ai-launcher style={{
           position: 'fixed',
           bottom: 86,
           right: 24,
@@ -212,9 +217,11 @@ export function AIAssistant() {
             borderRadius: 2,
           }} />
 
-          {/* Dismiss X */}
+          {/* Dismiss X — the circle stays 20px; on phones an invisible ::before
+              10px past each edge makes the hit area 40×40 */}
           <button
             onClick={dismissHint}
+            className="max-md:before:absolute max-md:before:-inset-[10px]"
             style={{
               position: 'absolute', top: 8, right: 8,
               width: 20, height: 20, borderRadius: '50%',
@@ -254,6 +261,7 @@ export function AIAssistant() {
           {/* CTA */}
           <button
             onClick={openChat}
+            className="max-md:min-h-10"
             style={{
               marginTop: 12, width: '100%', padding: '8px',
               borderRadius: 8, border: 'none',
@@ -273,30 +281,34 @@ export function AIAssistant() {
       {/* FAB button */}
       <FABButton open={open} onClick={openChat} />
 
-      {/* Panel — always rendered, transitions in/out */}
-      <div style={{
-        position: 'fixed',
-        bottom: open ? 88 : 76,
-        right: 24,
-        width: 390,
-        height: 540,
-        background: 'var(--white)',
-        border: '1px solid var(--gray3)',
-        borderRadius: 20,
-        boxShadow: open
-          ? '0 16px 56px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)'
-          : '0 4px 16px rgba(0,0,0,0.06)',
-        zIndex: 300,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        opacity: open ? 1 : 0,
-        transform: open ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.94)',
-        pointerEvents: open ? 'all' : 'none',
-        transition: open
-          ? 'opacity 0.35s ease, transform 0.4s cubic-bezier(0.34,1.35,0.64,1), bottom 0.3s ease, box-shadow 0.3s ease'
-          : 'opacity 0.22s ease, transform 0.25s cubic-bezier(0.4,0,1,1), bottom 0.2s ease, box-shadow 0.2s ease',
-      }}>
+      {/* Panel — always rendered, transitions in/out. On phones it is full-screen
+          and opens without animation: no scaling, so the close button is born in
+          place and at touch size. */}
+      <div
+        className={cn(
+          'inset-0 max-md:transform-none! max-md:transition-none!',
+          'md:inset-auto md:right-6 md:h-[540px] md:w-[390px] md:rounded-[20px]',
+          open ? 'md:bottom-[88px]' : 'md:bottom-[76px]',
+        )}
+        style={{
+          position: 'fixed',
+          background: 'var(--white)',
+          border: '1px solid var(--gray3)',
+          boxShadow: open
+            ? '0 16px 56px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)'
+            : '0 4px 16px rgba(0,0,0,0.06)',
+          zIndex: 300,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          opacity: open ? 1 : 0,
+          transform: open ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.94)',
+          pointerEvents: open ? 'all' : 'none',
+          transition: open
+            ? 'opacity 0.35s ease, transform 0.4s cubic-bezier(0.34,1.35,0.64,1), bottom 0.3s ease, box-shadow 0.3s ease'
+            : 'opacity 0.22s ease, transform 0.25s cubic-bezier(0.4,0,1,1), bottom 0.2s ease, box-shadow 0.2s ease',
+        }}
+      >
         {/* Header */}
         <div style={{
           padding: '13px 14px 13px 16px',
@@ -342,15 +354,18 @@ export function AIAssistant() {
             <option value="claude-sonnet-4-6">Sonnet</option>
             <option value="claude-opus-4-7">Opus</option>
           </select>
-          <span style={{
+          {/* On phones the title needs the room */}
+          <span className="max-md:hidden" style={{
             fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 100,
             background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
             color: 'var(--primary-text)', letterSpacing: '0.05em', flexShrink: 0,
           }}>BETA</span>
           <button
             onClick={() => setOpen(false)}
+            aria-label="Fechar assistente"
+            className="size-10 md:size-[26px]"
             style={{
-              width: 26, height: 26, borderRadius: '50%', border: 'none',
+              borderRadius: '50%', border: 'none',
               background: 'transparent', cursor: 'pointer', color: 'var(--gray2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 13, transition: 'background 0.15s, color 0.15s, transform 0.15s',
@@ -441,6 +456,7 @@ function FABButton({ open, onClick }: { open: boolean; onClick: () => void }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       title="Assistente IA"
+      data-ai-launcher
       style={{
         position: 'fixed', bottom: 24, right: 24, zIndex: 210,
         width: 52, height: 52, borderRadius: '50%',
@@ -497,6 +513,7 @@ function InputArea({ value, textareaRef, onChange, onKeyDown, onSend, canSend, l
       transition: 'border-color 0.22s ease, box-shadow 0.22s ease',
       opacity: disabled ? 0.55 : 1,
     }}>
+      {/* On phones the vertical padding brings the field itself to a 40px touch target */}
       <textarea
         ref={textareaRef}
         value={value}
@@ -507,11 +524,12 @@ function InputArea({ value, textareaRef, onChange, onKeyDown, onSend, canSend, l
         placeholder={disabled ? 'Assistente indisponível' : 'Pergunte sobre seus dados…'}
         rows={1}
         disabled={disabled}
+        className="pt-px max-md:py-2"
         style={{
           flex: 1, resize: 'none', border: 'none', outline: 'none',
           fontFamily: 'inherit', fontSize: 13, color: 'var(--black)',
           background: 'transparent', lineHeight: 1.5,
-          minHeight: 20, maxHeight: 120, overflowY: 'auto', paddingTop: 1,
+          minHeight: 20, maxHeight: 120, overflowY: 'auto',
           cursor: disabled ? 'not-allowed' : 'text',
         }}
       />
@@ -531,8 +549,10 @@ function SendButton({ active, loading, onClick }: { active: boolean; loading: bo
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       disabled={!active}
+      aria-label="Enviar"
+      className="size-10 md:size-8"
       style={{
-        width: 32, height: 32, borderRadius: '50%', border: 'none',
+        borderRadius: '50%', border: 'none',
         background: active ? 'var(--primary)' : 'var(--gray3)',
         color: active ? 'var(--primary-contrast)' : 'var(--gray2)',
         cursor: active ? 'pointer' : 'default',
@@ -556,6 +576,7 @@ function SuggestionChip({ text, onSelect }: { text: string; onSelect: () => void
       onClick={onSelect}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
+      className="max-md:min-h-10"
       style={{
         fontSize: 11, fontWeight: 600, padding: '5px 11px', borderRadius: 100,
         background: hov ? 'var(--primary)' : 'var(--bg)',

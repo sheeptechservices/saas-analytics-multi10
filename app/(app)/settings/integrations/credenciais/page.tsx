@@ -30,7 +30,7 @@ function SecretInput({
         autoComplete="new-password"
         style={{
           width: '100%', fontFamily: 'inherit', fontSize: 13,
-          border: '1px solid var(--gray3)', borderRadius: 10,
+          border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)',
           padding: '10px 42px 10px 14px',
           background: 'var(--bg)', color: 'var(--black)', outline: 'none',
           boxSizing: 'border-box' as const, transition: 'border-color .15s',
@@ -38,10 +38,13 @@ function SecretInput({
         onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
         onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
       />
+      {/* The eye is ~23px: on phones an invisible 40×40 band (::before), centred
+          on it, makes it tappable without moving it or the field's text */}
       <button
         type="button"
         onClick={onToggle}
         title={show ? 'Ocultar' : 'Mostrar'}
+        className="max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-10 max-md:before:-translate-x-1/2 max-md:before:-translate-y-1/2"
         style={{
           position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
           background: 'none', border: 'none', cursor: 'pointer',
@@ -90,7 +93,7 @@ function UrlPair({
         placeholder="https://…/webhook/…"
         style={{
           width: '100%', fontFamily: 'inherit', fontSize: 13,
-          border: '1px solid var(--gray3)', borderRadius: 10, padding: '10px 14px',
+          border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
           background: 'var(--bg)', color: 'var(--black)', outline: 'none',
           boxSizing: 'border-box' as const, transition: 'border-color .15s', marginBottom: 10,
         }}
@@ -105,7 +108,7 @@ function UrlPair({
           <span style={{
             fontSize: 10, fontWeight: 800, color: 'var(--green)',
             background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
-            borderRadius: 99, padding: '1px 8px', letterSpacing: '0.03em',
+            borderRadius: 'var(--radius-pill)', padding: '1px 8px', letterSpacing: '0.03em',
           }}>
             configurado ✓
           </span>
@@ -133,7 +136,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   return (
     <div style={{
       background: 'var(--white)', border: '1px solid var(--gray3)',
-      borderRadius: 16, padding: '20px 24px', marginBottom: 16,
+      borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 16,
       boxShadow: 'var(--shadow)',
     }}>
       <div style={{
@@ -263,6 +266,7 @@ export default function CredenciaisPage() {
       <div>
         <Link
           href="/settings?tab=integracoes"
+          className="max-md:min-h-10"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--gray)', textDecoration: 'none', marginBottom: 20 }}
         >
           ← Voltar para Integrações
@@ -275,9 +279,10 @@ export default function CredenciaisPage() {
 
   return (
     <div>
-      {/* Back link */}
+      {/* Back link — 40px tall on phones */}
       <Link
         href="/settings?tab=integracoes"
+        className="max-md:min-h-10"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -342,7 +347,7 @@ export default function CredenciaisPage() {
                 fontSize: 12, fontWeight: 700,
                 background: 'rgba(34,197,94,0.1)', color: 'var(--green)',
                 border: '1px solid rgba(34,197,94,0.25)',
-                borderRadius: 99, padding: '5px 14px',
+                borderRadius: 'var(--radius-pill)', padding: '5px 14px',
               }}>
                 Disparo acionado ✓
                 {dispatchResult.status !== undefined && (
@@ -351,12 +356,12 @@ export default function CredenciaisPage() {
               </div>
             )}
             {dispatchResult !== undefined && !dispatchResult.ok && (
-              <div style={{
+              <div className="max-lg:wrap-anywhere" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 fontSize: 12, fontWeight: 700,
                 background: 'rgba(239,68,68,0.08)', color: 'var(--red)',
                 border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 99, padding: '5px 14px',
+                borderRadius: 'var(--radius-pill)', padding: '5px 14px',
               }}>
                 Falha: {dispatchResult.error ?? `HTTP ${dispatchResult.status}`}
               </div>
@@ -409,8 +414,8 @@ export default function CredenciaisPage() {
           />
         </Card>
 
-        {/* Save bar */}
-        <div style={{ marginTop: 8, paddingBottom: 48, display: 'flex', alignItems: 'center', gap: 14 }}>
+        {/* Save bar — on phones the result message drops below the button */}
+        <div className="max-md:flex-wrap" style={{ marginTop: 8, paddingBottom: 48, display: 'flex', alignItems: 'center', gap: 14 }}>
           <Button variant="primary" size="lg" onClick={save} disabled={saving}>
             {saving ? 'Salvando...' : 'Salvar credenciais'}
           </Button>
@@ -421,7 +426,7 @@ export default function CredenciaisPage() {
             </span>
           )}
           {saveError && !saved && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
+            <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
               ✗ {saveError}
             </span>
           )}

@@ -8,8 +8,8 @@ import { toDate } from '@/lib/date'
 type Priority = 'high' | 'normal' | 'low'
 
 const PRIORITY_LABELS: Record<Priority, { label: string; color: string; bg: string }> = {
-  high:   { label: 'Alta',   color: '#b02619', bg: 'rgba(217,48,37,0.08)' },
-  normal: { label: 'Normal', color: '#7A5600', bg: 'var(--primary-dim)' },
+  high:   { label: 'Alta',   color: 'var(--danger-text)', bg: 'var(--danger-dim)' },
+  normal: { label: 'Normal', color: 'var(--warn-text)', bg: 'var(--primary-dim)' },
   low:    { label: 'Baixa',  color: 'var(--gray)', bg: 'var(--bg)' },
 }
 
@@ -37,21 +37,23 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(18,19,22,0.4)' }} onClick={onClose} />
-      <div className="animate-slide-right" style={{
-        position: 'relative', width: 400, background: 'var(--white)',
+      {/* 400px drawer; on a phone narrower than that it takes the full width
+          (max-w-full) and the header sticks so the close button never scrolls away */}
+      <div className="animate-slide-right w-[400px] max-w-full" style={{
+        position: 'relative', background: 'var(--white)',
         height: '100%', overflowY: 'auto', boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
+        <div className="max-md:sticky max-md:top-0 max-md:z-10" style={{ padding: '20px 24px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
+            <div className="max-md:min-w-0 max-md:wrap-break-word">
               <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)', marginBottom: 2 }}>{lead.name}</div>
               <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>
                 {lead.stage?.name} · {lead.responsibleName}
               </div>
             </div>
-            <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+            <button onClick={onClose} aria-label="Fechar" className="touch-target" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', marginTop: 8 }}>
             {formatCurrency(lead.price)}
@@ -65,8 +67,8 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gray2)', marginBottom: 8 }}>Prioridade</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {(['high', 'normal', 'low'] as Priority[]).map(p => (
-                <button key={p} onClick={() => setPriority(p)} style={{
-                  padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                <button key={p} onClick={() => setPriority(p)} className="max-md:min-h-10" style={{
+                  padding: '6px 12px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   fontFamily: 'inherit', border: '1px solid',
                   borderColor: priority === p ? PRIORITY_LABELS[p].color : 'var(--gray3)',
                   background: priority === p ? PRIORITY_LABELS[p].bg : 'var(--white)',
@@ -82,15 +84,21 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
           {/* Tags */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gray2)', marginBottom: 8 }}>Tags</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {/* On phones the rows of chips open to a 16px gap: each X's 40px hit
+                area reaches 7px past its 26px chip, so rows 42px apart keep the hit
+                areas of consecutive rows from overlapping (a tap never removes the
+                tag in the row above or below) */}
+            <div className="gap-[6px] max-md:gap-y-[16px]" style={{ display: 'flex', flexWrap: 'wrap', marginBottom: 8 }}>
               {tags.map(tag => (
                 <span key={tag} style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '3px 10px', borderRadius: 100, fontSize: 12, fontWeight: 700,
+                  padding: '3px 10px', borderRadius: 'var(--radius-pill)', fontSize: 12, fontWeight: 700,
                   background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)',
                 }}>
                   {tag}
+                  {/* 10px icon; on phones an invisible ::before makes the hit area 40×40 */}
                   <button onClick={() => setTags(tags.filter(t => t !== tag))} aria-label="Remover tag"
+                    className="max-md:relative max-md:before:absolute max-md:before:-inset-[15px]"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-text)', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={10} /></button>
                 </span>
               ))}
@@ -103,14 +111,14 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
                 placeholder="Nova tag…"
                 style={{
                   flex: 1, padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-                  border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none', background: 'var(--white)', color: 'var(--black)',
+                  border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', outline: 'none', background: 'var(--white)', color: 'var(--black)',
                 }}
                 onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                 onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
               />
               <button onClick={addTag} style={{
                 padding: '8px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-                background: 'var(--primary)', border: 'none', borderRadius: 8, cursor: 'pointer',
+                background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                 color: 'var(--primary-contrast)',
               }}>+</button>
             </div>
@@ -126,7 +134,7 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
               placeholder="Observações sobre este lead…"
               style={{
                 width: '100%', padding: '10px 14px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-                border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none', resize: 'none',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', outline: 'none', resize: 'none',
                 background: 'var(--white)', color: 'var(--black)', lineHeight: 1.5,
               }}
               onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
@@ -137,14 +145,14 @@ function LeadExtrasPanel({ lead, onClose, onSave }: { lead: any; onClose: () => 
 
         {/* Footer */}
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--gray3)', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button onClick={onClose} style={{
+          <button onClick={onClose} className="max-md:min-h-10" style={{
             padding: '9px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, cursor: 'pointer',
+            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer',
             color: 'var(--gray)',
           }}>Cancelar</button>
-          <button onClick={save} disabled={saving} style={{
+          <button onClick={save} disabled={saving} className="max-md:min-h-10" style={{
             padding: '9px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-            background: 'var(--primary)', border: 'none', borderRadius: 100, cursor: 'pointer',
+            background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: 'pointer',
             color: 'var(--primary-contrast)',
           }}>{saving ? 'Salvando…' : 'Salvar'}</button>
         </div>
@@ -244,21 +252,22 @@ export default function PipelinePage() {
     )
     return (
       <div style={{ animation: 'fadeIn .3s ease both' }}>
-        {/* header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        {/* header — on phones the search ghost drops below the title, like the real header */}
+        <div className="max-md:flex-wrap max-md:gap-3" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{sk(120, 22, 6)}{sk(200, 13, 4)}</div>
           {sk(180, 36, 8)}
         </div>
-        {/* kanban columns */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gap: 12 }}>
+        {/* kanban columns — below lg the fixed 260px columns scroll sideways
+            inside this box, like the real board, instead of pushing the page */}
+        <div className="max-lg:overflow-x-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 260px)', gap: 12 }}>
           {[0,1,2,3].map(col => (
-            <div key={col} style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: 16 }}>
+            <div key={col} style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 {sk('55%', 12, 4)}{sk(24, 20, 100)}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[0,1,2].map(card => (
-                  <div key={card} style={{ background: 'var(--bg)', border: '1px solid var(--gray3)', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  <div key={card} style={{ background: 'var(--bg)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-md)', padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
                     {sk('80%', 13, 4)}{sk('50%', 11, 4)}
                     <div style={{ display: 'flex', gap: 6 }}>{sk(48, 18, 100)}{sk(56, 18, 100)}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>{sk(60, 11, 4)}{sk(50, 11, 4)}</div>
@@ -274,13 +283,13 @@ export default function PipelinePage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="animate-slide-up delay-1" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+      {/* Header — on phones the search drops below the title at full width */}
+      <div className="animate-slide-up delay-1 max-md:flex-col max-md:gap-3" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>Pipeline</div>
           <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: 2 }}>Espelho do seu CRM com campos extras</div>
         </div>
-        <div style={{ position: 'relative' }}>
+        <div className="max-md:w-full" style={{ position: 'relative' }}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--gray2)" strokeWidth="1.5"
             style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
             <circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5L14 14"/>
@@ -289,10 +298,11 @@ export default function PipelinePage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar lead…"
+            className="w-full md:w-[220px]"
             style={{
-              width: 220, padding: '9px 12px 9px 36px', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+              padding: '9px 12px 9px 36px', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
               color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)',
-              borderRadius: 100, outline: 'none', transition: 'border-color .2s',
+              borderRadius: 'var(--radius-pill)', outline: 'none', transition: 'border-color .2s',
             }}
             onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
             onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
@@ -305,12 +315,13 @@ export default function PipelinePage() {
         <div className="animate-slide-up delay-2" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Tags:</span>
 
-          {/* No-tags chip */}
+          {/* No-tags chip (filter chips wrap; 40px tall on phones) */}
           <button
             onClick={() => setShowNoTags(v => !v)}
+            className="max-md:min-h-10"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '4px 11px', borderRadius: 100, fontSize: 11, fontWeight: 700,
+              padding: '4px 11px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700,
               cursor: 'pointer', fontFamily: 'inherit',
               background: showNoTags ? 'var(--black)' : 'var(--white)',
               color: showNoTags ? 'var(--white)' : 'var(--gray)',
@@ -327,9 +338,10 @@ export default function PipelinePage() {
               <button
                 key={tag}
                 onClick={() => toggleTag(tag)}
+                className="max-md:min-h-10"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '4px 11px', borderRadius: 100, fontSize: 11, fontWeight: 700,
+                  padding: '4px 11px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700,
                   cursor: 'pointer', fontFamily: 'inherit',
                   background: active ? 'var(--primary)' : 'var(--primary-dim)',
                   color: active ? 'var(--primary-contrast)' : 'var(--primary-text)',
@@ -346,9 +358,10 @@ export default function PipelinePage() {
           {isTagFiltered && (
             <button
               onClick={clearFilters}
+              className="max-md:min-h-10"
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 700,
+                padding: '4px 10px', borderRadius: 'var(--radius-pill)', fontSize: 11, fontWeight: 700,
                 cursor: 'pointer', fontFamily: 'inherit',
                 background: 'transparent', color: 'var(--gray2)',
                 border: '1px solid transparent',
@@ -388,7 +401,7 @@ export default function PipelinePage() {
                 setDragOverStageId(null)
               }}
               style={{
-                borderRadius: 14,
+                borderRadius: 'var(--radius-lg)',
                 padding: isDropTarget ? 6 : 0,
                 background: isDropTarget ? 'var(--primary-dim)' : 'transparent',
                 border: isDropTarget ? '2px dashed var(--primary)' : '2px dashed transparent',
@@ -402,7 +415,7 @@ export default function PipelinePage() {
                   {stage.name}
                 </div>
                 <div style={{
-                  marginLeft: 'auto', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 100,
+                  marginLeft: 'auto', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 'var(--radius-pill)',
                   background: 'var(--primary)', color: 'var(--primary-contrast)',
                 }}>
                   {stage.leads.length}
@@ -428,7 +441,7 @@ export default function PipelinePage() {
                     style={{
                       background: 'var(--white)', border: `1px solid ${hasAlert ? 'rgba(217,48,37,0.3)' : 'var(--gray3)'}`,
                       borderLeft: lead.extras?.priority === 'high' ? '3px solid var(--red)' : `1px solid ${hasAlert ? 'rgba(217,48,37,0.3)' : 'var(--gray3)'}`,
-                      borderRadius: 12, padding: 12, marginBottom: 8,
+                      borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 8,
                       boxShadow: 'var(--shadow)', transition: 'border-color .2s, opacity .15s, transform .15s',
                       cursor: isDragging ? 'grabbing' : 'grab',
                       opacity: isDragging ? 0.4 : 1,
@@ -444,7 +457,7 @@ export default function PipelinePage() {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
                         {lead.extras.tags.slice(0, 3).map((tag: string) => (
                           <span key={tag} style={{
-                            fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 100,
+                            fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 'var(--radius-pill)',
                             background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)',
                           }}>{tag}</span>
                         ))}
@@ -462,7 +475,7 @@ export default function PipelinePage() {
 
               {/* Empty drop target indicator */}
               {isDropTarget && stage.leads.length === 0 && (
-                <div style={{ height: 60, borderRadius: 10, border: '2px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--primary-text)', fontWeight: 700 }}>
+                <div style={{ height: 60, borderRadius: 'var(--radius-md)', border: '2px dashed var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--primary-text)', fontWeight: 700 }}>
                   Soltar aqui
                 </div>
               )}

@@ -21,11 +21,11 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '100vh' }}>
+    // No celular fica só o formulário: o painel escuro some pelo CSS, já no HTML do servidor
+    <div className="grid min-h-dvh grid-cols-1 md:grid-cols-2">
       {/* Painel esquerdo escuro */}
-      <div style={{
+      <div className="hidden md:flex" style={{
         background: 'var(--black)',
-        display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
         padding: '48px',
@@ -53,9 +53,9 @@ export default function ForgotPasswordPage() {
       </div>
 
       {/* Painel direito */}
-      <div style={{
+      <div className="px-5 py-8 md:p-12" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '48px', background: 'var(--bg)',
+        background: 'var(--bg)',
       }}>
         <div style={{ width: '100%', maxWidth: 380 }}>
           <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em', marginBottom: 6 }}>

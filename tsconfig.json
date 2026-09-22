@@ -38,6 +38,7 @@
     "../../../../next-300-franchising-build/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "design-handoff"
   ]
 }

@@ -1,21 +1,27 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { BarChart3, Settings } from 'lucide-react'
-import { SparkleIcon } from '@/components/icons/SparkleIcon'
-import { KpiCard } from '@/components/widgets/KpiCard'
+import { KpiBand } from '@/components/widgets/KpiBand'
+import type { KpiBandItem } from '@/components/widgets/KpiBand'
 import { FunnelChart, FunnelFilterPanel } from '@/components/widgets/FunnelChart'
 import type { FunnelStage } from '@/components/widgets/FunnelChart'
-import { DonutChart } from '@/components/widgets/DonutChart'
-import type { DonutSlice } from '@/components/widgets/DonutChart'
+import { StackedBar, StackedBarLegend } from '@/components/widgets/StackedBar'
+import type { StackedBarSegment } from '@/components/widgets/StackedBar'
 import { DataTable } from '@/components/widgets/DataTable'
 import type { DataTableColumn } from '@/components/widgets/DataTable'
 import { BarChart } from '@/components/widgets/BarChart'
-import type { BarChartItem } from '@/components/widgets/BarChart'
+import type { BarChartItem, BarChartSeries } from '@/components/widgets/BarChart'
 import { useModules } from '@/components/ModulesProvider'
-import { SkeletonKpiCards, SkeletonBlock } from '@/components/Skeleton'
+import { SkeletonKpiBand, SkeletonBlock } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { Card } from '@/components/ui/Card'
+import { Chip, ChipGroup } from '@/components/ui/Chip'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import type { SegmentedOption } from '@/components/ui/SegmentedControl'
+import { timeAgo } from '@/lib/format'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,12 +34,16 @@ const PERIOD_LABELS: Record<Period, string> = {
   '365d': 'Este ano',
 }
 
+const PERIOD_OPTIONS: SegmentedOption<Period>[] =
+  (Object.keys(PERIOD_LABELS) as Period[]).map(p => ({ value: p, label: PERIOD_LABELS[p] }))
+
 interface WaTotals { sent: number; delivered: number; read: number; failed: number; inbound: number }
 interface WaRates  { entrega: number; leitura: number }
 interface WaDay    { date: string; sent: number; delivered: number; read: number; failed: number; inbound: number }
 interface WaBlock  { totals: WaTotals; rates: WaRates; daily: WaDay[] }
 
 type Trend = 'up' | 'down' | 'flat'
+type SessionStatus = 'respondeu' | 'aguardando' | 'fria'
 
 interface SdrBiData {
   period: string
@@ -46,7 +56,7 @@ interface SdrBiData {
   }
   funnel: { stageKey: string; stageName: string; count: number; order: number }[]
   sentiment: { id: string; label: string; color: string; count: number }[]
-  recent: { sessionId: string; source: string; lastContact: number | null; msgs: number; name: string | null; status: 'respondeu' | 'aguardando' | 'fria' }[]
+  recent: { sessionId: string; source: string; lastContact: number | null; msgs: number; name: string | null; status: SessionStatus }[]
   sourceConfigured: boolean
   whatsapp?: WaBlock
   lastSyncAt: number | null
@@ -58,30 +68,73 @@ const WA_ZERO: WaBlock = {
   daily:  [],
 }
 
-// ─── Stage colors ─────────────────────────────────────────────────────────────
+// ─── Constantes de apresentação ───────────────────────────────────────────────
 
-const STAGE_COLORS: Record<string, string> = {
-  leads:      '#AAAAAA',
-  contacted:  '#7A5600',
-  responses:  '#2563EB',
-  meetings:   '#1E8A3E',
-  proposals:  '#7C3AED',
-  closures:   '#0891B2',
+/** Como cada etapa é citada na taxa da etapa seguinte ("38% dos contatados"). */
+const STAGE_RATIO_LABEL: Record<string, string> = {
+  leads:     'dos leads',
+  contacted: 'dos contatados',
+  responses: 'das respostas',
+  meetings:  'das reuniões',
+  proposals: 'das propostas',
+  closures:  'dos fechamentos',
+}
+
+/** Cor de cada sentimento conhecido — vence a `color` que a API manda.
+ *  Por quê: a API (app/api/bi/sdr) devolve cores próprias, e o "Neutro" chega
+ *  em âmbar, furando o princípio do design: dado na escala de tinta, sinal de
+ *  status só em verde / vermelho / cinza. Para os ids que a API conhece, o
+ *  token é a fonte da verdade (barra e legenda leem o mesmo `color`); a cor da
+ *  API só entra para um id fora deste mapa.
+ *  "Sem análise" (`unknown`) usa --gray2. O --line de antes sumia sobre o
+ *  trilho --line-2 e o cartão branco: num tenant ainda sem análise (100%
+ *  `unknown`) a barra parecia vazia. O --gray2 fica um degrau mais escuro que
+ *  o --ink-dim do neutro — preço aceito para que "sem análise" seja legível
+ *  como dado; segue cinza, fora das cores de status. */
+const SENTIMENT_TOKEN_COLOR = new Map<string, string>([
+  ['positive', 'var(--success)'],
+  ['neutral',  'var(--ink-dim)'],
+  ['negative', 'var(--danger)'],
+  ['unknown',  'var(--gray2)'],
+])
+
+/** Janela do "Volume diário": os últimos 30 pontos, e o eixo do gráfico sempre
+ *  com 30 posições — com menos dias a barra não estica (ver BarChart `slots`). */
+const DAILY_POINTS = 30
+
+const WA_SERIES: BarChartSeries[] = [
+  { key: 'sent',    label: 'Enviadas',  color: 'var(--ink)' },
+  { key: 'inbound', label: 'Recebidas', color: 'var(--ink-dim)' },
+]
+
+type StatusFilter = 'todas' | 'aguardando' | 'fria'
+
+const STATUS_FILTERS: { value: StatusFilter; label: string; empty: string }[] = [
+  { value: 'todas',      label: 'Todas',      empty: 'Nenhuma sessão encontrada no período' },
+  { value: 'aguardando', label: 'Aguardando', empty: 'Nenhuma sessão aguardando resposta no período' },
+  { value: 'fria',       label: 'Frias',      empty: 'Nenhuma sessão fria no período' },
+]
+
+const STATUS_BADGE: Record<SessionStatus, { label: string; variant: 'success' | 'warn' | 'neutral' }> = {
+  respondeu:  { label: 'Respondeu',  variant: 'success' },
+  aguardando: { label: 'Aguardando', variant: 'warn' },
+  fria:       { label: 'Fria',       variant: 'neutral' },
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function timeAgo(ms: number | null): string {
-  if (!ms) return '—'
-  const diff = Date.now() - ms
-  const secs = Math.floor(diff / 1000)
-  if (secs < 60) return 'agora'
-  const mins = Math.floor(secs / 60)
-  if (mins < 60) return `${mins}min`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h`
-  const days = Math.floor(hrs / 24)
-  return `${days}d`
+const nf  = new Intl.NumberFormat('pt-BR')
+const nf1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+
+const fmtInt = (n: number) => nf.format(n)
+/** Percentual já em 0–100 → "7,5%". */
+const fmtPct = (n: number) => `${nf1.format(n)}%`
+/** Taxa em 0–1 → "97,3%". */
+const fmtRate = (r: number) => `${nf1.format(Math.round(r * 1000) / 10)}%`
+
+/** "1 reunião" / "96 reuniões" — número em pt-BR + forma certa. */
+function countLabel(n: number, singular: string, plural: string): string {
+  return `${fmtInt(n)} ${n === 1 ? singular : plural}`
 }
 
 function fmtDay(date: string): string {
@@ -89,98 +142,9 @@ function fmtDay(date: string): string {
   return `${parts[2]}/${parts[1]}`
 }
 
-// ─── Local components ─────────────────────────────────────────────────────────
-
-function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, fontWeight: 800, color: 'var(--gray2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-        {children}
-      </div>
-      {action}
-    </div>
-  )
-}
-
-function AskAIButton({ question }: { question: string }) {
-  const [hov, setHov] = useState(false)
-  return (
-    <button
-      onClick={() => window.dispatchEvent(new CustomEvent('ai-ask', { detail: { question } }))}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      title="Perguntar à IA sobre este gráfico"
-      style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 100,
-        border: `1px solid ${hov ? 'var(--primary)' : 'var(--primary-mid)'}`,
-        cursor: 'pointer', fontFamily: 'inherit',
-        background: hov ? 'var(--primary)' : 'var(--primary-dim)',
-        color: hov ? 'var(--primary-contrast)' : 'var(--primary-text)',
-        transform: hov ? 'scale(1.05)' : 'scale(1)',
-        boxShadow: hov ? '0 2px 8px rgba(255,180,0,0.3)' : 'none',
-        transition: 'all 0.18s cubic-bezier(0.34,1.4,0.64,1)',
-      }}
-    >
-      <SparkleIcon size={9} /> Analisar
-    </button>
-  )
-}
-
-function PeriodFilter({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
-  const options: Period[] = ['30d', '90d', '180d', '365d']
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 100, padding: '3px 4px', boxShadow: 'var(--shadow)' }}>
-      {options.map(opt => (
-        <button key={opt} onClick={() => onChange(opt)} style={{
-          padding: '5px 14px', borderRadius: 100, border: 'none',
-          fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          transition: 'all .18s ease',
-          background: value === opt ? 'var(--primary)' : 'transparent',
-          color: value === opt ? 'var(--primary-contrast)' : 'var(--gray)',
-          boxShadow: value === opt ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
-        }}>
-          {PERIOD_LABELS[opt]}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function StatusBadge({ status }: { status: 'respondeu' | 'aguardando' | 'fria' }) {
-  const cfg = {
-    respondeu:  { label: 'Respondeu',  color: '#15803d', bg: 'rgba(34,197,94,0.10)',  border: 'rgba(34,197,94,0.25)'  },
-    aguardando: { label: 'Aguardando', color: '#b45309', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.30)' },
-    fria:       { label: 'Fria',       color: 'var(--gray2)', bg: 'rgba(170,170,170,0.10)', border: 'rgba(170,170,170,0.25)' },
-  }[status]
-  return (
-    <span style={{
-      display: 'inline-block',
-      fontSize: 10, fontWeight: 700,
-      padding: '2px 8px', borderRadius: 100,
-      background: cfg.bg, color: cfg.color,
-      border: `1px solid ${cfg.border}`,
-      whiteSpace: 'nowrap' as const,
-    }}>
-      {cfg.label}
-    </span>
-  )
-}
-
-function SourceBadge({ source }: { source: string }) {
-  const isWa = source === 'ycloud-whatsapp'
-  return (
-    <span style={{
-      display: 'inline-block',
-      fontSize: 10, fontWeight: 700,
-      padding: '2px 8px', borderRadius: 100,
-      background: isWa ? 'rgba(37,211,102,0.10)' : 'rgba(37,99,235,0.08)',
-      color:      isWa ? '#15803d'              : '#1d4ed8',
-      border: `1px solid ${isWa ? 'rgba(37,211,102,0.25)' : 'rgba(37,99,235,0.20)'}`,
-    }}>
-      {isWa ? 'WhatsApp' : 'SDR'}
-    </span>
-  )
+function syncLabel(ms: number): string {
+  const ago = timeAgo(ms)
+  return ago === 'agora' ? 'atualizado agora' : `atualizado há ${ago}`
 }
 
 // ─── Table columns ────────────────────────────────────────────────────────────
@@ -191,7 +155,7 @@ const TABLE_COLS: DataTableColumn[] = [
     label: 'Nome',
     sortable: true,
     format: (v) => (
-      <span style={{ fontWeight: 700, color: 'var(--black)' }}>
+      <span title={v as string} className="block truncate" style={{ fontWeight: 700, color: 'var(--ink)' }}>
         {v as string}
       </span>
     ),
@@ -200,30 +164,50 @@ const TABLE_COLS: DataTableColumn[] = [
     key: 'source',
     label: 'Origem',
     sortable: false,
-    format: (v) => <SourceBadge source={v as string} />,
+    width: 108,
+    format: (v) => (
+      v === 'ycloud-whatsapp'
+        ? <Badge variant="success" dot={false}>WhatsApp</Badge>
+        : <Badge variant="info" dot={false}>SDR</Badge>
+    ),
   },
   {
     key: 'status',
     label: 'Status',
     sortable: true,
-    format: (v) => <StatusBadge status={v as 'respondeu' | 'aguardando' | 'fria'} />,
+    width: 122,
+    format: (v) => {
+      const cfg = STATUS_BADGE[v as SessionStatus] ?? STATUS_BADGE.fria
+      return <Badge variant={cfg.variant} dot={false}>{cfg.label}</Badge>
+    },
   },
   {
     key: 'sessionLabel',
     label: 'Telefone',
     sortable: false,
+    width: 162,
     format: (v) => (
-      <span title={v as string} style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--gray2)' }}>
-        {(v as string).slice(0, 20)}
+      <span title={v as string} className="block truncate font-mono tabular-nums" style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--muted)' }}>
+        {v as string}
       </span>
     ),
   },
-  { key: 'msgs', label: 'Mensagens', sortable: true },
+  {
+    key: 'msgs',
+    label: 'Mensagens',
+    sortable: true,
+    align: 'right',
+    width: 108,
+    format: (v) => <span style={{ fontWeight: 700 }}>{fmtInt(v as number)}</span>,
+  },
   {
     key: 'lastContact',
     label: 'Última interação',
     sortable: true,
-    format: (v) => timeAgo(v as number | null),
+    align: 'right',
+    width: 160,
+    tone: 'muted',
+    format: (v) => <span style={{ fontSize: 'var(--text-sm)' }}>{timeAgo((v as number) || null)}</span>,
   },
 ]
 
@@ -293,28 +277,105 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
   )
 }
 
-// ─── WhatsApp section header ──────────────────────────────────────────────────
+// ─── Painel de entrega WhatsApp ───────────────────────────────────────────────
+// Um painel só no lugar dos 7 KpiCards e dos 2 gráficos diários: três taxas,
+// a barra de destino das mensagens, os totais em linha e um gráfico diário
+// com as duas séries na mesma escala.
 
-function WaSectionHeader() {
+function WhatsAppPanel({ wa, ready }: { wa: WaBlock; ready: boolean }) {
+  const { sent, delivered, read, failed, inbound } = wa.totals
+  const daily = wa.daily.slice(-DAILY_POINTS)   // últimos 30 pontos, pela legibilidade das barras
+  const isEmpty = daily.length === 0 && sent === 0 && delivered === 0 && failed === 0 && inbound === 0
+
+  // Sem denominador a taxa não existe: "—" em vez de um 0% enganoso.
+  const rates = [
+    { id: 'entrega', label: 'Entrega', value: sent > 0      ? fmtRate(wa.rates.entrega) : null, color: 'var(--ink)' },
+    { id: 'leitura', label: 'Leitura', value: delivered > 0 ? fmtRate(wa.rates.leitura) : null, color: 'var(--ink)' },
+    { id: 'falhas',  label: 'Falhas',  value: sent > 0      ? fmtRate(failed / sent)    : null, color: 'var(--danger)' },
+  ]
+
+  const destination: StackedBarSegment[] = [
+    { id: 'read',      label: 'Lidas',               value: read,                           color: 'var(--ink)' },
+    { id: 'delivered', label: 'Entregues não lidas', value: Math.max(delivered - read, 0), color: 'var(--ink-dim)' },
+    { id: 'failed',    label: 'Falhas',              value: failed,                         color: 'var(--danger)' },
+  ]
+
+  const chartData: BarChartItem[] = daily.map(d => ({
+    label:  fmtDay(d.date),
+    values: { sent: d.sent, inbound: d.inbound },
+  }))
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, marginTop: 8 }}>
-      <div style={{ width: 3, height: 18, borderRadius: 2, background: '#25D366' }} />
-      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-        WhatsApp (YCloud)
-      </div>
-    </div>
+    <Card variant="flat" className="animate-slide-up delay-4">
+      <h2 className="label-data" style={{ marginBottom: 20 }}>Entrega WhatsApp · YCloud</h2>
+
+      {isEmpty ? (
+        <p style={{ fontSize: 'var(--text-md)', fontWeight: 500, color: 'var(--muted)', textAlign: 'center', padding: '8px 0' }}>
+          Nenhuma mensagem WhatsApp no período. Os dados aparecem aqui assim que o primeiro webhook for recebido ou o backfill concluir.
+        </p>
+      ) : (
+        <div className="dash-wa-body">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <dl style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 24 }}>
+              {rates.map(r => (
+                <div key={r.id}>
+                  <dt className="label-data" style={{ marginBottom: 5 }}>{r.label}</dt>
+                  <dd className="tabular-nums" style={{
+                    fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1,
+                    color: r.value === null ? 'var(--muted)' : r.color,
+                  }}>
+                    {r.value ?? '—'}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            <StackedBar
+              segments={destination}
+              height={8}
+              label={`Destino das mensagens enviadas: ${destination.map(s => `${s.label.toLocaleLowerCase('pt-BR')} ${fmtInt(s.value)}`).join(', ')}`}
+            />
+
+            <p className="tabular-nums" style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--muted)', lineHeight: 1.6 }}>
+              {countLabel(sent, 'enviada', 'enviadas')} · {countLabel(delivered, 'entregue', 'entregues')} · {countLabel(read, 'lida', 'lidas')} · {countLabel(failed, 'falha', 'falhas')}
+              <br />
+              {countLabel(inbound, 'mensagem recebida', 'mensagens recebidas')} no período
+            </p>
+          </div>
+
+          {chartData.length > 0 ? (
+            <BarChart
+              title="Volume diário"
+              data={chartData}
+              series={WA_SERIES}
+              ready={ready}
+              unit="mensagem"
+              height={88}
+              axis="ends"
+              slots={DAILY_POINTS}
+            />
+          ) : (
+            <div>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--ink-2)', marginBottom: 10 }}>Volume diário</div>
+              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--muted)' }}>Sem série diária no período.</div>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [period,     setPeriod]     = useState<Period>('30d')
-  const [data,       setData]       = useState<SdrBiData | null>(null)
-  const [loading,    setLoading]    = useState(true)
-  const [error,      setError]      = useState(false)
-  const [ready,      setReady]      = useState(false)
-  const [fetchEpoch, setFetchEpoch] = useState(0)
+  const [period,       setPeriod]       = useState<Period>('30d')
+  const [data,         setData]         = useState<SdrBiData | null>(null)
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState(false)
+  const [ready,        setReady]        = useState(false)
+  const [fetchEpoch,   setFetchEpoch]   = useState(0)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('todas')
 
   const router    = useRouter()
   const modules   = useModules()
@@ -350,13 +411,16 @@ export default function DashboardPage() {
     return () => { cancelled = true }
   }, [period, fetchEpoch])
 
-  // Derived funnel data
-  const allFunnelStages: FunnelStage[] = (data?.funnel ?? []).map(f => ({
-    id:    f.stageKey,
-    name:  f.stageName,
-    color: STAGE_COLORS[f.stageKey] ?? '#AAAAAA',
-    count: f.count,
-  }))
+  // ── Funil ──────────────────────────────────────────────────────────────────
+  const funnel = data?.funnel ?? []
+  const allFunnelStages: FunnelStage[] = [...funnel]
+    .sort((a, b) => a.order - b.order)
+    .map(f => ({
+      id:         f.stageKey,
+      name:       f.stageName,
+      count:      f.count,
+      ratioLabel: STAGE_RATIO_LABEL[f.stageKey],
+    }))
 
   const effectiveVisible: Set<string> = visibleStageIds.size > 0
     ? visibleStageIds
@@ -364,13 +428,59 @@ export default function DashboardPage() {
 
   const visibleFunnelStages = allFunnelStages.filter(s => effectiveVisible.has(s.id))
 
-  // Derived sentiment slices
-  const sentimentSlices: DonutSlice[] = (data?.sentiment ?? []).map(s => ({
-    id: s.id, label: s.label, color: s.color, count: s.count,
-  }))
+  // ── KPIs — tudo derivado da resposta; o que não dá para derivar fica de fora
+  const stageCount = (key: string) => funnel.find(f => f.stageKey === key)?.count
+  const leadsCount     = stageCount('leads')
+  const responsesCount = stageCount('responses')
+  const kpis   = data?.kpis
+  const change = data?.kpisChange
 
-  // Derived table rows — use phone as name fallback when no name available
-  const tableRows = (data?.recent ?? []).map(r => ({
+  const heroKpi: KpiBandItem | null = kpis ? {
+    id:    'conversao',
+    label: 'Conversão lead → reunião',
+    value: fmtPct(kpis.conversao),
+    sub:   leadsCount !== undefined
+      ? `${countLabel(kpis.reunioes, 'reunião', 'reuniões')} de ${countLabel(leadsCount, 'lead recebido', 'leads recebidos')}`
+      : null,
+    delta: change?.conversao ? { value: change.conversao.pp, unit: 'pp', trend: change.conversao.trend } : null,
+  } : null
+
+  const kpiItems: KpiBandItem[] = kpis ? [
+    {
+      id:    'contatos',
+      label: 'Contatos realizados',
+      value: fmtInt(kpis.contatos),
+      sub:   leadsCount ? `${fmtPct(Math.round((kpis.contatos / leadsCount) * 100))} dos leads recebidos` : null,
+      delta: change?.contatos ? { value: change.contatos.pct, unit: '%', trend: change.contatos.trend } : null,
+    },
+    {
+      id:    'taxaResposta',
+      label: 'Taxa de resposta',
+      value: fmtPct(kpis.taxaResposta),
+      sub:   responsesCount !== undefined ? countLabel(responsesCount, 'lead respondeu', 'leads responderam') : null,
+      delta: change?.taxaResposta ? { value: change.taxaResposta.pp, unit: 'pp', trend: change.taxaResposta.trend } : null,
+    },
+    {
+      id:    'reunioes',
+      label: 'Reuniões agendadas',
+      value: fmtInt(kpis.reunioes),
+      delta: change?.reunioes ? { value: change.reunioes.pct, unit: '%', trend: change.reunioes.trend } : null,
+    },
+  ] : []
+
+  // ── Sentimento ─────────────────────────────────────────────────────────────
+  const sentimentSegments: StackedBarSegment[] = (data?.sentiment ?? [])
+    .filter(s => s.count > 0)
+    .map(s => ({
+      id:    s.id,
+      label: s.label,
+      value: s.count,
+      // Token primeiro (ids conhecidos); id novo cai na cor da API e, sem ela, num cinza neutro.
+      color: SENTIMENT_TOKEN_COLOR.get(s.id) ?? (s.color || 'var(--gray2)'),
+    }))
+
+  // ── Sessões — telefone como nome quando não há contato associado ───────────
+  const allRows = (data?.recent ?? []).map(r => ({
     name:         r.name ?? r.sessionId,
     source:       r.source,
     sessionLabel: r.sessionId,
@@ -379,16 +489,11 @@ export default function DashboardPage() {
     lastContact:  r.lastContact ?? 0,
     status:       r.status,
   }))
+  const tableRows = statusFilter === 'todas' ? allRows : allRows.filter(r => r.status === statusFilter)
+  const activeFilter = STATUS_FILTERS.find(f => f.value === statusFilter) ?? STATUS_FILTERS[0]
 
   // WhatsApp derived data — fallback to zeros so section never crashes
   const wa: WaBlock = data?.whatsapp ?? WA_ZERO
-
-  // Daily chart capped at last 30 data points for bar readability
-  const waDailyChart = wa.daily.slice(-30)
-  const waDailyInbound: BarChartItem[] = waDailyChart.map(d => ({ label: fmtDay(d.date), count: d.inbound }))
-  const waDailySent:    BarChartItem[] = waDailyChart.map(d => ({ label: fmtDay(d.date), count: d.sent    }))
-  // Shared Y-scale so the two daily charts are honestly comparable
-  const waChartMax = Math.max(...waDailyInbound.map(d => d.count), ...waDailySent.map(d => d.count), 1)
 
   const hasData = (data?.funnel.length ?? 0) > 0 || (data?.recent.length ?? 0) > 0
 
@@ -399,37 +504,53 @@ export default function DashboardPage() {
     setFilterOpen(true)
   }
 
+  // Fechar devolve o foco ao botão "Etapas" (o painel vive num portal).
+  const closeFilter = useCallback(() => {
+    setFilterOpen(false)
+    filterBtnRef.current?.focus()
+  }, [])
+
+  function askAboutFunnel() {
+    const question = `O funil de prospecção no período de ${PERIOD_LABELS[period]} mostra: ${allFunnelStages.map(s => `${s.name}: ${s.count}`).join(', ')}. Por que a conversão é essa? Como melhorar?`
+    window.dispatchEvent(new CustomEvent('ai-ask', { detail: { question } }))
+  }
+
   return (
-    <div>
+    <div className="dash">
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="animate-slide-up delay-1" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, gap: 16 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em', marginBottom: 4 }}>
+      <header className="dash-header animate-slide-up delay-1">
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.25, color: 'var(--ink)' }}>
             Visão geral
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--gray)' }}>
-              Prospecção ativa com IA — do primeiro contato até a reunião com o closer.
-            </div>
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 10, rowGap: 4, marginTop: 4 }}>
+            <p style={{ fontSize: 'var(--text-md)', color: 'var(--gray)' }}>
+              Prospecção ativa com IA, do primeiro contato até a reunião com o closer.
+            </p>
             {data?.lastSyncAt && (
-              <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>
-                atualizado há {timeAgo(data.lastSyncAt)}
-              </div>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+                fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--muted)',
+              }}>
+                <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)' }} />
+                {syncLabel(data.lastSyncAt)}
+              </span>
             )}
           </div>
         </div>
-        <PeriodFilter value={period} onChange={p => setPeriod(p)} />
-      </div>
+        <SegmentedControl label="Período" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
+      </header>
 
       {loading && (
         <>
-          <SkeletonKpiCards count={4} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gap: 16, marginBottom: 16 }}>
-            <SkeletonBlock height={200} />
-            <SkeletonBlock height={200} />
+          <span className="sr-only" role="status">Carregando os dados do período…</span>
+          <SkeletonKpiBand count={4} />
+          <div className="dash-grid" aria-hidden>
+            <SkeletonBlock height={280} radius="var(--radius-md)" />
+            <SkeletonBlock height={280} radius="var(--radius-md)" />
           </div>
-          <SkeletonBlock height={180} />
+          <SkeletonBlock height={300} radius="var(--radius-md)" />
         </>
       )}
 
@@ -455,75 +576,38 @@ export default function DashboardPage() {
         />
       )}
 
-      {!loading && !error && hasData && (
+      {!loading && !error && hasData && heroKpi && (
         <>
-          {/* ── KPI Cards (SDR) ────────────────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
-            <KpiCard
-              className="animate-slide-up delay-2"
-              label="Contatos realizados"
-              value={data!.kpis.contatos}
-              accent="var(--primary-text)"
-              sub={`de ${(data?.funnel.find(f => f.stageKey === 'leads')?.count ?? 0).toLocaleString('pt-BR')} leads recebidos`}
-              change={data?.kpisChange?.contatos?.pct ?? null}
-              changeUnit="%"
-            />
-            <KpiCard
-              className="animate-slide-up delay-3"
-              label="Taxa de resposta"
-              value={data!.kpis.taxaResposta}
-              format={v => `${v}%`}
-              accent="#2563EB"
-              sub="leads que responderam"
-              change={data?.kpisChange?.taxaResposta?.pp ?? null}
-              changeUnit="pp"
-            />
-            <KpiCard
-              className="animate-slide-up delay-4"
-              label="Reuniões agendadas"
-              value={data!.kpis.reunioes}
-              accent="var(--green)"
-              sub="com closer neste período"
-              change={data?.kpisChange?.reunioes?.pct ?? null}
-              changeUnit="%"
-            />
-            <KpiCard
-              className="animate-slide-up delay-5"
-              label="Conversão lead→reunião"
-              value={data!.kpis.conversao}
-              format={v => `${v}%`}
-              accent="var(--green)"
-              sub="do total de leads"
-              change={data?.kpisChange?.conversao?.pp ?? null}
-              changeUnit="pp"
-            />
-          </div>
+          {/* ── Faixa de KPIs ──────────────────────────────────────── */}
+          <KpiBand className="animate-slide-up delay-2" hero={heroKpi} items={kpiItems} />
 
-          {/* ── Funil + Sentiment ──────────────────────────────────── */}
-          <div className="animate-slide-up delay-3" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gap: 16, marginBottom: 16 }}>
+          {/* ── Funil + Sentimento ─────────────────────────────────── */}
+          <div className="dash-grid animate-slide-up delay-3">
 
-            {/* Funil horizontal */}
-            <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
-              <SectionTitle action={
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
+            <Card variant="flat">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+                <h2 className="label-data">Funil de prospecção</h2>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Button
                     ref={filterBtnRef}
+                    variant="secondary" size="sm" shape="pill"
                     onClick={openFilter}
-                    style={{
-                      fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 100,
-                      border: '1px solid var(--gray3)', cursor: 'pointer', fontFamily: 'inherit',
-                      background: 'var(--bg)', color: 'var(--gray2)', transition: 'all .15s',
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--gray2)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--black)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--gray3)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--gray2)' }}
+                    disabled={allFunnelStages.length === 0}
+                    aria-haspopup="dialog"
+                    aria-expanded={filterOpen}
                   >
-                    Filtrar etapas
-                  </button>
-                  <AskAIButton question={`O funil de prospecção no período de ${PERIOD_LABELS[period]} mostra: ${allFunnelStages.map(s => `${s.name}: ${s.count}`).join(', ')}. Por que a conversão é essa? Como melhorar?`} />
+                    Etapas
+                  </Button>
+                  <Button
+                    variant="primary" size="sm" shape="pill"
+                    onClick={askAboutFunnel}
+                    disabled={allFunnelStages.length === 0}
+                    title="Perguntar à IA sobre este funil"
+                  >
+                    Analisar
+                  </Button>
                 </div>
-              }>
-                Funil de prospecção
-              </SectionTitle>
+              </div>
               <FunnelChart
                 allStages={allFunnelStages}
                 stages={visibleFunnelStages}
@@ -535,111 +619,66 @@ export default function DashboardPage() {
                 <FunnelFilterPanel
                   allStages={allFunnelStages}
                   visible={effectiveVisible}
-                  onChange={next => { setVisibleStageIds(new Set(next)); setFilterOpen(false) }}
-                  onClose={() => setFilterOpen(false)}
+                  onChange={next => { setVisibleStageIds(new Set(next)); closeFilter() }}
+                  onClose={closeFilter}
                   top={panelPos.top}
                   right={panelPos.right}
                 />
               )}
-            </div>
+            </Card>
 
-            {/* Sentiment donut — always rendered; empty state when no data */}
-            <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
-              <SectionTitle action={sentimentSlices.length > 0 ? <AskAIButton question={`A distribuição de sentimento das interações de prospecção é: ${data!.sentiment.map(s => `${s.label}: ${s.count}`).join(', ')}. O que isso indica sobre a qualidade das conversas?`} /> : undefined}>
-                Sentimento das interações
-              </SectionTitle>
-              {sentimentSlices.length > 0 ? (
-                <DonutChart slices={sentimentSlices} ready={ready} centerLabel="interações" />
+            <Card variant="flat">
+              <h2 className="label-data" style={{ marginBottom: 16 }}>Sentimento das interações</h2>
+              {sentimentSegments.length > 0 ? (
+                <>
+                  <div style={{ marginBottom: 16 }}>
+                    <StackedBar segments={sentimentSegments} height={10} />
+                  </div>
+                  <StackedBarLegend segments={sentimentSegments} />
+                </>
               ) : (
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  minHeight: 120, fontSize: 12, color: 'var(--gray2)', fontWeight: 500, textAlign: 'center',
+                  minHeight: 120, fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--muted)', textAlign: 'center',
                 }}>
                   Sem dados de sentimento no período
                 </div>
               )}
-            </div>
+            </Card>
           </div>
 
-          {/* ── WhatsApp (YCloud) section — conditional on module ──── */}
-          {hasYCloud && (
-            <div className="animate-slide-up delay-4">
-              <WaSectionHeader />
+          {/* ── WhatsApp (YCloud) — condicional ao módulo ──────────── */}
+          {hasYCloud && <WhatsAppPanel wa={wa} ready={ready} />}
 
-              {/* 4 volume cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 14 }}>
-                <KpiCard label="Recebidas"  value={wa.totals.inbound}   accent="#0891B2" sub="mensagens inbound" />
-                <KpiCard label="Enviadas"   value={wa.totals.sent}      accent="#64748B" sub="mensagens outbound" />
-                <KpiCard label="Entregues"  value={wa.totals.delivered} accent="#2563EB" />
-                <KpiCard label="Lidas"      value={wa.totals.read}      accent="#1E8A3E" />
-              </div>
-
-              {/* 3 rate / failure cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
-                <KpiCard
-                  label="Taxa de entrega"
-                  value={Math.round(wa.rates.entrega * 100)}
-                  format={v => `${v}%`}
-                  accent="#2563EB"
-                  sub={`${wa.totals.delivered.toLocaleString('pt-BR')} de ${wa.totals.sent.toLocaleString('pt-BR')} enviadas`}
-                />
-                <KpiCard
-                  label="Taxa de leitura"
-                  value={Math.round(wa.rates.leitura * 100)}
-                  format={v => `${v}%`}
-                  accent="#1E8A3E"
-                  sub={`${wa.totals.read.toLocaleString('pt-BR')} de ${wa.totals.delivered.toLocaleString('pt-BR')} entregues`}
-                />
-                <KpiCard label="Falhas" value={wa.totals.failed} accent="#D93025" sub="mensagens não entregues" />
-              </div>
-
-              {/* Daily charts — only when there are data points */}
-              {waDailyChart.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
-                  <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
-                    <SectionTitle>Recebidas por dia</SectionTitle>
-                    <BarChart data={waDailyInbound} ready={ready} unit="mensagem" maxValue={waChartMax} />
-                  </div>
-                  <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', padding: '20px 24px' }}>
-                    <SectionTitle>Enviadas por dia</SectionTitle>
-                    <BarChart data={waDailySent} ready={ready} unit="mensagem" maxValue={waChartMax} />
-                  </div>
-                </div>
-              )}
-
-              {/* Empty state for when module is enabled but no data yet */}
-              {waDailyChart.length === 0 && wa.totals.inbound === 0 && wa.totals.sent === 0 && (
-                <div style={{
-                  padding: '20px 24px', marginBottom: 20,
-                  background: 'var(--bg)', border: '1px solid var(--gray3)',
-                  borderRadius: 16, textAlign: 'center',
-                  fontSize: 13, color: 'var(--gray2)', fontWeight: 500,
-                }}>
-                  Nenhuma mensagem WhatsApp no período. Os dados aparecem aqui assim que o primeiro webhook for recebido ou o backfill concluir.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Tabela de sessões recentes ─────────────────────────── */}
-          {tableRows.length > 0 && (
-            <div className="animate-slide-up delay-5" style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Sessões recentes — {tableRows.length} conversas
-                </div>
-                <AskAIButton question={`Há ${tableRows.length} sessões de conversa SDR IA no período. A mais ativa tem ${Math.max(...tableRows.map(r => r.msgs))} mensagens. Como interpretar a atividade dessas conversas?`} />
+          {/* ── Sessões recentes ───────────────────────────────────── */}
+          {allRows.length > 0 && (
+            <Card variant="flat" padded={false} className="overflow-hidden animate-slide-up delay-5">
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+                padding: '13px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-2)',
+              }}>
+                <h2 className="label-data tabular-nums">
+                  Sessões recentes · {tableRows.length} {tableRows.length === 1 ? 'conversa' : 'conversas'}
+                </h2>
+                <ChipGroup label="Filtrar sessões por status">
+                  {STATUS_FILTERS.map(f => (
+                    <Chip key={f.value} active={statusFilter === f.value} onClick={() => setStatusFilter(f.value)}>
+                      {f.label}
+                    </Chip>
+                  ))}
+                </ChipGroup>
               </div>
               <DataTable
+                variant="plain"
                 columns={TABLE_COLS}
                 rows={tableRows}
                 defaultSortKey="lastContact"
                 defaultSortDir="desc"
-                emptyMessage="Nenhuma sessão encontrada no período"
+                emptyMessage={activeFilter.empty}
                 rowKey="sessionId"
                 onRowClick={row => router.push(`/sdr-ia/conversas?session=${encodeURIComponent(String(row.sessionId ?? ''))}`)}
               />
-            </div>
+            </Card>
           )}
         </>
       )}

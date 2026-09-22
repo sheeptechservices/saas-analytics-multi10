@@ -52,6 +52,17 @@ interface DetailResponse {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Saudação que a app usava no lugar do nome antes de setembro de 2026. Ficou gravada
+// em first_name nos disparos daquela época; no reenvio ela não volta como se fosse
+// nome do lead — quem não tem nome é ignorado pela API, com motivo próprio.
+const NOME_INVENTADO_LEGADO = 'tudo bem'
+
+function nomeReal(firstName: string): string | null {
+  const nome = String(firstName ?? '').trim()
+  if (!nome || nome.toLowerCase() === NOME_INVENTADO_LEGADO) return null
+  return nome
+}
+
 function fmtDate(ts: string | number | null): string {
   const ms = toMs(ts)
   if (ms == null) return '—'
@@ -90,10 +101,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, { dot: string; text: string; bg: string; border: string }> = {
   pendente: { dot: 'var(--gray3)',   text: 'var(--gray2)',        bg: 'var(--bg)',             border: 'var(--gray3)'          },
-  enviado:  { dot: '#60a5fa',        text: '#1d4ed8',             bg: 'rgba(59,130,246,0.07)', border: 'rgba(59,130,246,0.25)' },
+  enviado:  { dot: '#60a5fa',        text: 'var(--info-text)',             bg: 'rgba(59,130,246,0.07)', border: 'rgba(59,130,246,0.25)' },
   entregue: { dot: 'var(--primary)', text: 'var(--primary-text)', bg: 'var(--primary-dim)',    border: 'var(--primary-mid)'    },
-  lido:     { dot: 'var(--green)',   text: 'var(--green)',        bg: 'rgba(30,138,62,0.07)',  border: 'rgba(30,138,62,0.22)'  },
-  falhou:   { dot: 'var(--red)',     text: 'var(--red)',          bg: 'rgba(217,48,37,0.07)',  border: 'rgba(217,48,37,0.20)'  },
+  lido:     { dot: 'var(--green)',   text: 'var(--green)',        bg: 'var(--success-dim)',  border: 'var(--success-mid)'  },
+  falhou:   { dot: 'var(--red)',     text: 'var(--red)',          bg: 'var(--danger-dim)',  border: 'rgba(217,48,37,0.20)'  },
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -101,7 +112,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
-      fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+      fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-pill)',
       background: c.bg, border: `1px solid ${c.border}`, color: c.text,
     }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.dot, flexShrink: 0 }} />
@@ -112,7 +123,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function CampaignStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string }> = {
-    enviando:  { label: 'Em andamento', color: '#d97706'      },
+    enviando:  { label: 'Em andamento', color: 'var(--warn-text)'      },
     concluido: { label: 'Concluído',    color: 'var(--green)' },
     erro:      { label: 'Erro',         color: 'var(--red)'   },
   }
@@ -124,7 +135,7 @@ function MetricPill({ label, value, color }: { label: string; value: number; col
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', minWidth: 44 }}>
       <span style={{ fontSize: 15, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
-      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{label}</span>
+      <span style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--gray2)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{label}</span>
     </span>
   )
 }
@@ -136,9 +147,10 @@ function PillBtn({
     <button
       onClick={onClick}
       disabled={disabled}
+      className="max-md:min-h-10"
       style={{
         display: 'flex', alignItems: 'center', gap: 6,
-        padding: '7px 14px', borderRadius: 100,
+        padding: '7px 14px', borderRadius: 'var(--radius-pill)',
         border: '1px solid var(--gray3)', background: 'var(--white)',
         fontSize: 12, fontWeight: 700, color: disabled ? 'var(--gray3)' : 'var(--gray)',
         cursor: disabled ? 'not-allowed' : 'pointer', transition: 'background .15s',
@@ -164,6 +176,7 @@ function TabBar({ active, onChange }: { active: CampaignKind; onChange: (k: Camp
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
+          className="max-md:min-h-10"
           style={{
             padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             background: 'none', border: 'none', borderBottom: `2px solid ${active === t.id ? 'var(--primary)' : 'transparent'}`,
@@ -190,7 +203,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
   })
 
   const [reenvioMode,   setReenvioMode]   = useState<'idle' | 'confirm' | 'sending' | 'done'>('idle')
-  const [reenvioResult, setReenvioResult] = useState<{ ok: boolean; started?: number; error?: string } | null>(null)
+  const [reenvioResult, setReenvioResult] = useState<{ ok: boolean; started?: number; semNome?: number; error?: string } | null>(null)
 
   function refresh() { setKey(k => k + 1); setReenvioMode('idle'); setReenvioResult(null) }
 
@@ -233,7 +246,10 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
     setReenvioMode('sending')
     try {
       const names: Record<string, string> = {}
-      failed.forEach(r => { names[r.leadId] = r.firstName })
+      failed.forEach(r => {
+        const nome = nomeReal(r.firstName)
+        if (nome) names[r.leadId] = nome
+      })
       const res  = await fetch('/api/sdr/leads/blast', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,7 +260,7 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
           names,
         }),
       })
-      const body = await res.json() as { ok: boolean; started?: number; error?: string }
+      const body = await res.json() as { ok: boolean; started?: number; semNome?: number; error?: string }
       setReenvioResult(body)
       setReenvioMode('done')
     } catch (e) {
@@ -271,12 +287,13 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
       <div className="animate-slide-up delay-1" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <button
           onClick={onBack}
+          className="max-md:min-h-10"
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 13, fontWeight: 600, padding: 0 }}
         >
           <ArrowLeft size={14} /> Disparos
         </button>
         <span style={{ color: 'var(--gray3)', fontWeight: 300 }}>/</span>
-        <span style={{ fontSize: 13, color: 'var(--gray)', fontWeight: 600, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span title={c ? rowTitle(c) : undefined} style={{ fontSize: 13, color: 'var(--gray)', fontWeight: 600, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {isLoading ? '…' : (c ? rowTitle(c) : 'Campanha')}
         </span>
         <div style={{ flex: 1 }} />
@@ -289,14 +306,14 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
 
       {isLoading && (
         <div className="animate-slide-up delay-2" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[...Array(5)].map((_, i) => <Skeleton key={i} height={52} radius={10} />)}
+          {[...Array(5)].map((_, i) => <Skeleton key={i} height={52} radius="var(--radius-md)" />)}
         </div>
       )}
 
       {isError && (
         <div className="animate-slide-up delay-2" style={{ padding: 24, textAlign: 'center', color: 'var(--red)', fontSize: 13 }}>
           Erro ao carregar.{' '}
-          <button onClick={() => refetch()} style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer' }}>
+          <button onClick={() => refetch()} className="max-md:min-h-10" style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer' }}>
             Tentar novamente
           </button>
         </div>
@@ -306,19 +323,20 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
         <>
           {/* Campaign summary */}
           <div className="animate-slide-up delay-2" style={{
-            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14,
+            background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)',
             padding: '16px 20px', marginBottom: 18,
             display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center',
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>{rowTitle(c)}</div>
+              {/* Manual campaigns are titled by the template: often one unbroken word */}
+              <div className="max-lg:wrap-anywhere" style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>{rowTitle(c)}</div>
               <div style={{ fontSize: 12, color: 'var(--gray2)' }}>
                 {fmtDate(c.createdAt)}{c.createdByName ? ` · por ${c.createdByName}` : ''}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
               <MetricPill label="Total"    value={total}         color="var(--ink)"          />
-              <MetricPill label="Enviado"  value={bySt.enviado}  color="#1d4ed8"              />
+              <MetricPill label="Enviado"  value={bySt.enviado}  color="var(--info-text)"              />
               <MetricPill label="Entregue" value={bySt.entregue} color="var(--primary-text)"  />
               <MetricPill label="Lido"     value={bySt.lido}     color="var(--green)"         />
               <MetricPill label="Falhou"   value={bySt.falhou}   color="var(--red)"           />
@@ -330,12 +348,12 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
           {/* Re-send confirm panel (manual only) */}
           {showReenvio && reenvioMode !== 'idle' && (
             <div className="animate-slide-up" style={{
-              marginBottom: 18, padding: '14px 18px', borderRadius: 12,
+              marginBottom: 18, padding: '14px 18px', borderRadius: 'var(--radius-md)',
               background: reenvioMode === 'done' && reenvioResult?.ok
                 ? 'rgba(34,197,94,0.06)'
                 : reenvioMode === 'done'
                   ? 'rgba(239,68,68,0.06)'
-                  : 'rgba(245,158,11,0.07)',
+                  : 'var(--warn-dim)',
               border: `1px solid ${
                 reenvioMode === 'done' && reenvioResult?.ok
                   ? 'rgba(34,197,94,0.25)'
@@ -346,10 +364,10 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
             }}>
               {reenvioMode === 'confirm' && (
                 <>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--warn-text)', marginBottom: 6 }}>
                     Reenviar para {failedCount} destinatário{failedCount !== 1 ? 's' : ''} que falharam?
                   </div>
-                  <div style={{ fontSize: 12, color: '#78350f', marginBottom: 14, lineHeight: 1.55 }}>
+                  <div className="max-lg:wrap-anywhere" style={{ fontSize: 12, color: 'var(--warn-text)', marginBottom: 14, lineHeight: 1.55 }}>
                     Será criada uma nova campanha com o mesmo template <strong>{c.template}</strong>.
                     Envio real via WhatsApp — ação irreversível.
                   </div>
@@ -363,16 +381,17 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
                 <div style={{ fontSize: 13, color: 'var(--gray2)' }}>Criando nova campanha…</div>
               )}
               {reenvioMode === 'done' && reenvioResult?.ok && (
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>
-                  ✓ Nova campanha criada — {reenvioResult.started ?? failedCount} disparo{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''} iniciado{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''}.{' '}
-                  <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success-text)' }}>
+                  ✓ Nova campanha criada — {reenvioResult.started ?? failedCount} disparo{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''} iniciado{(reenvioResult.started ?? failedCount) !== 1 ? 's' : ''}
+                  {(reenvioResult.semNome ?? 0) > 0 && <>, {reenvioResult.semNome} sem nome ficaram de fora</>}.{' '}
+                  <button onClick={onBack} className="max-md:min-h-10" style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: 0 }}>
                     Ver todos os disparos →
                   </button>
                 </div>
               )}
               {reenvioMode === 'done' && !reenvioResult?.ok && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+                  <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
                     Erro ao reenviar: {reenvioResult?.error ?? 'erro desconhecido'}
                   </span>
                   <Button variant="ghost" onClick={() => setReenvioMode('idle')}>Tentar novamente</Button>
@@ -381,13 +400,17 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
             </div>
           )}
 
-          {/* Recipient table */}
-          <div className="animate-slide-up delay-3" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14, overflow: 'hidden' }}>
+          {/* Recipient table — below lg it doesn't fit beside the sidebar (or on a
+              phone) and scrolls sideways inside its own frame; from lg the frame
+              clips, as before */}
+          <div className="animate-slide-up delay-3 overflow-hidden max-lg:overflow-x-auto" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--bg)' }}>
+                  {/* In the sideways-scrolling frame the name and the reason keep a
+                      readable width instead of folding into a word per line */}
                   {['Nome', 'Telefone', ...(isCampanha ? ['Template'] : []), 'Status', 'Motivo / Detalhe'].map(h => (
-                    <th key={h} style={{
+                    <th key={h} className={h === 'Nome' ? 'max-lg:min-w-[160px]' : h === 'Motivo / Detalhe' ? 'max-lg:min-w-[220px]' : undefined} style={{
                       padding: '9px 16px', textAlign: 'left', fontSize: 10,
                       fontWeight: 800, color: 'var(--gray2)', textTransform: 'uppercase',
                       letterSpacing: '0.07em', borderBottom: '1px solid var(--gray3)', whiteSpace: 'nowrap',
@@ -414,9 +437,10 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
                     } as React.CSSProperties}
                   >
                     <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{r.firstName}</td>
-                    <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontSize: 12, color: 'var(--gray)' }}>{fmtPhone(r.phone)}</td>
+                    {/* In the sideways-scrolling frame the phone stays on one line */}
+                    <td className="max-lg:whitespace-nowrap" style={{ padding: '11px 16px', fontFamily: 'monospace', fontSize: 12, color: 'var(--gray)' }}>{fmtPhone(r.phone)}</td>
                     {isCampanha && (
-                      <td style={{ padding: '11px 16px', fontSize: 12, color: r.template ? 'var(--gray)' : 'var(--gray3)', fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td title={r.template ?? undefined} style={{ padding: '11px 16px', fontSize: 12, color: r.template ? 'var(--gray)' : 'var(--gray3)', fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {r.template ?? '—'}
                       </td>
                     )}
@@ -437,20 +461,23 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
 
 // ─── List row ─────────────────────────────────────────────────────────────────
 
+// On phones the five metrics don't fit beside the title: the row wraps, the
+// title takes the first line and the metrics spread across the second.
 function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
+      className="gap-4 max-md:flex-wrap max-md:gap-y-[10px]"
       style={{
-        display: 'flex', alignItems: 'center', gap: 16,
+        display: 'flex', alignItems: 'center',
         padding: '14px 16px', cursor: 'pointer',
         borderBottom: '1px solid var(--gray3)', transition: 'background .12s',
       }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div className="flex-1 max-md:basis-full" style={{ minWidth: 0 }}>
+        <div title={rowTitle(c)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {rowTitle(c)}
         </div>
         <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -459,9 +486,9 @@ function CampaignRow({ c, onClick }: { c: Campaign; onClick: () => void }) {
           <CampaignStatusBadge status={c.status} />
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexShrink: 0 }}>
+      <div className="gap-5 max-md:flex-1 max-md:justify-between max-md:gap-2" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <MetricPill label="Total"    value={c.totalSolicitado} color="var(--ink)"         />
-        <MetricPill label="Enviado"  value={c.enviado}         color="#1d4ed8"             />
+        <MetricPill label="Enviado"  value={c.enviado}         color="var(--info-text)"             />
         <MetricPill label="Entregue" value={c.entregue}        color="var(--primary-text)" />
         <MetricPill label="Lido"     value={c.lido}            color="var(--green)"        />
         <MetricPill label="Falhou"   value={c.falhou}          color="var(--red)"          />
@@ -519,32 +546,37 @@ export default function DisparosPage() {
         </div>
       </div>
 
-      {/* Add lead modal */}
+      {/* Add lead modal. On phones: 16px from the screen edges, never taller than
+          the screen (a short screen or the open keyboard), scrolling inside, with
+          the header — and its close button, 40px — pinned on top. */}
       {showAddLead && (
         <div
+          className="p-4 md:p-6"
           style={{
             position: 'fixed', inset: 0, zIndex: 9999,
             background: 'rgba(0,0,0,0.40)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24, animation: 'fadeIn .12s ease both',
+            animation: 'fadeIn .12s ease both',
           }}
           onClick={() => { setShowAddLead(false); setAddLeadDone(null) }}
         >
           <div
+            className="p-7 max-md:max-h-full max-md:overflow-y-auto max-md:pt-0"
             style={{
-              background: 'var(--white)', borderRadius: 20, padding: 28,
+              background: 'var(--white)', borderRadius: 'var(--radius-xl)',
               width: '100%', maxWidth: 420,
               boxShadow: '0 24px 64px rgba(0,0,0,0.20)',
               animation: 'modalSlideUp .18s cubic-bezier(0.22,1,0.36,1) both',
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div className="mb-5 max-md:sticky max-md:top-0 max-md:z-10 max-md:mb-0 max-md:bg-(--white) max-md:pt-7 max-md:pb-5" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <UserPlus size={16} /> Adicionar lead
               </div>
               <button
                 onClick={() => { setShowAddLead(false); setAddLeadDone(null) }}
+                className="max-md:-mr-2 max-md:flex max-md:size-10 max-md:items-center max-md:justify-center"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray2)', fontSize: 22, lineHeight: 1, padding: '0 4px' }}
                 aria-label="Fechar"
               >
@@ -556,12 +588,12 @@ export default function DisparosPage() {
               <div>
                 <div style={{
                   display: 'flex', alignItems: 'flex-start', gap: 8,
-                  padding: '12px 16px', borderRadius: 12, marginBottom: 18,
+                  padding: '12px 16px', borderRadius: 'var(--radius-md)', marginBottom: 18,
                   background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)',
-                  fontSize: 13, fontWeight: 600, color: '#15803d',
+                  fontSize: 13, fontWeight: 600, color: 'var(--success-text)',
                 }}>
                   <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>
+                  <span className="max-lg:wrap-anywhere">
                     {addLeadDone.duplicate
                       ? <>Lead <strong>{addLeadDone.name}</strong> já existia &mdash; reaproveitado na base.</>
                       : <>Lead <strong>{addLeadDone.name}</strong> adicionado à base.</>}
@@ -572,6 +604,7 @@ export default function DisparosPage() {
                   <Button variant="ghost"     size="sm" onClick={() => { setShowAddLead(false); setAddLeadDone(null) }}>Fechar</Button>
                   <Link
                     href="/sdr-ia/leads"
+                    className="max-md:inline-flex max-md:min-h-10 max-md:items-center"
                     style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'underline' }}
                   >
                     Ir para Novo disparo &rarr;
@@ -591,17 +624,18 @@ export default function DisparosPage() {
       </div>
 
       {/* List */}
-      <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 14, overflow: 'hidden' }}>
+      <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Same reflow as CampaignRow on phones */}
             {[...Array(4)].map((_, i) => (
-              <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '14px 16px', borderBottom: i < 3 ? '1px solid var(--gray3)' : 'none' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div key={i} className="gap-4 max-md:flex-wrap max-md:gap-y-[10px]" style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: i < 3 ? '1px solid var(--gray3)' : 'none' }}>
+                <div className="flex-1 max-md:basis-full" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <Skeleton width="30%" height={13} />
                   <Skeleton width="20%" height={10} />
                 </div>
-                <div style={{ display: 'flex', gap: 20 }}>
-                  {[...Array(5)].map((_, j) => <Skeleton key={j} width={36} height={36} radius={8} />)}
+                <div className="gap-5 max-md:flex-1 max-md:justify-between max-md:gap-2" style={{ display: 'flex' }}>
+                  {[...Array(5)].map((_, j) => <Skeleton key={j} width={36} height={36} radius="var(--radius-sm)" />)}
                 </div>
               </div>
             ))}
@@ -611,7 +645,7 @@ export default function DisparosPage() {
         {isError && (
           <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--red)' }}>
             Erro ao carregar.{' '}
-            <button onClick={() => refetch()} style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+            <button onClick={() => refetch()} className="max-md:min-h-10" style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
               Tentar novamente
             </button>
           </div>

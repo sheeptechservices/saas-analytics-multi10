@@ -82,7 +82,7 @@ export function KpiCard({
       style={{
         background: 'var(--white)',
         border: '1px solid var(--line)',
-        borderLeft: `4px solid ${accent}`,
+        borderLeft: `var(--rail) solid ${accent}`,
         borderRadius: 12,
         padding: '18px 20px',
         cursor: 'default',

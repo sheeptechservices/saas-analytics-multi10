@@ -8,8 +8,15 @@
 // REGRA CRÍTICA: a app NUNCA escreve no Supabase — apenas LÊ (leads + remetente).
 // O envio é responsabilidade do n8n.
 //
+// As variáveis do template são POSICIONAIS: {{1}} é a primeira, {{2}} a segunda.
+// Hoje só existe a primeira (o primeiro nome). Placeholder que sobrar depois do
+// render barra o disparo inteiro com 400 — mensagem literal não vai para o lead.
+//
+// Lead sem nome não recebe template que usa nome: entra em skipped/semNome. Não
+// existe saudação de reserva — inventar nome faz a mensagem mentir para o lead.
+//
 // Body:     { leadIds: string[], template: string, templateBody?: string, names?: Record<string,string> }
-// Response: { ok, started, totalSolicitado, skipped }
+// Response: { ok, started, totalSolicitado, skipped, semNome }
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
@@ -23,12 +30,12 @@ import { requireRole } from '@/lib/auth-guard'
 import { randomUUID } from 'crypto'
 import { Client } from 'pg'
 
-const PROVIDER_KEY      = 'supabase-n8n'
-const SOURCE            = 'sdr-n8n'
-const MAX_LEADS         = 1000
-const DEFAULT_FIRST_NAME = 'tudo bem'
-const UUID_RE      = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const E164_RE      = /^\+[1-9]\d{6,14}$/
+const PROVIDER_KEY  = 'supabase-n8n'
+const SOURCE        = 'sdr-n8n'
+const MAX_LEADS     = 1000
+const UUID_RE       = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const E164_RE       = /^\+[1-9]\d{6,14}$/
+const POSICIONAL_RE = /\{\{\s*\d+\s*\}\}/
 
 interface LeadRow {
   id:             string
@@ -47,9 +54,20 @@ function toE164(phone: string | null, phoneAdjusted: string | null): string | nu
   return E164_RE.test(e164) ? e164 : null
 }
 
-// Render template body replacing all {{variable}} placeholders with firstName.
-function renderMessage(templateBody: string, firstName: string): string {
-  return String(templateBody ?? '').replace(/\{\{\s*[\w.]+\s*\}\}/g, firstName)
+// Render template body substituting POSITIONAL placeholders: {{1}} takes the first
+// variable, {{2}} the second — a WhatsApp template has no named variables. Anything the
+// list does not cover ({{nome}}, or {{2}} when only one variable was given) is left
+// untouched on purpose, so the guard below catches it before the message goes out.
+function renderMessage(templateBody: string, vars: string[]): string {
+  return String(templateBody ?? '').replace(/\{\{\s*(\d+)\s*\}\}/g, (raw, pos: string) => {
+    const value = vars[Number(pos) - 1]
+    return value === undefined ? raw : value
+  })
+}
+
+// Placeholders still standing after the render — the lead would receive literal {{...}}.
+function unresolvedPlaceholders(message: string): string[] {
+  return message.match(/\{\{\s*[\w.]+\s*\}\}/g) ?? []
 }
 
 // Ensure BR mobile numbers have the 9th digit (DDD(2) + 9 + 8 digits = 11 national digits).
@@ -152,8 +170,14 @@ export async function POST(request: Request) {
   }
 
   // ── Resolve remetente + recipients (SOMENTE SELECT — nunca escreve) ───────────
+  // O template usa o nome do lead? Então lead sem nome fica de fora — a mensagem
+  // não tem como falar com ele sem inventar um nome.
+  const templateUsaNome = POSICIONAL_RE.test(templateBody)
+
   const client = new Client({ connectionString })
   let recipients: { leadId: string; phone: string; first_name: string; message: string; session_id: string }[]
+  let encontrados = 0
+  let semNome = 0
   let remetente: string
 
   try {
@@ -173,13 +197,16 @@ export async function POST(request: Request) {
       [leadIds],
     )
 
+    encontrados = leadsRes.rows.length
     recipients = []
     for (const r of leadsRes.rows) {
       const phone = ensureBr9(toE164(r.phone, r.phone_adjusted) ?? '')
       if (!phone) continue  // sem telefone válido → skip
       const dbFirst    = String(r.name ?? '').trim().split(/\s+/)[0] ?? ''
-      const first_name = dbFirst || names[r.id] || DEFAULT_FIRST_NAME
-      const message    = renderMessage(templateBody, first_name)
+      const doPedido   = String(names[r.id] ?? '').trim().split(/\s+/)[0] ?? ''
+      const first_name = dbFirst || doPedido
+      if (!first_name && templateUsaNome) { semNome++; continue }  // sem nome → skip
+      const message    = renderMessage(templateBody, [first_name])
       const rawSession = (r.phone_adjusted ?? r.phone ?? '').replace(/\D/g, '')
       const session_id = rawSession || phone.replace(/\D/g, '')
       recipients.push({ leadId: r.id, phone, first_name, message, session_id })
@@ -196,8 +223,40 @@ export async function POST(request: Request) {
 
   const skipped = leadIds.length - recipients.length
   if (recipients.length === 0) {
+    const naoEncontrados = leadIds.length - encontrados
+    const semTelefone    = encontrados - semNome - recipients.length
+    const motivos = [
+      semTelefone > 0    ? `${semTelefone} sem telefone válido`   : null,
+      semNome > 0        ? `${semNome} sem nome cadastrado`       : null,
+      naoEncontrados > 0 ? `${naoEncontrados} fora da base`       : null,
+    ].filter(Boolean)
     return NextResponse.json(
-      { ok: false, error: 'nenhum destinatário com telefone válido', totalSolicitado: leadIds.length, skipped },
+      {
+        ok: false,
+        error: `nenhum destinatário elegível: ${motivos.join(' · ')}`,
+        totalSolicitado: leadIds.length,
+        skipped,
+        semNome,
+      },
+      { status: 400 },
+    )
+  }
+
+  // ── Guard: nenhuma mensagem sai com variável por preencher ───────────────────
+  // A substituição é posicional; o que o template pedir além disso ({{2}} sem segunda
+  // variável, {{nome}}) sobrevive ao render e chegaria literal ao lead. Um disparo
+  // não tem volta, então falha aqui — antes de gravar a campanha e chamar o n8n.
+  const pendentes = Array.from(new Set(recipients.flatMap(r => unresolvedPlaceholders(r.message))))
+  if (pendentes.length > 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `template ${template} tem variável sem valor: ${pendentes.join(' ')} — nada foi enviado`,
+        placeholders: pendentes,
+        totalSolicitado: leadIds.length,
+        skipped,
+        semNome,
+      },
       { status: 400 },
     )
   }
@@ -231,7 +290,7 @@ export async function POST(request: Request) {
   }))
   await db.insert(blastRecipients).values(recipientRows)
 
-  await logAudit({ req: request, session, action: 'disparo.manual', entityType: 'campaign', entityId: campaignId, metadata: { template, totalSolicitado: leadIds.length, skipped } })
+  await logAudit({ req: request, session, action: 'disparo.manual', entityType: 'campaign', entityId: campaignId, metadata: { template, totalSolicitado: leadIds.length, skipped, semNome } })
 
   // Build enriched payload for n8n (add campaignId + recipientId per item)
   const enrichedRecipients = recipientRows.map((row, i) => ({
@@ -266,10 +325,11 @@ export async function POST(request: Request) {
       started:         started ?? recipients.length,
       totalSolicitado: leadIds.length,
       skipped,
+      semNome,
     })
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     console.error('[sdr blast → n8n]', error)
-    return NextResponse.json({ ok: false, campaignId, error, totalSolicitado: leadIds.length, skipped }, { status: 502 })
+    return NextResponse.json({ ok: false, campaignId, error, totalSolicitado: leadIds.length, skipped, semNome }, { status: 502 })
   }
 }

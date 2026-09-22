@@ -46,6 +46,7 @@ interface BlastResult {
   started?:         number
   totalSolicitado?: number
   skipped?:         number
+  semNome?:         number
   error?:           string
 }
 
@@ -75,6 +76,11 @@ function friendlyImportError(code: string): string {
   return code
 }
 
+// Mesmo recorte que a API do disparo faz no nome do lead: só a primeira palavra.
+function primeiroNome(nome: string | null): string {
+  return String(nome ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
 function friendlyBlastError(code: string): string {
   if (code === 'blast_url_nao_configurada')
     return 'URL de disparo de lista não configurada — acesse Configurações > Credenciais.'
@@ -90,36 +96,54 @@ function friendlyBlastError(code: string): string {
 function StatusBadge({ value }: { value: string | null }) {
   if (!value) return <span style={{ color: 'var(--gray3)', fontSize: 11 }}>—</span>
   const colors: Record<string, { bg: string; color: string }> = {
-    ativo:       { bg: 'rgba(34,197,94,0.10)',  color: '#15803d' },
+    ativo:       { bg: 'rgba(34,197,94,0.10)',  color: 'var(--success-text)' },
     inativo:     { bg: 'rgba(239,68,68,0.08)',  color: 'var(--red)' },
-    qualificado: { bg: 'rgba(37,99,235,0.10)',  color: '#1d4ed8' },
+    qualificado: { bg: 'rgba(37,99,235,0.10)',  color: 'var(--info-text)' },
   }
   const s = colors[value.toLowerCase()] ?? { bg: 'rgba(0,0,0,0.05)', color: 'var(--gray)' }
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-      background: s.bg, color: s.color, border: `1px solid ${s.color}30`,
+      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-pill)',
+      background: s.bg, color: s.color, border: `1px solid color-mix(in srgb, ${s.color} 19%, transparent)`,
     }}>
       {value}
     </span>
   )
 }
 
-function ProportionBar({ started, total, skipped }: { started: number; total: number; skipped: number }) {
+// Marca o template que não tem variável de nome — o único que alcança lead sem nome.
+function SemNomeTag() {
+  return (
+    <span style={{
+      marginLeft: 7, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+      background: 'rgba(0,0,0,0.06)', color: 'var(--gray)', verticalAlign: 'middle',
+      whiteSpace: 'nowrap',
+    }}>
+      sem nome
+    </span>
+  )
+}
+
+function ProportionBar({ started, total, skipped, semNome }: { started: number; total: number; skipped: number; semNome: number }) {
   const [pct, setPct] = useState(0)
   useEffect(() => {
     const target = total > 0 ? Math.min(100, Math.round((started / total) * 100)) : 0
     const raf = requestAnimationFrame(() => setPct(target))
     return () => cancelAnimationFrame(raf)
   }, [started, total])
+  const semTelefone = Math.max(0, skipped - semNome)
+  const motivos = [
+    semTelefone > 0 ? `${semTelefone} sem telefone válido` : null,
+    semNome > 0     ? `${semNome} sem nome`                : null,
+  ].filter(Boolean)
   return (
     <div>
-      <div style={{ height: 6, borderRadius: 3, background: 'var(--primary-dim)', overflow: 'hidden', marginBottom: 6 }}>
-        <div style={{ height: '100%', borderRadius: 3, background: 'var(--primary)', width: `${pct}%`, transition: 'width .5s ease-out' }} />
+      <div style={{ height: 6, borderRadius: 'var(--radius-xs)', background: 'var(--primary-dim)', overflow: 'hidden', marginBottom: 6 }}>
+        <div style={{ height: '100%', borderRadius: 'var(--radius-xs)', background: 'var(--primary)', width: `${pct}%`, transition: 'width .5s ease-out' }} />
       </div>
       <div style={{ fontSize: 11, color: 'var(--gray)', fontWeight: 500 }}>
         {started} enviado{started !== 1 ? 's' : ''}
-        {skipped > 0 && <> · {skipped} ignorado{skipped !== 1 ? 's' : ''} (telefone inválido)</>}
+        {skipped > 0 && <> · {skipped} ignorado{skipped !== 1 ? 's' : ''}{motivos.length > 0 ? ` (${motivos.join(' · ')})` : ''}</>}
       </div>
     </div>
   )
@@ -141,7 +165,7 @@ function Stepper({ step }: { step: Step }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 800,
                 background: done || active ? 'var(--primary)' : 'var(--gray3)',
-                color: done || active ? '#fff' : 'var(--gray2)',
+                color: done || active ? 'var(--primary-contrast)' : 'var(--gray2)',
                 marginBottom: 5, flexShrink: 0,
               }}>
                 {done ? <Check size={13} /> : num}
@@ -182,10 +206,10 @@ function ImportFeedback({
   if (!result.ok) {
     return (
       <div style={{
-        marginTop: 12, padding: '12px 16px', borderRadius: 12,
+        marginTop: 12, padding: '12px 16px', borderRadius: 'var(--radius-md)',
         background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.25)',
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
+        <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
           ✗ {friendlyImportError(result.error ?? 'Erro desconhecido')}
         </div>
       </div>
@@ -193,11 +217,11 @@ function ImportFeedback({
   }
   return (
     <div style={{
-      marginTop: 12, padding: '14px 18px', borderRadius: 12,
-      background: n8nFalhou ? 'rgba(245,158,11,0.08)' : 'rgba(34,197,94,0.06)',
+      marginTop: 12, padding: '14px 18px', borderRadius: 'var(--radius-md)',
+      background: n8nFalhou ? 'var(--warn-dim)' : 'rgba(34,197,94,0.06)',
       border: `1px solid ${n8nFalhou ? 'rgba(245,158,11,0.35)' : 'rgba(34,197,94,0.25)'}`,
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8, color: n8nFalhou ? '#b45309' : 'var(--green)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8, color: n8nFalhou ? 'var(--warn-text)' : 'var(--green)' }}>
         {n8nFalhou
           ? <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
           : <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />}
@@ -217,7 +241,7 @@ function ImportFeedback({
 
       {(result.ignorados?.total ?? 0) > 0 && (
         <details style={{ marginTop: 8 }}>
-          <summary style={{ fontSize: 12, color: 'var(--gray2)', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
+          <summary className="max-md:py-[11px]" style={{ fontSize: 12, color: 'var(--gray2)', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
             Ignorados ({result.ignorados!.total})
           </summary>
           <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -237,7 +261,7 @@ function ImportFeedback({
 
       {(result.duplicados?.total ?? 0) > 0 && (
         <details style={{ marginTop: 6 }}>
-          <summary style={{ fontSize: 12, color: 'var(--gray2)', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
+          <summary className="max-md:py-[11px]" style={{ fontSize: 12, color: 'var(--gray2)', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
             Duplicados ({result.duplicados!.total})
           </summary>
           <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -257,25 +281,25 @@ function ImportFeedback({
 
       {(result.suspeitos?.total ?? 0) > 0 && (
         <div style={{
-          marginTop: 10, padding: '10px 14px', borderRadius: 10,
-          background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)',
+          marginTop: 10, padding: '10px 14px', borderRadius: 'var(--radius-md)',
+          background: 'var(--warn-dim)', border: '1px solid rgba(245,158,11,0.35)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--warn-text)', marginBottom: 4 }}>
             <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{result.suspeitos!.total} número{result.suspeitos!.total !== 1 ? 's' : ''} podem estar sem o 9 — confira na planilha.</span>
           </div>
           <details>
-            <summary style={{ fontSize: 12, color: '#92400e', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
+            <summary className="max-md:py-[11px]" style={{ fontSize: 12, color: 'var(--warn-text)', cursor: 'pointer', fontWeight: 600, userSelect: 'none' as const }}>
               Suspeitos ({result.suspeitos!.total})
             </summary>
             <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
               {result.suspeitos!.amostra.map((it, i) => (
-                <div key={i} style={{ fontSize: 11, color: '#78350f', fontFamily: 'monospace' }}>
+                <div key={i} style={{ fontSize: 11, color: 'var(--warn-text)', fontFamily: 'monospace' }}>
                   Linha {it.linha}: {it.telefone}
                 </div>
               ))}
               {result.suspeitos!.total > result.suspeitos!.amostra.length && (
-                <div style={{ fontSize: 11, color: '#92400e', fontStyle: 'italic' }}>
+                <div style={{ fontSize: 11, color: 'var(--warn-text)', fontStyle: 'italic' }}>
                   … e mais {result.suspeitos!.total - result.suspeitos!.amostra.length}
                 </div>
               )}
@@ -286,8 +310,11 @@ function ImportFeedback({
 
       <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 10, lineHeight: 1.5 }}>
         Processado de forma assíncrona — os leads podem levar alguns instantes para aparecer.{' '}
+        {/* An inline link in 11px text: on phones a 40px-tall invisible band
+            (::before) makes it tappable without spreading the lines apart */}
         <button
           onClick={onRefresh}
+          className="max-md:relative max-md:before:absolute max-md:before:inset-x-0 max-md:before:top-1/2 max-md:before:h-10 max-md:before:-translate-y-1/2"
           style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: 'var(--primary-text)', cursor: 'pointer', textDecoration: 'underline' }}
         >
           Atualizar lista
@@ -315,10 +342,14 @@ export default function NovDisparoPage() {
   const [debQ,         setDebQ]         = useState('')
   const [fetchSeq,     setFetchSeq]     = useState(0)
   const [selected,     setSelected]     = useState<Set<string>>(new Set())
+  // Primeiro nome de cada lead selecionado, guardado na hora da escolha: a seleção
+  // atravessa páginas, e sem isso o contador de "sem nome" só enxergaria a página atual.
+  const [selectedNames, setSelectedNames] = useState<Record<string, string>>({})
   const masterRef = useRef<HTMLInputElement>(null)
 
   // ── Step 1: manual ───────────────────────────────────────────────────────────
   const [manualIds, setManualIds] = useState<Set<string>>(new Set())
+  const [manualNames, setManualNames] = useState<Record<string, string>>({})
 
   // ── Step 1: import ────────────────────────────────────────────────────────────
   const [importing,    setImporting]    = useState(false)
@@ -327,7 +358,7 @@ export default function NovDisparoPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Step 2: template ──────────────────────────────────────────────────────────
-  const [blastTemplates,  setBlastTemplates]  = useState<{ nome_template: string; preview: string; fase_envio: string | null }[] | null>(null)
+  const [blastTemplates,  setBlastTemplates]  = useState<{ nome_template: string; preview: string; fase_envio: string | null; usaNome: boolean }[] | null>(null)
   const [blastTplLoading, setBlastTplLoading] = useState(false)
   const [blastTplError,   setBlastTplError]   = useState<string | null>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('')
@@ -349,8 +380,18 @@ export default function NovDisparoPage() {
   ])
   const recipientIds    = source === 'base' ? selected : source === 'import' ? importedIds : manualIds
   const recipientCount  = recipientIds.size
-  const names           = source === 'import' ? (importResult?.names ?? {}) : {}
-  const semNome         = source === 'import' ? (importResult?.semNome ?? 0) : 0
+  const names           = source === 'import' ? (importResult?.names ?? {})
+                        : source === 'manual' ? manualNames
+                        : {}
+
+  // Quantos destinatários chegariam ao disparo sem nome nenhum — na base, na planilha
+  // ou no cadastro manual. Template que usa o nome deixa esses de fora, e o operador
+  // precisa saber disso antes de confirmar, não no relatório depois.
+  const semNome = source === 'import'
+    ? (importResult?.semNome ?? 0)
+    : Array.from(recipientIds).filter(id =>
+        !((source === 'base' ? selectedNames[id] : manualNames[id]) ?? '').trim(),
+      ).length
 
   const n8nFalhou = (importResult?.importados ?? 0) > 0
     && typeof importResult?.n8nStatus === 'number'
@@ -365,13 +406,20 @@ export default function NovDisparoPage() {
   const hasPrev    = page > 1
   const hasNext    = page < totalPages
 
-  const pageIds    = leadsData?.items.map(i => i.id) ?? []
+  const pageItems  = leadsData?.items ?? []
+  const pageIds    = pageItems.map(i => i.id)
   const selCount   = pageIds.filter(id => selected.has(id)).length
   const allOnPage  = pageIds.length > 0 && selCount === pageIds.length
   const someOnPage = selCount > 0 && selCount < pageIds.length
 
   // step 2 can proceed when action chosen + template chosen (if blast)
   const step2CanContinue = action !== null && (action !== 'blast' || !!selectedTemplate)
+
+  // Template que usa o nome fala com o lead pelo nome — quem não tem nome fica de fora
+  // do disparo, e não recebe saudação inventada no lugar. Os sem nome são a alternativa.
+  const templateEscolhido = blastTemplates?.find(t => t.nome_template === selectedTemplate) ?? null
+  const templateUsaNome   = templateEscolhido?.usaNome ?? false
+  const templatesSemNome  = (blastTemplates ?? []).filter(t => !t.usaNome)
 
   // ── Effects ───────────────────────────────────────────────────────────────────
 
@@ -430,18 +478,33 @@ export default function NovDisparoPage() {
   // ── Event handlers ────────────────────────────────────────────────────────────
 
   function toggleAll() {
+    const marcar = !allOnPage
     setSelected(prev => {
       const next = new Set(prev)
-      if (allOnPage) { pageIds.forEach(id => next.delete(id)) }
-      else            { pageIds.forEach(id => next.add(id)) }
+      pageIds.forEach(id => { if (marcar) next.add(id); else next.delete(id) })
+      return next
+    })
+    setSelectedNames(prev => {
+      const next = { ...prev }
+      for (const lead of pageItems) {
+        if (marcar) next[lead.id] = primeiroNome(lead.name)
+        else delete next[lead.id]
+      }
       return next
     })
   }
 
-  function toggleOne(id: string) {
+  function toggleOne(lead: LeadItem) {
+    const marcar = !selected.has(lead.id)
     setSelected(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      if (marcar) next.add(lead.id); else next.delete(lead.id)
+      return next
+    })
+    setSelectedNames(prev => {
+      const next = { ...prev }
+      if (marcar) next[lead.id] = primeiroNome(lead.name)
+      else delete next[lead.id]
       return next
     })
   }
@@ -476,7 +539,7 @@ export default function NovDisparoPage() {
     setBlastTplError(null)
     try {
       const res = await fetch('/api/sdr/templates')
-      const data = await res.json() as { items?: { nome_template: string; preview: string; fase_envio: string | null }[]; error?: string }
+      const data = await res.json() as { items?: { nome_template: string; preview: string; fase_envio: string | null; usaNome: boolean }[]; error?: string }
       if (!res.ok) { setBlastTplError(data.error ?? `HTTP ${res.status}`); return }
       setBlastTemplates(data.items ?? [])
     } catch (e) {
@@ -510,7 +573,7 @@ export default function NovDisparoPage() {
         })
         const data = await res.json() as BlastResult
         if (res.ok && data.ok) {
-          setBlastResult({ ok: true, started: data.started, totalSolicitado: data.totalSolicitado, skipped: data.skipped })
+          setBlastResult({ ok: true, started: data.started, totalSolicitado: data.totalSolicitado, skipped: data.skipped, semNome: data.semNome })
         } else {
           setBlastResult({ ok: false, error: data.error ?? `HTTP ${res.status}` })
         }
@@ -557,7 +620,9 @@ export default function NovDisparoPage() {
     setSource('base')
     setAction(null)
     setSelected(new Set())
+    setSelectedNames({})
     setManualIds(new Set())
+    setManualNames({})
     setImportResult(null)
     setSelectedTemplate('')
     setBlastTemplates(null)
@@ -581,8 +646,9 @@ export default function NovDisparoPage() {
       {step === 1 && (
         <div className="animate-slide-up delay-1">
 
-          {/* Source toggle */}
-          <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, borderRadius: 12, border: '1px solid var(--gray3)', padding: 4, marginBottom: 20, background: 'var(--bg)' }}>
+          {/* Source toggle — on phones the three options stack at full width,
+              each a 44px row, instead of wrapping into rows of uneven widths */}
+          <div className="inline-flex max-md:flex max-md:flex-col" style={{ flexWrap: 'wrap', gap: 4, borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)', padding: 4, marginBottom: 20, background: 'var(--bg)' }}>
             {([
               { id: 'base'   as const, label: 'Selecionar da base',    icon: <Database size={14} style={{ flexShrink: 0 }} /> },
               { id: 'import' as const, label: 'Importar planilha',      icon: <FileSpreadsheet size={14} style={{ flexShrink: 0 }} /> },
@@ -593,9 +659,10 @@ export default function NovDisparoPage() {
                 <button
                   key={s.id}
                   onClick={() => setSource(s.id)}
+                  className="max-md:min-h-11"
                   style={{
-                    padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
-                    border: 'none', borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit',
+                    padding: '8px 16px', fontSize: 'var(--text-md)', fontWeight: 700,
+                    border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit',
                     display: 'flex', alignItems: 'center', gap: 7,
                     background: active ? 'var(--white)' : 'transparent',
                     color: active ? 'var(--black)' : 'var(--gray2)',
@@ -625,7 +692,7 @@ export default function NovDisparoPage() {
                     width: '100%', boxSizing: 'border-box',
                     paddingLeft: 34, paddingRight: 14, paddingTop: 9, paddingBottom: 9,
                     fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
-                    border: '1px solid var(--gray3)', borderRadius: 99,
+                    border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)',
                     background: 'var(--white)', color: 'var(--black)',
                     outline: 'none', transition: 'border-color .15s',
                   }}
@@ -634,9 +701,9 @@ export default function NovDisparoPage() {
                 />
               </div>
 
-              {/* Status line */}
+              {/* Status line — echoes the search, which may be one unbroken word */}
               {!leadsLoading && !leadsError && leadsData && (
-                <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 12 }}>
+                <div className="max-lg:wrap-anywhere" style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 12 }}>
                   {total.toLocaleString('pt-BR')} lead{total !== 1 ? 's' : ''}
                   {debQ && ` para "${debQ}"`}
                   {totalPages > 1 && ` — página ${page} de ${totalPages}`}
@@ -648,7 +715,7 @@ export default function NovDisparoPage() {
               {!leadsLoading && leadsError && (
                 <div style={{ padding: '48px 0', textAlign: 'center' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--red)', marginBottom: 8 }}>Falha ao carregar leads</div>
-                  <div style={{ fontSize: 13, color: 'var(--gray2)' }}>
+                  <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, color: 'var(--gray2)' }}>
                     {leadsError === 'fonte_sdr_nao_configurada'
                       ? 'Configure a fonte de dados do SDR primeiro.'
                       : leadsError}
@@ -656,12 +723,23 @@ export default function NovDisparoPage() {
                 </div>
               )}
 
+              {/* Below lg the five columns don't fit beside the sidebar (or on a
+                  phone): the table scrolls sideways inside its own frame, the
+                  checkbox and the name first. From lg the frame clips, as before.
+                  The frame is also a size container below lg (@container), so the
+                  empty-state message can take exactly its visible width. */}
               {!leadsLoading && !leadsError && (
-                <div style={{ background: 'var(--white)', borderRadius: 16, border: '1px solid var(--gray3)', overflow: 'hidden', marginBottom: 16 }}>
+                <div className="overflow-hidden max-lg:overflow-x-auto max-lg:@container" style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', marginBottom: 16 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg)' }}>
-                        <th style={{ padding: '9px 16px', borderBottom: '1px solid var(--gray3)', width: 40 }}>
+                        {/* The whole cell answers for the 13px checkbox (44px tall on
+                            phones): a tap beside the box still selects the page */}
+                        <th
+                          className="max-md:h-11"
+                          onClick={e => { if (e.target === e.currentTarget && pageIds.length > 0) toggleAll() }}
+                          style={{ padding: '9px 16px', borderBottom: '1px solid var(--gray3)', width: 40 }}
+                        >
                           <input
                             ref={masterRef}
                             type="checkbox"
@@ -672,8 +750,10 @@ export default function NovDisparoPage() {
                             style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                           />
                         </th>
+                        {/* In the sideways-scrolling frame the name keeps a readable
+                            width instead of folding into a word per line */}
                         {(['Nome', 'Telefone', 'Empresa', 'Origem', 'Status'] as const).map(col => (
-                          <th key={col} style={{
+                          <th key={col} className={col === 'Nome' ? 'max-lg:min-w-[180px]' : undefined} style={{
                             padding: '9px 16px', textAlign: 'left',
                             fontSize: 10, fontWeight: 800, color: 'var(--gray2)',
                             textTransform: 'uppercase', letterSpacing: '0.07em',
@@ -687,8 +767,12 @@ export default function NovDisparoPage() {
                     <tbody>
                       {(leadsData?.items ?? []).length === 0 ? (
                         <tr>
-                          <td colSpan={6} style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-                            {debQ ? `Nenhum lead encontrado para "${debQ}"` : 'Nenhum lead encontrado'}
+                          <td colSpan={6} className="max-lg:wrap-anywhere" style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
+                            {/* Below lg the row spans the whole scrolled width of the
+                                table: the message keeps to the visible frame instead —
+                                pinned to its left edge (sticky), as wide as it (100cqw),
+                                and centred there, so it reads without scrolling sideways */}
+                            <div className="max-lg:sticky max-lg:left-0 max-lg:-mx-5 max-lg:w-[100cqw] max-lg:px-5">{debQ ? `Nenhum lead encontrado para "${debQ}"` : 'Nenhum lead encontrado'}</div>
                           </td>
                         </tr>
                       ) : (leadsData?.items ?? []).map((lead, i) => {
@@ -698,7 +782,7 @@ export default function NovDisparoPage() {
                           <tr
                             key={lead.id}
                             className="row-cascade"
-                            onClick={() => toggleOne(lead.id)}
+                            onClick={() => toggleOne(lead)}
                             aria-selected={checked}
                             style={{
                               '--row-delay': `${Math.min(i, 9) * 40}ms`,
@@ -708,11 +792,15 @@ export default function NovDisparoPage() {
                               cursor: 'pointer', transition: 'background .12s, border-color .12s',
                             } as React.CSSProperties}
                           >
-                            <td style={{ padding: '11px 16px' }} onClick={e => e.stopPropagation()}>
+                            {/* A tap on the cell around the 13px checkbox falls through
+                                to the row and toggles it too; only the box itself stops
+                                there, so it doesn't toggle twice */}
+                            <td style={{ padding: '11px 16px' }}>
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={() => toggleOne(lead.id)}
+                                onClick={e => e.stopPropagation()}
+                                onChange={() => toggleOne(lead)}
                                 aria-label={`Selecionar ${lead.name || lead.phone}`}
                                 style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
                               />
@@ -723,7 +811,7 @@ export default function NovDisparoPage() {
                             </td>
                             <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--gray)', fontWeight: 500 }}>{lead.company || '—'}</td>
                             <td style={{ padding: '11px 16px', fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>{lead.source || '—'}</td>
-                            <td style={{ padding: '11px 16px' }}><StatusBadge value={lead.status} /></td>
+                            <td className="max-lg:whitespace-nowrap" style={{ padding: '11px 16px' }}><StatusBadge value={lead.status} /></td>
                           </tr>
                         )
                       })}
@@ -738,13 +826,15 @@ export default function NovDisparoPage() {
                   <button
                     onClick={() => setPage(p => p - 1)}
                     disabled={!hasPrev}
-                    style={{ padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasPrev ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasPrev ? 'var(--black)' : 'var(--gray3)' }}
+                    className="max-md:min-h-10"
+                    style={{ padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasPrev ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasPrev ? 'var(--black)' : 'var(--gray3)' }}
                   >← Anterior</button>
                   <span style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>{page} / {totalPages}</span>
                   <button
                     onClick={() => setPage(p => p + 1)}
                     disabled={!hasNext}
-                    style={{ padding: '8px 18px', borderRadius: 99, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasNext ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasNext ? 'var(--black)' : 'var(--gray3)' }}
+                    className="max-md:min-h-10"
+                    style={{ padding: '8px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: hasNext ? 'pointer' : 'not-allowed', border: '1px solid var(--gray3)', background: 'var(--white)', color: hasNext ? 'var(--black)' : 'var(--gray3)' }}
                   >Próxima →</button>
                 </div>
               )}
@@ -783,7 +873,7 @@ export default function NovDisparoPage() {
               {showBar && (
                 <div
                   className="shimmer-bar"
-                  style={{ height: 3, borderRadius: 2, background: 'var(--primary)', marginBottom: 12, opacity: importing ? 1 : 0, transition: 'opacity 0.4s ease' }}
+                  style={{ height: 3, borderRadius: 'var(--radius-xs)', background: 'var(--primary)', marginBottom: 12, opacity: importing ? 1 : 0, transition: 'opacity 0.4s ease' }}
                 />
               )}
 
@@ -816,7 +906,11 @@ export default function NovDisparoPage() {
               <AddLeadForm
                 onAdded={info => {
                   if (info.leadId) {
-                    setManualIds(prev => new Set([...prev, info.leadId!]))
+                    const id = info.leadId
+                    setManualIds(prev => new Set([...prev, id]))
+                    // O nome digitado agora vale como nome do lead no disparo: se o
+                    // cadastro casou com um lead antigo sem nome na base, é o único que existe.
+                    setManualNames(prev => ({ ...prev, [id]: primeiroNome(info.name) }))
                   }
                 }}
               />
@@ -829,7 +923,7 @@ export default function NovDisparoPage() {
           )}
 
           {/* ── Footer ─────────────────────────────────────────────────────── */}
-          <div style={{
+          <div className="max-md:gap-3" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--gray3)',
           }}>
@@ -859,7 +953,7 @@ export default function NovDisparoPage() {
 
           {!canDispatch && (
             <div style={{
-              marginBottom: 16, padding: '12px 16px', borderRadius: 12,
+              marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius-md)',
               background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.20)',
               fontSize: 13, color: 'var(--red)', fontWeight: 600,
             }}>
@@ -875,7 +969,7 @@ export default function NovDisparoPage() {
               onClick={() => canDispatch && selectAction('blast')}
               disabled={!canDispatch}
               style={{
-                textAlign: 'left', padding: '18px 20px', borderRadius: 14,
+                textAlign: 'left', padding: '18px 20px', borderRadius: 'var(--radius-lg)',
                 border: `2px solid ${action === 'blast' ? 'var(--primary)' : 'var(--gray3)'}`,
                 background: action === 'blast' ? 'var(--primary-dim)' : 'var(--white)',
                 cursor: canDispatch ? 'pointer' : 'not-allowed',
@@ -898,7 +992,7 @@ export default function NovDisparoPage() {
               onClick={() => canDispatch && selectAction('enroll')}
               disabled={!canDispatch}
               style={{
-                textAlign: 'left', padding: '18px 20px', borderRadius: 14,
+                textAlign: 'left', padding: '18px 20px', borderRadius: 'var(--radius-lg)',
                 border: `2px solid ${action === 'enroll' ? 'var(--primary)' : 'var(--gray3)'}`,
                 background: action === 'enroll' ? 'var(--primary-dim)' : 'var(--white)',
                 cursor: canDispatch ? 'pointer' : 'not-allowed',
@@ -928,7 +1022,7 @@ export default function NovDisparoPage() {
                 <div style={{ fontSize: 13, color: 'var(--gray2)', padding: '10px 0' }}>Carregando templates...</div>
               )}
               {blastTplError && (
-                <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+                <div className="max-lg:wrap-anywhere" style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
                   {friendlyBlastError(blastTplError)}
                 </div>
               )}
@@ -937,24 +1031,29 @@ export default function NovDisparoPage() {
                 <div ref={templateDropdownRef} style={{ position: 'relative', maxWidth: 420 }}>
                   <button
                     onClick={() => setTemplateOpen(o => !o)}
+                    className="max-md:min-h-11"
                     style={{
-                      width: '100%', padding: '10px 12px', borderRadius: 10, fontFamily: 'inherit',
+                      width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', fontFamily: 'inherit',
                       fontSize: 13, border: '1px solid var(--gray3)', background: 'var(--white)',
                       color: selectedTemplate ? 'var(--black)' : 'var(--gray2)',
                       cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
                     }}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span title={selectedTemplate || undefined} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {selectedTemplate || 'Escolha um template…'}
+                      {templateEscolhido && !templateEscolhido.usaNome && <SemNomeTag />}
                     </span>
                     <span style={{ flexShrink: 0, marginLeft: 8, fontSize: 11, opacity: 0.6 }}>▾</span>
                   </button>
 
+                  {/* While the panel is open the floating AI button steps aside below
+                      lg (data-hides-ai-launcher, globals.css): at the bottom of a phone
+                      screen it sat on the panel's lower-right corner */}
                   {templateOpen && (
-                    <div style={{
+                    <div data-hides-ai-launcher="" style={{
                       position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 2000,
                       background: 'var(--white)', border: '1px solid var(--gray3)',
-                      borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+                      borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-menu)',
                       maxHeight: 260, overflowY: 'auto',
                     }}>
                       <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--gray3)', position: 'sticky', top: 0, background: 'var(--white)' }}>
@@ -966,7 +1065,7 @@ export default function NovDisparoPage() {
                           style={{
                             width: '100%', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 12,
                             padding: '6px 10px', border: '1px solid var(--gray3)',
-                            borderRadius: 8, background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                            borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--black)',
                           }}
                         />
                       </div>
@@ -981,14 +1080,16 @@ export default function NovDisparoPage() {
                           <button
                             key={t.nome_template}
                             onClick={() => { setSelectedTemplate(t.nome_template); setTemplateOpen(false); setTemplateSearch('') }}
+                            className="max-md:min-h-11"
                             style={{
                               width: '100%', textAlign: 'left', padding: '10px 14px',
                               background: t.nome_template === selectedTemplate ? 'rgba(0,0,0,0.04)' : 'transparent',
                               border: 'none', borderBottom: '1px solid var(--gray3)', cursor: 'pointer', fontFamily: 'inherit',
                             }}
                           >
-                            <div style={{ fontSize: 13, color: 'var(--black)', fontWeight: t.nome_template === selectedTemplate ? 700 : 400 }}>
+                            <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, color: 'var(--black)', fontWeight: t.nome_template === selectedTemplate ? 700 : 400 }}>
                               {t.nome_template}
+                              {!t.usaNome && <SemNomeTag />}
                             </div>
                             {t.preview && (
                               <div style={{ fontSize: 11, color: 'var(--gray2)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1005,11 +1106,43 @@ export default function NovDisparoPage() {
                   {(() => {
                     const tpl = blastTemplates.find(t => t.nome_template === selectedTemplate)
                     return tpl?.preview ? (
-                      <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, fontSize: 12.5, color: 'var(--gray)', background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)', lineHeight: 1.55 }}>
+                      <div className="max-lg:wrap-anywhere" style={{ marginTop: 10, padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-md)', color: 'var(--gray)', background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.08)', lineHeight: 1.55 }}>
                         {tpl.preview}
                       </div>
                     ) : null
                   })()}
+
+                  {/* Alternativa para quem está sem nome */}
+                  {semNome > 0 && templatesSemNome.length > 0 && (!templateEscolhido || templateUsaNome) && (
+                    <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12.5, fontWeight: 600, color: '#92400e', lineHeight: 1.5 }}>
+                        <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span>
+                          {semNome} contato{semNome !== 1 ? 's' : ''} sem nome {semNome !== 1 ? 'ficariam' : 'ficaria'} de fora
+                          {templateEscolhido ? ' deste template' : ' dos templates que usam o nome'}.
+                          {' '}Estes alcançam todo mundo:
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                        {templatesSemNome.map(t => (
+                          <button
+                            key={t.nome_template}
+                            onClick={() => setSelectedTemplate(t.nome_template)}
+                            className="max-lg:wrap-anywhere max-md:min-h-10"
+                            style={{
+                              padding: '5px 10px', borderRadius: 8, fontFamily: 'inherit', fontSize: 12,
+                              fontWeight: 600, cursor: 'pointer', border: '1px solid var(--gray3)',
+                              background: 'var(--white)', color: 'var(--black)', transition: 'border-color .15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
+                            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--gray3)')}
+                          >
+                            {t.nome_template}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1030,7 +1163,7 @@ export default function NovDisparoPage() {
           {!hasSentResult ? (
             <>
               {/* Summary card */}
-              <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 16, padding: '20px 24px', marginBottom: 16 }}>
+              <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--gray2)', marginBottom: 12 }}>
                   Resumo
                 </div>
@@ -1054,26 +1187,32 @@ export default function NovDisparoPage() {
                   {action === 'blast' && selectedTemplate && (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span style={{ fontSize: 13, color: 'var(--gray)', fontWeight: 600, minWidth: 120 }}>Template</span>
-                      <span style={{ fontSize: 13, color: 'var(--black)', fontWeight: 700 }}>{selectedTemplate}</span>
+                      {/* Template names are often one unbroken word (snake_case) */}
+                      <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, color: 'var(--black)', fontWeight: 700 }}>{selectedTemplate}</span>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* sem-nome warning */}
-              {semNome > 0 && (
-                <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 12, background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.35)' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+              {action === 'blast' && templateUsaNome && semNome > 0 && (
+                <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'var(--warn-dim)', border: '1px solid rgba(245,158,11,0.35)' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--warn-text)' }}>
                     <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>{semNome} contato{semNome !== 1 ? 's' : ''} sem nome — serão enviados com a saudação padrão <strong>&ldquo;tudo bem&rdquo;</strong>.</span>
+                    <span>
+                      {semNome} contato{semNome !== 1 ? 's' : ''} sem nome <strong>não {semNome !== 1 ? 'serão disparados' : 'será disparado'}</strong> — o template usa o nome do lead.
+                      {templatesSemNome.length > 0
+                        ? ' Cadastre o nome desses contatos, ou volte e escolha um template sem nome.'
+                        : ' Cadastre o nome desses contatos para incluí-los.'}
+                    </span>
                   </div>
                 </div>
               )}
 
               {/* Confirm box */}
-              <div style={{ marginBottom: 24, padding: '14px 18px', borderRadius: 12, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.18)' }}>
+              <div style={{ marginBottom: 24, padding: '14px 18px', borderRadius: 'var(--radius-md)', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.18)' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', marginBottom: 4 }}>Envio real via WhatsApp</div>
-                <div style={{ fontSize: 12, color: '#b91c1c', lineHeight: 1.55 }}>
+                <div style={{ fontSize: 12, color: 'var(--danger-text)', lineHeight: 1.55 }}>
                   Esta ação é <strong>irreversível</strong>. As mensagens serão enviadas imediatamente para os {recipientCount} destinatário{recipientCount !== 1 ? 's' : ''}.
                 </div>
               </div>
@@ -1103,14 +1242,14 @@ export default function NovDisparoPage() {
               {/* Blast result */}
               {blastResult && (
                 <div style={{
-                  padding: '20px 24px', borderRadius: 16,
+                  padding: '20px 24px', borderRadius: 'var(--radius-lg)',
                   background: blastResult.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
                   border: `1px solid ${blastResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
                   marginBottom: 20,
                 }}>
                   {blastResult.ok ? (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: '#15803d', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: 'var(--success-text)', marginBottom: 14 }}>
                         <Check size={16} style={{ flexShrink: 0 }} />
                         Disparo iniciado para {blastResult.started} contato{blastResult.started !== 1 ? 's' : ''}
                       </div>
@@ -1118,10 +1257,12 @@ export default function NovDisparoPage() {
                         started={blastResult.started ?? 0}
                         total={blastResult.totalSolicitado ?? blastResult.started ?? 0}
                         skipped={blastResult.skipped ?? 0}
+                        semNome={blastResult.semNome ?? 0}
                       />
                       <div style={{ marginTop: 16 }}>
                         <Link
                           href="/sdr-ia/disparos"
+                          className="max-md:inline-flex max-md:min-h-10 max-md:items-center"
                           style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'underline' }}
                         >
                           Ver no histórico →
@@ -1129,7 +1270,7 @@ export default function NovDisparoPage() {
                       </div>
                     </>
                   ) : (
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+                    <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
                       ✗ {friendlyBlastError(blastResult.error ?? 'Erro desconhecido')}
                     </div>
                   )}
@@ -1139,25 +1280,25 @@ export default function NovDisparoPage() {
               {/* Enroll result */}
               {enrollResult && (
                 <div style={{
-                  padding: '20px 24px', borderRadius: 16,
+                  padding: '20px 24px', borderRadius: 'var(--radius-lg)',
                   background: enrollResult.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
                   border: `1px solid ${enrollResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
                   marginBottom: 20,
                 }}>
                   {enrollResult.ok ? (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: '#15803d' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: 'var(--success-text)' }}>
                         <Check size={16} style={{ flexShrink: 0 }} />
                         {enrollResult.enrolled} lead{enrollResult.enrolled !== 1 ? 's' : ''} adicionado{enrollResult.enrolled !== 1 ? 's' : ''} à campanha
                       </div>
                       {enrollResult.partialError && (
-                        <div style={{ fontSize: 11, color: '#b45309', marginTop: 8, fontWeight: 500 }}>
+                        <div className="max-lg:wrap-anywhere" style={{ fontSize: 11, color: 'var(--warn-text)', marginTop: 8, fontWeight: 500 }}>
                           Alguns lotes falharam: {enrollResult.partialError}
                         </div>
                       )}
                     </>
                   ) : (
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+                    <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
                       ✗ Erro ao adicionar: {enrollResult.error}
                     </div>
                   )}

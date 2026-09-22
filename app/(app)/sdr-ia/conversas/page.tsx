@@ -2,8 +2,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { CSSProperties } from 'react'
-import { X } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import { timeAgo } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { BREAKPOINTS } from '@/lib/hooks/useMediaQuery'
 import { Skeleton, SkeletonSessionList } from '@/components/Skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -57,6 +59,23 @@ function buildComponents(values: string[]): object[] {
   return [{ type: 'body', parameters: values.map(text => ({ type: 'text', text })) }]
 }
 
+// ?session=<id> deep link. supabase-n8n sessionIds arrive as plain digits (no '+') — normalize to E.164.
+function sessionFromParam(raw: string | null): string | null {
+  if (!raw) return null
+  return raw.startsWith('+') ? raw : '+' + raw
+}
+
+// Below lg the list and the thread take turns (master-detail) — the same cut as
+// the max-lg: classes of the layout. Read at the moment of a tap: it decides
+// behavior (history), not layout.
+function listAndThreadTakeTurns(): boolean {
+  return window.matchMedia(`(max-width: ${BREAKPOINTS.tablet - 1}px)`).matches
+}
+
+// History entry pushed when a tap on the list opens a thread (below lg): it
+// names the conversation it shows, so Back/Forward know what to close or reopen.
+interface ConvHistoryState { convSession?: unknown }
+
 const LS_KEY = 'sdr-conversas-lidas'
 
 function readLidas(): Record<string, number> {
@@ -94,7 +113,7 @@ function dayLabel(key: string): string {
 
 function pagerStyle(enabled: boolean): CSSProperties {
   return {
-    fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99,
+    fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 'var(--radius-pill)',
     border: '1px solid var(--gray3)', background: 'transparent',
     cursor: enabled ? 'pointer' : 'not-allowed',
     color: enabled ? 'var(--black)' : 'var(--gray3)',
@@ -109,12 +128,13 @@ function Bubble({ msg }: { msg: Message }) {
   const isN8nBot = !isHuman && msg.origin === 'n8n'
   return (
     <div style={{ display: 'flex', justifyContent: isHuman ? 'flex-start' : 'flex-end' }}>
-      <div style={{
-        maxWidth: '72%', padding: '8px 12px', wordBreak: 'break-word',
-        borderRadius: isHuman ? '4px 12px 12px 12px' : '12px 4px 12px 12px',
+      {/* 72% of the pane; on a phone the pane is narrow, so the bubble may take 85% */}
+      <div className="max-w-[85%] md:max-w-[72%]" style={{
+        padding: '8px 12px', wordBreak: 'break-word',
+        borderRadius: isHuman ? 'var(--radius-xs) var(--radius-md) var(--radius-md) var(--radius-md)' : 'var(--radius-md) var(--radius-xs) var(--radius-md) var(--radius-md)',
         background: isHuman ? 'var(--bg)' : 'var(--primary)',
         border: isHuman ? '1px solid var(--gray3)' : 'none',
-        color: isHuman ? 'var(--black)' : '#fff',
+        color: isHuman ? 'var(--black)' : 'var(--primary-contrast)',
         fontSize: 13, lineHeight: 1.5,
       }}>
         <div style={{ marginBottom: 3 }}>{msg.content}</div>
@@ -125,7 +145,7 @@ function Bubble({ msg }: { msg: Message }) {
         }}>
           {isN8nBot && (
             <span style={{
-              fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 4,
+              fontSize: 'var(--text-2xs)', fontWeight: 800, padding: '1px 5px', borderRadius: 'var(--radius-xs)',
               background: 'rgba(255,255,255,0.22)', letterSpacing: '0.05em',
             }}>IA</span>
           )}
@@ -144,7 +164,7 @@ function DateSeparator({ label }: { label: string }) {
     }}>
       <span style={{
         fontSize: 11, fontWeight: 600, color: 'var(--gray2)',
-        background: 'rgba(0,0,0,0.05)', padding: '3px 12px', borderRadius: 99,
+        background: 'rgba(0,0,0,0.05)', padding: '3px 12px', borderRadius: 'var(--radius-pill)',
         letterSpacing: '0.02em', userSelect: 'none',
       }}>
         {label}
@@ -156,12 +176,12 @@ function DateSeparator({ label }: { label: string }) {
 interface SendBtnProps { label: string; disabled: boolean; loading: boolean; onClick: () => void }
 function SendBtn({ label, disabled, loading, onClick }: SendBtnProps) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      padding: '9px 20px', borderRadius: 12, border: 'none',
+    <button onClick={onClick} disabled={disabled} className="max-md:min-h-10" style={{
+      padding: '9px 20px', borderRadius: 'var(--radius-md)', border: 'none',
       fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
       cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0,
       background: disabled ? 'var(--gray3)' : 'var(--primary)',
-      color: disabled ? 'var(--gray2)' : '#fff',
+      color: disabled ? 'var(--gray2)' : 'var(--primary-contrast)',
       transition: 'background .15s',
     }}>
       {loading ? 'Enviando...' : label}
@@ -187,8 +207,8 @@ function TemplateComposer({
   return (
     <div>
       <div style={{
-        marginBottom: 10, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-        background: 'rgba(217,150,0,0.06)', border: '1px solid rgba(217,150,0,0.25)', color: '#92650a',
+        marginBottom: 10, padding: '8px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600,
+        background: 'rgba(217,150,0,0.06)', border: '1px solid rgba(217,150,0,0.25)', color: 'var(--warn-text)',
       }}>
         {expiredAgo
           ? `Janela de 24h expirada há ${expiredAgo} — envie um template aprovado`
@@ -215,8 +235,8 @@ function TemplateComposer({
               style={{
                 width: '100%', fontFamily: 'inherit', fontSize: 13,
                 padding: '8px 12px', marginBottom: 8,
-                border: '1px solid var(--gray3)', borderRadius: 8,
-                background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)',
+                background: 'var(--bg)', color: 'var(--black)',
               }}
             >
               <option value="">Selecionar template...</option>
@@ -237,8 +257,8 @@ function TemplateComposer({
                     placeholder={`Variável {{${i + 1}}}`}
                     style={{
                       fontFamily: 'inherit', fontSize: 13, padding: '7px 12px',
-                      border: '1px solid var(--gray3)', borderRadius: 8,
-                      background: 'var(--bg)', color: 'var(--black)', outline: 'none',
+                      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg)', color: 'var(--black)',
                     }}
                   />
                 ))}
@@ -267,6 +287,8 @@ function TemplateComposer({
 const SESSION_LIMIT = 20
 
 export default function ConversasPage() {
+  const searchParams = useSearchParams()
+
   // Session list
   const [sessions,    setSessions]    = useState<SessionItem[]>([])
   const [sessTotal,   setSessTotal]   = useState(0)
@@ -274,10 +296,13 @@ export default function ConversasPage() {
   const [sessLoading, setSessLoading] = useState(true)
   const [sessError,   setSessError]   = useState(false)
 
-  // Active thread
-  const [activeId,      setActiveId]      = useState<string | null>(null)
+  // Active thread. A ?session= deep link starts selected (and loading) already in
+  // the server HTML: below lg the list and the thread take turns, and a phone must
+  // not paint the list before the conversation it asked for. The fetch itself
+  // still comes from the deep-link effect below.
+  const [activeId,      setActiveId]      = useState<string | null>(() => sessionFromParam(searchParams.get('session')))
   const [thread,        setThread]        = useState<Thread | null>(null)
-  const [threadLoading, setThreadLoading] = useState(false)
+  const [threadLoading, setThreadLoading] = useState(() => sessionFromParam(searchParams.get('session')) !== null)
 
   // Templates — per-tenant, cached across threads
   const [templates,  setTemplates]  = useState<WaTemplate[] | null>(null)
@@ -316,8 +341,12 @@ export default function ConversasPage() {
   const lidasRef                = useRef<Record<string, number>>({})
   const didMountSyncRef         = useRef(false)
   const didDeepLinkRef          = useRef(false)
-
-  const searchParams = useSearchParams()
+  // Master-detail focus (below lg): a tap on the list sends focus to the back
+  // button of the thread that replaces it; the back button returns it to the row.
+  const backBtnRef       = useRef<HTMLButtonElement>(null)
+  const searchInputRef   = useRef<HTMLInputElement>(null)
+  const focusBackRef     = useRef(false)
+  const returnFocusIdRef = useRef<string | null>(null)
 
   // ── Fetch session list ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -391,15 +420,56 @@ export default function ConversasPage() {
   }, [])
 
   // Deep-link: open ?session=<id> on mount (once, StrictMode-safe via ref guard)
-  // supabase-n8n sessionIds arrive as plain digits (no '+') — normalize to E.164.
   useEffect(() => {
     if (didDeepLinkRef.current) return
-    const raw = searchParams.get('session')
-    if (!raw) return
+    const sessionId = sessionFromParam(searchParams.get('session'))
+    if (!sessionId) return
     didDeepLinkRef.current = true
-    const sessionId = raw.startsWith('+') ? raw : '+' + raw
     loadThread(sessionId)
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Master-detail focus. Only moves focus when the list and the thread take turns
+  // (below lg, where the back button is rendered); side by side it stays put.
+  useEffect(() => {
+    if (activeId) {
+      if (!focusBackRef.current) return
+      focusBackRef.current = false
+      const btn = backBtnRef.current
+      if (btn && btn.getClientRects().length > 0) btn.focus()
+    } else if (returnFocusIdRef.current) {
+      const id = returnFocusIdRef.current
+      returnFocusIdRef.current = null
+      const row = document.querySelector<HTMLElement>(`[data-session-id="${CSS.escape(id)}"]`)
+      ;(row ?? searchInputRef.current)?.focus()
+    }
+  }, [activeId])
+
+  // Back/Forward through the entries openFromList pushes (below lg): the entry
+  // says which conversation it shows — none means the list. Reads live state
+  // through refs (registered once). Leaving the page is the router's business.
+  useEffect(() => {
+    const pathname = window.location.pathname
+    function onPopState(e: PopStateEvent) {
+      if (window.location.pathname !== pathname) return
+      const entry = e.state as ConvHistoryState | null
+      const sessionId = typeof entry?.convSession === 'string'
+        ? entry.convSession
+        : sessionFromParam(new URLSearchParams(window.location.search).get('session'))
+      if (sessionId) {
+        // Forward reopening a thread sends focus to its back button, as a tap
+        // on the list does (the focus effect only moves it where that button
+        // is rendered, below lg)
+        if (sessionId !== activeIdRef.current) {
+          focusBackRef.current = true
+          loadThread(sessionId)
+        }
+      } else if (activeIdRef.current) {
+        clearThread()
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   // Auto-sync once on mount so conversations are fresh when the page opens
   useEffect(() => {
@@ -494,6 +564,53 @@ export default function ConversasPage() {
       .finally(() => { if (fetchIdRef.current === fetchId) setThreadLoading(false) })
   }
 
+  // ── Open from the list ──────────────────────────────────────────────────────
+  // Below lg the thread replaces the list, and the tap pushes ?session=<id> as a
+  // history entry of its own: the device Back button then closes the thread
+  // (popstate effect above) instead of leaving Conversas — and taking the draft
+  // with it. Side by side (from lg) the URL stays as it is.
+  function openFromList(sessionId: string) {
+    focusBackRef.current = true
+    loadThread(sessionId)
+    if (!listAndThreadTakeTurns()) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('session', sessionId)
+    const entry: ConvHistoryState = { convSession: sessionId }
+    window.history.pushState(entry, '', url.pathname + url.search + url.hash)
+  }
+
+  // Clears the selection the way loadThread switches it.
+  function clearThread() {
+    returnFocusIdRef.current = activeIdRef.current
+    fetchIdRef.current++                    // a thread fetch still in flight must not land
+    setActiveId(null)
+    activeIdRef.current = null
+    setThread(null)
+    setThreadLoading(false)
+    setSendError(null)
+    setTextBody('')
+    setSelTemplate(null)
+    setTplVars([])
+  }
+
+  // ── Back to the list (master-detail, below lg) ──────────────────────────────
+  // A thread opened from the list steps back through history, so Back and
+  // Forward stay in step with the screen (popstate does the clearing). One that
+  // came in by the ?session= link has no entry of its own: clear it here and
+  // drop ?session= from the URL, so a reload doesn't reopen the conversation.
+  function closeThread() {
+    if (activeId && (window.history.state as ConvHistoryState | null)?.convSession === activeId) {
+      window.history.back()
+      return
+    }
+    clearThread()
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('session')) {
+      url.searchParams.delete('session')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+    }
+  }
+
   // ── Send ────────────────────────────────────────────────────────────────────
   async function send() {
     if (!activeId || !thread || sending) return
@@ -580,18 +697,32 @@ export default function ConversasPage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  // Layout by width, all in CSS (the server doesn't know the screen):
+  // - from lg: list (280px) and thread side by side, in a box of fixed height
+  //   (dvh: on a tablet the browser bars come and go; on desktop dvh = vh);
+  // - md to lg: a box of fixed height too, but list and thread take turns
+  //   (master-detail) — at 768px with the sidebar pinned the box is ~476px wide,
+  //   too narrow for both. The box is 30px shorter than from lg: top bar (60),
+  //   <main> padding (2×32) and the sdr-ia tabs (~65) take 190px, so the page
+  //   itself doesn't scroll and the composer stays on screen;
+  // - below md: the list grows with the page, and an open thread covers the screen
+  //   under the top bar (fixed, 100dvh − 60px), header on top and composer at the
+  //   bottom, whatever sits above it in the page.
+  // data-conv-view tells the sdr-ia layout to hide its tabs behind an open thread
+  // on phones; data-hides-ai-launcher takes the floating AI button off the composer
+  // below lg (rule in the RESPONSIVO section of app/globals.css).
   return (
-    <div style={{
-      display: 'flex', height: 'calc(100vh - 160px)', minHeight: 420,
-      border: '1px solid var(--gray3)', borderRadius: 16, overflow: 'hidden',
-      background: '#fff',
+    <div data-conv-view={activeId ? 'thread' : 'list'} data-hides-ai-launcher={activeId ? '' : undefined} className="md:h-[calc(100dvh-190px)] md:min-h-[420px] lg:h-[calc(100dvh-160px)]" style={{
+      display: 'flex',
+      border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+      background: 'var(--white)',
     }}>
 
-      {/* ── LEFT: session list ─────────────────────────────────────────────── */}
-      <div style={{
-        width: 280, flexShrink: 0, borderRight: '1px solid var(--gray3)',
-        display: 'flex', flexDirection: 'column',
-      }}>
+      {/* ── LEFT: session list ─ full width below lg, gone while a thread is open ── */}
+      <div className={cn(
+        'flex w-full flex-col lg:w-[280px] lg:shrink-0 lg:border-r lg:border-r-(--gray3)',
+        activeId && 'max-lg:hidden',
+      )}>
         <div style={{
           padding: '10px 12px 10px 16px', borderBottom: '1px solid var(--gray3)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
@@ -604,7 +735,7 @@ export default function ConversasPage() {
             {syncFeedback && (
               <span style={{
                 fontSize: 10, fontWeight: 700,
-                color: syncFeedback === 'success' ? '#166534' : '#9a2008',
+                color: syncFeedback === 'success' ? 'var(--success-text)' : 'var(--danger-text)',
               }}>
                 {syncFeedback === 'success' ? 'Sincronizado' : 'Falha ao sincronizar'}
               </span>
@@ -613,8 +744,9 @@ export default function ConversasPage() {
               onClick={() => { void syncNow() }}
               disabled={syncing}
               title="Sincronizar conversas agora"
+              className="max-md:min-h-10"
               style={{
-                fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+                fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--radius-pill)',
                 border: '1px solid var(--gray3)', background: 'transparent',
                 fontFamily: 'inherit', cursor: syncing ? 'not-allowed' : 'pointer',
                 color: syncing ? 'var(--gray3)' : 'var(--gray2)',
@@ -627,6 +759,7 @@ export default function ConversasPage() {
 
         <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--gray3)' }}>
           <input
+            ref={searchInputRef}
             type="search"
             value={searchRaw}
             onChange={e => setSearchRaw(e.target.value)}
@@ -635,8 +768,7 @@ export default function ConversasPage() {
               width: '100%', boxSizing: 'border-box',
               fontFamily: 'inherit', fontSize: 12,
               padding: '7px 12px', border: '1px solid var(--gray3)',
-              borderRadius: 8, background: 'var(--bg)', color: 'var(--black)',
-              outline: 'none',
+              borderRadius: 'var(--radius-sm)', background: 'var(--bg)', color: 'var(--black)',
             }}
           />
         </div>
@@ -644,7 +776,7 @@ export default function ConversasPage() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sessLoading && <SkeletonSessionList items={7} />}
           {sessError && (
-            <p style={{ padding: '20px 16px', fontSize: 12, color: '#c0392b', margin: 0 }}>
+            <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--danger-text)', margin: 0 }}>
               Falha ao carregar conversas
             </p>
           )}
@@ -665,7 +797,8 @@ export default function ConversasPage() {
             return (
               <button
                 key={s.sessionId}
-                onClick={() => loadThread(s.sessionId)}
+                data-session-id={s.sessionId}
+                onClick={() => openFromList(s.sessionId)}
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: 9,
                   width: '100%', textAlign: 'left',
@@ -688,7 +821,7 @@ export default function ConversasPage() {
                     display: 'flex', justifyContent: 'space-between',
                     alignItems: 'center', gap: 4, marginBottom: 2,
                   }}>
-                    <span style={{
+                    <span title={s.name ?? s.phone} style={{
                       fontSize: 13, fontWeight: unread ? 800 : 700, color: 'var(--black)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
                     }}>
@@ -722,20 +855,24 @@ export default function ConversasPage() {
           })}
         </div>
 
+        {/* Pager: at the ends of the 280px column from lg; below lg the list is
+            full width and the pager centers, clear of the floating AI button */}
         {totalPages > 1 && (
-          <div style={{
+          <div className="justify-center gap-[12px] lg:justify-between lg:gap-[6px]" style={{
             padding: '8px 10px', borderTop: '1px solid var(--gray3)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6,
+            display: 'flex', alignItems: 'center',
           }}>
             <button
               onClick={() => setSessPage(p => p - 1)}
               disabled={sessPage <= 1}
+              className="max-md:min-h-10"
               style={pagerStyle(sessPage > 1)}
             >← Ant</button>
             <span style={{ fontSize: 10, color: 'var(--gray2)' }}>{sessPage}/{totalPages}</span>
             <button
               onClick={() => setSessPage(p => p + 1)}
               disabled={sessPage >= totalPages}
+              className="max-md:min-h-10"
               style={pagerStyle(sessPage < totalPages)}
             >Próx →</button>
           </div>
@@ -743,21 +880,31 @@ export default function ConversasPage() {
       </div>
 
       {/* ── RIGHT: thread ──────────────────────────────────────────────────── */}
+      {/* The empty state only exists beside the list (from lg) */}
       {!activeId ? (
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        <div className="hidden flex-1 items-center justify-center lg:flex" style={{
           color: 'var(--gray2)', fontSize: 13,
         }}>
           Selecione uma conversa
         </div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div className="flex min-w-0 flex-1 flex-col max-md:fixed max-md:inset-x-0 max-md:top-[60px] max-md:z-[100] max-md:h-[calc(100dvh-60px)] max-md:bg-(--white)">
 
-          {/* header */}
-          <div style={{
-            padding: '11px 18px', borderBottom: '1px solid var(--gray3)',
-            display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, minHeight: 56,
+          {/* header — below lg it opens with the way back to the list */}
+          <div className="gap-2 px-3 md:gap-3 md:px-[18px]" style={{
+            paddingTop: 11, paddingBottom: 11, borderBottom: '1px solid var(--gray3)',
+            display: 'flex', alignItems: 'center', flexShrink: 0, minHeight: 56,
           }}>
+            <button
+              ref={backBtnRef}
+              type="button"
+              onClick={closeThread}
+              aria-label="Voltar para a lista de conversas"
+              title="Voltar para a lista de conversas"
+              className="-ml-1 flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-(--black) hover:bg-(--bg) lg:hidden"
+            >
+              <ArrowLeft size={20} aria-hidden />
+            </button>
             {threadLoading ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
                 <Skeleton circle width={34} height={34} />
@@ -776,12 +923,14 @@ export default function ConversasPage() {
                 }}>
                   {(thread.contact.name ?? thread.contact.phone).slice(0, 1).toUpperCase()}
                 </div>
+                {/* Below lg the name shares the row with the back button and the
+                    window pill: one line, ellipsis, full name in the title */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--black)' }}>
+                  <div className="max-lg:truncate" title={thread.contact.name ?? thread.contact.phone} style={{ fontSize: 14, fontWeight: 800, color: 'var(--black)' }}>
                     {thread.contact.name ?? thread.contact.phone}
                   </div>
                   {thread.contact.name && (
-                    <div style={{ fontSize: 11, color: 'var(--gray2)', fontFamily: 'monospace' }}>
+                    <div className="max-lg:truncate" title={thread.contact.phone} style={{ fontSize: 11, color: 'var(--gray2)', fontFamily: 'monospace' }}>
                       {thread.contact.phone}
                     </div>
                   )}
@@ -789,14 +938,14 @@ export default function ConversasPage() {
                 <div style={{ flexShrink: 0 }}>
                   {thread.inWindow ? (
                     <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                      background: 'rgba(30,138,62,0.08)', color: '#166534',
-                      border: '1px solid rgba(30,138,62,0.22)',
+                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)',
+                      background: 'var(--success-dim)', color: 'var(--success-text)',
+                      border: '1px solid var(--success-mid)',
                     }}>● Janela aberta</span>
                   ) : (
                     <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                      background: 'rgba(180,50,0,0.06)', color: '#9a2008',
+                      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)',
+                      background: 'rgba(180,50,0,0.06)', color: 'var(--danger-text)',
                       border: '1px solid rgba(180,50,0,0.18)',
                       display: 'inline-flex', alignItems: 'center', gap: 3,
                     }}><X size={9} /> Janela encerrada</span>
@@ -807,8 +956,8 @@ export default function ConversasPage() {
           </div>
 
           {/* messages area */}
-          <div ref={scrollAreaRef} style={{
-            flex: 1, overflowY: 'auto', padding: '14px 18px',
+          <div ref={scrollAreaRef} className="px-3 md:px-[18px]" style={{
+            flex: 1, overflowY: 'auto', paddingTop: 14, paddingBottom: 14,
             display: 'flex', flexDirection: 'column', gap: 8,
           }}>
             {thread?.messages.length === 0 && (
@@ -832,16 +981,18 @@ export default function ConversasPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* composer */}
+          {/* composer — pinned under the messages. On phones, if a template with
+              many variables won't fit (keyboard open), it scrolls inside itself
+              instead of pushing its bottom out of the screen. */}
           {thread && (
-            <div style={{
+            <div className="max-md:max-h-[60%] max-md:overflow-y-auto" style={{
               borderTop: '1px solid var(--gray3)', padding: '12px 16px', flexShrink: 0,
             }}>
               {sendError && (
                 <div style={{
-                  marginBottom: 8, padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  marginBottom: 8, padding: '7px 12px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600,
                   background: 'rgba(192,57,43,0.06)', border: '1px solid rgba(192,57,43,0.22)',
-                  color: '#9a2008',
+                  color: 'var(--danger-text)',
                 }}>
                   {sendError}
                 </div>
@@ -860,11 +1011,12 @@ export default function ConversasPage() {
                     }}
                     placeholder="Digite sua mensagem... (Enter para enviar, Shift+Enter para nova linha)"
                     rows={2}
+                    className="min-w-0"
                     style={{
                       flex: 1, fontFamily: 'inherit', fontSize: 13,
-                      resize: 'none', padding: '9px 13px', borderRadius: 12,
+                      resize: 'none', padding: '9px 13px', borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--gray3)', background: 'var(--bg)',
-                      color: 'var(--black)', outline: 'none', lineHeight: 1.5,
+                      color: 'var(--black)', lineHeight: 1.5,
                     }}
                   />
                   <SendBtn

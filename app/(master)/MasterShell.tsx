@@ -18,10 +18,10 @@ export function MasterShell({ userName, logoutAction, children }: Props) {
   const pathname = usePathname()
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Manrope, sans-serif' }}>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       <aside style={{
         width: 220,
-        background: '#0f1117',
+        background: 'var(--inverse-bg)',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -30,11 +30,11 @@ export function MasterShell({ userName, logoutAction, children }: Props) {
         height: '100vh',
       }}>
         {/* Brand */}
-        <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--inverse-line)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', marginBottom: 4 }}>
             300 FRANCHISING
           </div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--inverse-text)', letterSpacing: '-0.02em' }}>
             Admin
           </div>
         </div>
@@ -52,12 +52,14 @@ export function MasterShell({ userName, logoutAction, children }: Props) {
                   padding: '8px 12px',
                   fontSize: 13,
                   fontWeight: 600,
-                  color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
+                  color: isActive ? 'var(--inverse-text)' : 'var(--inverse-text-2)',
                   textDecoration: 'none',
-                  borderRadius: 6,
-                  background: isActive ? 'rgba(255,255,255,0.09)' : 'transparent',
+                  borderRadius: 'var(--radius-sm)',
+                  background: isActive ? 'var(--inverse-active)' : 'transparent',
                   transition: 'background .15s, color .15s',
                 }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--inverse-hover)' }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
               >
                 {label}
               </a>
@@ -66,7 +68,7 @@ export function MasterShell({ userName, logoutAction, children }: Props) {
         </nav>
 
         {/* User + logout */}
-        <div style={{ padding: '14px 10px 20px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ padding: '14px 10px 20px', borderTop: '1px solid var(--inverse-line)' }}>
           <div style={{
             padding: '0 12px 10px',
             fontSize: 12,
@@ -96,7 +98,7 @@ export function MasterShell({ userName, logoutAction, children }: Props) {
                 transition: 'background .15s, color .15s',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                e.currentTarget.style.background = 'var(--inverse-hover)'
                 e.currentTarget.style.color = 'rgba(255,255,255,0.8)'
               }}
               onMouseLeave={e => {
@@ -110,7 +112,7 @@ export function MasterShell({ userName, logoutAction, children }: Props) {
         </div>
       </aside>
 
-      <main style={{ flex: 1, background: '#f8f8f6', overflow: 'auto' }}>
+      <main style={{ flex: 1, background: 'var(--bg)', overflow: 'auto' }}>
         {children}
       </main>
     </div>

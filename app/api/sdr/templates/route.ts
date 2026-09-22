@@ -1,10 +1,13 @@
 // GET /api/sdr/templates
 //
 // Lista os templates do YCloud enviáveis pelo fluxo n8n de blast:
-// aprovados + idioma pt_BR + exatamente 1 variável no BODY + 0 variáveis fora do BODY.
+// aprovados + idioma pt_BR + no máximo 1 variável no BODY + 0 variáveis fora do BODY.
 //
-// Response: { items: { nome_template: string, preview: string, fase_envio: null }[] }
-// Shape mantido igual ao consumido pelo modal de disparo — sem mudança na UI.
+// Entram os de 1 variável (o primeiro nome do lead) e também os de nenhuma — estes
+// são a saída para quem não tem nome cadastrado, que não recebe os primeiros. Quem
+// escolhe precisa distinguir os dois, então cada item diz se usa o nome.
+//
+// Response: { items: { nome_template: string, preview: string, fase_envio: null, usaNome: boolean }[] }
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
@@ -91,15 +94,19 @@ export async function GET() {
       const bodyVars  = bodyComps.reduce((s, c) => s + componentVars(c), 0)
       const otherVars = otherComps.reduce((s, c) => s + componentVars(c), 0)
 
-      return bodyVars === 1 && otherVars === 0
+      return bodyVars <= 1 && otherVars === 0
     })
     .map(t => {
       const comps = (t.components ?? []) as TemplateComponent[]
       const body  = comps.find(c => String(c.type ?? '').toUpperCase() === 'BODY')
+      const bodyVars = comps
+        .filter(c => String(c.type ?? '').toUpperCase() === 'BODY')
+        .reduce((s, c) => s + componentVars(c), 0)
       return {
         nome_template: t.name,
         preview:       String(body?.text ?? ''),
         fase_envio:    null,
+        usaNome:       bodyVars === 1,
       }
     })
     .sort((a, b) => a.nome_template.localeCompare(b.nome_template))
