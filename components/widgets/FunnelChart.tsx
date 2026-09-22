@@ -107,7 +107,7 @@ export function FunnelFilterPanel({
         ))}
       </ChipGroup>
       <div style={{ marginTop: 10, fontSize: 'var(--text-2xs)', color: 'var(--muted)', fontWeight: 500 }}>
-        {visible.size} de {allStages.length} etapas visíveis · ordenação padrão do Kommo
+        {visible.size} de {allStages.length} etapas visíveis · ordenação padrão do funil
       </div>
     </div>,
     document.body
@@ -132,7 +132,7 @@ export interface FunnelChartProps {
   unit?: string
 }
 
-/** Piso de opacidade: funis do Kommo podem ter muito mais que 6 etapas. */
+/** Piso de opacidade: um funil pode ter muito mais que 6 etapas. */
 const MIN_OPACITY = 0.25
 
 export function FunnelChart({ allStages, stages, visible, ready, unit = 'lead' }: FunnelChartProps) {

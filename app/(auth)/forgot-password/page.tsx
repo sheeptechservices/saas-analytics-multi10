@@ -42,10 +42,10 @@ export default function ForgotPasswordPage() {
 
         <div style={{ position: 'relative', zIndex: 1 }}>
           <h1 style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 14, letterSpacing: '-0.025em' }}>
-            Funil de vendas<br /><span style={{ color: 'var(--primary)' }}>conectado</span><br />ao CRM.
+            Seu SDR aprimorado com<br /><span style={{ color: 'var(--primary)' }}>inteligência artificial</span>.
           </h1>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, maxWidth: 340 }}>
-            Visualize métricas reais do seu Kommo, enriqueça seus leads e tome decisões com dados — tudo em um lugar.
+            Gerencie seu ecossistema comercial automatizado em um só lugar.
           </p>
         </div>
 

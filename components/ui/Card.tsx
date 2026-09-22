@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
      r16 + gray3 + sem sombra   (dashboard, settings, leads)
      r12 + gray3 + --shadow     (marketing)
      r12 + line  + --shadow-md  (KpiCard, + faixa de 4px)
-     r14 + gray3 + sem sombra   (disparos, kommo)
+     r14 + gray3 + sem sombra   (disparos)
    Duas bastavam, e estão em .card / .card-tight no globals.css (mais .card-flat,
    ver abaixo). Este componente só as embala e adiciona o cabeçalho opcional,
    que também era repetido inline.
@@ -79,7 +79,7 @@ export function CardHeader({ title, sub, action }: CardHeaderProps) {
 }
 
 /* Modal: r20 + --shadow-modal. Antes eram r16 e r20 com sombras literais
-   diferentes em ranking:152, disparos:535, kommo:70 e settings:806. */
+   diferentes em disparos:535 e settings:806. */
 
 interface ModalProps extends React.HTMLAttributes<HTMLDivElement> {
   width?: number
