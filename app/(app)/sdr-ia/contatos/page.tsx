@@ -180,9 +180,9 @@ export default function ContatosPage() {
         </div>
       </div>
 
-      {/* ── Status line ────────────────────────────────────────────── */}
+      {/* ── Status line ─ echoes the search, which may be one unbroken word ── */}
       {!loading && !error && data && (
-        <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16 }}>
+        <div className="max-lg:wrap-anywhere" style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16 }}>
           {total.toLocaleString('pt-BR')} contato{total !== 1 ? 's' : ''}
           {debQ && ` para "${debQ}"`}
           {totalPages > 1 && ` — página ${page} de ${totalPages}`}
@@ -207,8 +207,10 @@ export default function ContatosPage() {
       )}
 
       {/* ── Table ──────────────────────────────────────────────────── */}
+      {/* Below lg DataTable shows cards, whose empty state echoes the search
+          too: there it may break anywhere. From lg (the table) nothing changes. */}
       {!loading && !error && (
-        <div className="animate-slide-up delay-2" style={{
+        <div className="animate-slide-up delay-2 max-lg:wrap-anywhere" style={{
           background: 'var(--white)', borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--gray3)', overflow: 'hidden',
         }}>

@@ -144,7 +144,7 @@ export function AddLeadForm({ onAdded }: AddLeadFormProps) {
             fontSize: 13, fontWeight: 600, color: 'var(--success-text)',
           }}>
             <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>
+            <span className="max-lg:wrap-anywhere">
               {last.duplicate
                 ? <>Lead <strong>{last.name}</strong> já existia &mdash; reaproveitado.</>
                 : <>Lead <strong>{last.name}</strong> adicionado.</>}
@@ -160,7 +160,7 @@ export function AddLeadForm({ onAdded }: AddLeadFormProps) {
             fontSize: 13, fontWeight: 600, color: 'var(--red)',
           }}>
             <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>{last.error}</span>
+            <span className="max-lg:wrap-anywhere">{last.error}</span>
           </div>
         )}
 

@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import { ArrowLeft, X } from 'lucide-react'
 import { timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { BREAKPOINTS } from '@/lib/hooks/useMediaQuery'
 import { Skeleton, SkeletonSessionList } from '@/components/Skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,6 +64,17 @@ function sessionFromParam(raw: string | null): string | null {
   if (!raw) return null
   return raw.startsWith('+') ? raw : '+' + raw
 }
+
+// Below lg the list and the thread take turns (master-detail) — the same cut as
+// the max-lg: classes of the layout. Read at the moment of a tap: it decides
+// behavior (history), not layout.
+function listAndThreadTakeTurns(): boolean {
+  return window.matchMedia(`(max-width: ${BREAKPOINTS.tablet - 1}px)`).matches
+}
+
+// History entry pushed when a tap on the list opens a thread (below lg): it
+// names the conversation it shows, so Back/Forward know what to close or reopen.
+interface ConvHistoryState { convSession?: unknown }
 
 const LS_KEY = 'sdr-conversas-lidas'
 
@@ -432,6 +444,27 @@ export default function ConversasPage() {
     }
   }, [activeId])
 
+  // Back/Forward through the entries openFromList pushes (below lg): the entry
+  // says which conversation it shows — none means the list. Reads live state
+  // through refs (registered once). Leaving the page is the router's business.
+  useEffect(() => {
+    const pathname = window.location.pathname
+    function onPopState(e: PopStateEvent) {
+      if (window.location.pathname !== pathname) return
+      const entry = e.state as ConvHistoryState | null
+      const sessionId = typeof entry?.convSession === 'string'
+        ? entry.convSession
+        : sessionFromParam(new URLSearchParams(window.location.search).get('session'))
+      if (sessionId) {
+        if (sessionId !== activeIdRef.current) loadThread(sessionId)
+      } else if (activeIdRef.current) {
+        clearThread()
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
   // Auto-sync once on mount so conversations are fresh when the page opens
   useEffect(() => {
     if (didMountSyncRef.current) return
@@ -525,11 +558,24 @@ export default function ConversasPage() {
       .finally(() => { if (fetchIdRef.current === fetchId) setThreadLoading(false) })
   }
 
-  // ── Back to the list (master-detail, below lg) ──────────────────────────────
-  // Clears the selection the way loadThread switches it, and drops ?session= from
-  // the URL so a reload doesn't reopen the conversation.
-  function closeThread() {
-    returnFocusIdRef.current = activeId
+  // ── Open from the list ──────────────────────────────────────────────────────
+  // Below lg the thread replaces the list, and the tap pushes ?session=<id> as a
+  // history entry of its own: the device Back button then closes the thread
+  // (popstate effect above) instead of leaving Conversas — and taking the draft
+  // with it. Side by side (from lg) the URL stays as it is.
+  function openFromList(sessionId: string) {
+    focusBackRef.current = true
+    loadThread(sessionId)
+    if (!listAndThreadTakeTurns()) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('session', sessionId)
+    const entry: ConvHistoryState = { convSession: sessionId }
+    window.history.pushState(entry, '', url.pathname + url.search + url.hash)
+  }
+
+  // Clears the selection the way loadThread switches it.
+  function clearThread() {
+    returnFocusIdRef.current = activeIdRef.current
     fetchIdRef.current++                    // a thread fetch still in flight must not land
     setActiveId(null)
     activeIdRef.current = null
@@ -539,6 +585,19 @@ export default function ConversasPage() {
     setTextBody('')
     setSelTemplate(null)
     setTplVars([])
+  }
+
+  // ── Back to the list (master-detail, below lg) ──────────────────────────────
+  // A thread opened from the list steps back through history, so Back and
+  // Forward stay in step with the screen (popstate does the clearing). One that
+  // came in by the ?session= link has no entry of its own: clear it here and
+  // drop ?session= from the URL, so a reload doesn't reopen the conversation.
+  function closeThread() {
+    if (activeId && (window.history.state as ConvHistoryState | null)?.convSession === activeId) {
+      window.history.back()
+      return
+    }
+    clearThread()
     const url = new URL(window.location.href)
     if (url.searchParams.has('session')) {
       url.searchParams.delete('session')
@@ -733,7 +792,7 @@ export default function ConversasPage() {
               <button
                 key={s.sessionId}
                 data-session-id={s.sessionId}
-                onClick={() => { focusBackRef.current = true; loadThread(s.sessionId) }}
+                onClick={() => openFromList(s.sessionId)}
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: 9,
                   width: '100%', textAlign: 'left',
