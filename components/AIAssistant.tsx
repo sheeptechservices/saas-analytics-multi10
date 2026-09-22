@@ -12,14 +12,13 @@ const uid = () => ++_id
 const WELCOME: Message = {
   id: 0,
   role: 'assistant',
-  content: 'Olá! Posso analisar seus dados de pipeline, tirar dúvidas sobre o sistema ou ajudar com a integração Kommo.\n\nComo posso ajudar?',
+  content: 'Olá! Posso tirar dúvidas sobre o sistema, ajudar a interpretar suas métricas e orientar nas integrações.\n\nComo posso ajudar?',
 }
 
 const SUGGESTIONS = [
-  'Quantos leads tenho?',
-  'Qual minha taxa de conversão?',
-  'Como integro o Kommo?',
-  'Como usar o Pipeline?',
+  'Como faço um disparo?',
+  'Onde vejo as conversas do WhatsApp?',
+  'Como conecto a fonte de dados SDR?',
   'Como personalizar a plataforma?',
 ]
 
@@ -30,7 +29,6 @@ export function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [context, setContext] = useState<any>(null)
   const [hint, setHint] = useState(false)
   const [hintVisible, setHintVisible] = useState(false)
   const [selectedModel, setSelectedModel] = useState('claude-haiku-4-5-20251001')
@@ -61,12 +59,6 @@ export function AIAssistant() {
     dismissHint()
     setOpen(o => !o)
   }
-
-  useEffect(() => {
-    if (open && !context) {
-      fetch('/api/bi').then(r => r.json()).then(setContext).catch(() => {})
-    }
-  }, [open])
 
   useEffect(() => {
     fetch('/api/ai-settings')
@@ -104,7 +96,6 @@ export function AIAssistant() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: history.map(m => ({ role: m.role, content: m.content })),
-          context,
           model: selectedModel,
         }),
       })
@@ -147,7 +138,7 @@ export function AIAssistant() {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, messages, context, selectedModel, chatError])
+  }, [input, loading, messages, selectedModel, chatError])
 
   // Keep sendRef current so the ai-ask event handler always calls the latest version
   useEffect(() => { sendRef.current = send }, [send])
@@ -241,15 +232,15 @@ export function AIAssistant() {
           </div>
 
           <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.45, marginBottom: 8 }}>
-            Pergunte à IA sobre seus dados!
+            Tire suas dúvidas com a IA!
           </div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5, marginBottom: 11 }}>
-            Insights do pipeline, previsões, dicas de conversão, métricas e como usar o sistema.
+            Dicas de conversão, métricas, integrações e como usar o sistema.
           </div>
 
           {/* Tags */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {['📊 Insights', '🔮 Previsões', '🔗 Integrações', '⚙️ Dúvidas'].map(tag => (
+            {['🔗 Integrações', '⚙️ Dúvidas'].map(tag => (
               <span key={tag} style={{
                 fontSize: 10, fontWeight: 600, padding: '3px 8px',
                 borderRadius: 100, background: 'rgba(255,255,255,0.10)',
@@ -335,7 +326,7 @@ export function AIAssistant() {
                 transition: 'background 0.3s',
               }} />
               <span style={{ transition: 'opacity 0.2s' }}>
-                {loading ? 'digitando…' : 'online · dados em tempo real'}
+                {loading ? 'digitando…' : 'online'}
               </span>
             </div>
           </div>
@@ -521,7 +512,7 @@ function InputArea({ value, textareaRef, onChange, onKeyDown, onSend, canSend, l
         onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder={disabled ? 'Assistente indisponível' : 'Pergunte sobre seus dados…'}
+        placeholder={disabled ? 'Assistente indisponível' : 'Pergunte sobre o sistema…'}
         rows={1}
         disabled={disabled}
         className="pt-px max-md:py-2"

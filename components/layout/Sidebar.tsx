@@ -1,9 +1,10 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, BarChart3, MessageSquare, Settings, Send } from 'lucide-react'
+import { LayoutGrid, MessageSquare, Settings, Send } from 'lucide-react'
 import { useSidebar } from '@/stores/sidebarStore'
 import { useModules } from '@/components/ModulesProvider'
+import { isModuleHidden } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
@@ -43,10 +44,6 @@ const navItems: NavGroup[] = [
         hrefFor: (m) => m.includes('sdr.parametros') ? '/sdr-ia/leads' : '/sdr-ia/disparos',
         isActive: (p) => p.startsWith('/sdr-ia/disparos') || p.startsWith('/sdr-ia/leads'),
       },
-      {
-        href: '/pipeline', label: 'Pipeline',
-        icon: <BarChart3 size={16} />,
-      },
     ],
   },
   {
@@ -80,8 +77,8 @@ export function Sidebar({ drawerOpen, offCanvas, onNavigate }: SidebarProps) {
 
   function isItemVisible(href: string): boolean {
     if (href === '/settings')          return true
-    if (href === '/dashboard')         return modules.some(k => k.startsWith('dashboard.'))
-    if (href === '/pipeline')          return modules.includes('pipeline')
+    // aba oculta (Ranking) não conta: sozinha, levaria a um Dashboard vazio
+    if (href === '/dashboard')         return modules.some(k => k.startsWith('dashboard.') && !isModuleHidden(k))
     if (href === '/sdr-ia/conversas')  return modules.includes('integration.ycloud-whatsapp')
     if (href === '/sdr-ia/disparos')   return modules.includes('sdr.dashboard') || modules.includes('sdr.parametros')
     return true

@@ -8,19 +8,21 @@ import { decrypt } from '@/lib/crypto'
 import { randomUUID } from 'crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 
-const SYSTEM_PROMPT = `Você é o assistente de BI da plataforma 300 Franchising — uma plataforma de funil de vendas com integração ao Kommo CRM.
+const SYSTEM_PROMPT = `Você é o assistente da plataforma 300 Franchising — uma plataforma de SDR com IA que reúne as conversas de WhatsApp, os disparos de campanha e as métricas do funil de prospecção.
 
 Você pode ajudar com:
-- **Análise de dados**: interpretar métricas do pipeline (leads, conversão, ticket médio, etapas do funil)
-- **Como usar o sistema**: onde encontrar funcionalidades, como navegar pelo Dashboard, Pipeline Kanban, Integração Kommo e Configurações
-- **Integração Kommo**: como conectar a conta, o que é sincronizado (leads, etapas, responsáveis), resolução de problemas
-- **Configurações**: white-label (cor primária, logo, nome da marca), gerenciamento de equipe
+- **Como usar o sistema**: onde encontrar funcionalidades e como navegar entre Dashboard, Conversas, Disparos e Configurações
+- **Interpretação de métricas**: o que significam as etapas do funil, as taxas de conversão e como melhorá-las
+- **Integrações**: fonte de dados SDR, WhatsApp (YCloud), Google/Meta/TikTok Ads e a própria IA
+- **Configurações**: perfil, marca (cor primária, logo, nome), equipe e parâmetros da campanha SDR
 
 Guia rápido do sistema:
-- **Dashboard**: visão geral do funil — KPI cards (total leads, conversão, ticket médio), funil por etapa, gráfico semanal, maiores oportunidades
-- **Pipeline**: quadro Kanban com as etapas do funil; clique num lead para ver detalhes e enriquecer com tags/notas
-- **Kommo CRM**: página de integração com stepper de 3 passos — autorizar OAuth, sincronizar dados, verificar status
-- **Configurações**: personalizar cor primária e logo da plataforma; visualizar membros da equipe
+- **Dashboard**: visão geral do funil de prospecção por período, com as etapas e a taxa entre elas; a aba Marketing mostra as campanhas de anúncios
+- **Conversas**: as conversas de WhatsApp com os leads e a lista de contatos
+- **Disparos**: novo disparo de mensagens para uma lista de leads e o histórico dos disparos, com a entrega de cada um
+- **Configurações**: integrações, campanha SDR, equipe, perfil, marca e auditoria
+
+Você não recebe os dados do cliente nesta conversa: só analise números que o usuário informar na mensagem. Se pedirem um número que não foi informado, diga onde encontrá-lo no sistema em vez de estimar.
 
 Seja conciso e direto. Use markdown quando útil (listas, negrito). Responda sempre em português brasileiro.`
 
@@ -83,32 +85,15 @@ export async function POST(req: Request) {
     }
   }
 
-  const { messages, context, model: reqModel } = await req.json()
+  const { messages, model: reqModel } = await req.json()
   const model: AllowedModel = ALLOWED_MODELS.includes(reqModel) ? reqModel : 'claude-haiku-4-5-20251001'
 
   const client = new Anthropic({ apiKey: decrypt(settings.apiKeyEnc) })
 
-  let systemPrompt = SYSTEM_PROMPT
-  if (context?.metrics) {
-    const m = context.metrics
-    systemPrompt += `\n\n---\n**Dados atuais do pipeline (${new Date().toLocaleDateString('pt-BR')}):**\n`
-    systemPrompt += `- Total de leads no pipeline: ${m.totalLeads}\n`
-    systemPrompt += `- Leads criados esta semana: ${m.leadsThisWeek}\n`
-    systemPrompt += `- Taxa de conversão: ${m.conversionRate}%\n`
-    systemPrompt += `- Ticket médio (negócios ganhos): R$ ${m.averageTicket?.toLocaleString('pt-BR') ?? 0}\n`
-    systemPrompt += `- Leads fechados como ganho: ${m.closedLeads}\n`
-    if (m.leadsByStage?.length) {
-      systemPrompt += `- Distribuição por etapa: ${m.leadsByStage.map((s: any) => `${s.stageName} (${s.count} leads)`).join(' → ')}\n`
-    }
-    if (m.leadsByStatus?.length) {
-      systemPrompt += `- Por status: ${m.leadsByStatus.map((s: any) => `${s.label}: ${s.count}`).join(', ')}\n`
-    }
-  }
-
   const stream = await client.messages.stream({
     model,
     max_tokens: 1024,
-    system: systemPrompt,
+    system: SYSTEM_PROMPT,
     messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
   })
 

@@ -402,3 +402,12 @@ export const campaignSettings = sqliteTable('campaign_settings', {
 }, (t) => ({
   tenantSourceUnq: unique('campaign_settings_tenant_source_unq').on(t.tenantId, t.source),
 }))
+
+// Global lock for scheduled jobs (lib/cron-lock.ts). The helper creates this table
+// itself with CREATE TABLE IF NOT EXISTS, since migrations don't run on deploy;
+// this definition and migration 0010 exist for the record. locked_until is epoch ms.
+export const jobLocks = sqliteTable('job_locks', {
+  name: text('name').primaryKey(),
+  lockedUntil: integer('locked_until').notNull(),
+  owner: text('owner'),
+})

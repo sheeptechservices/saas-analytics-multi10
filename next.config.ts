@@ -15,7 +15,8 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      { source: '/integration',            destination: '/settings/integrations/kommo',      permanent: true },
+      // não permanente: navegadores que guardaram o 308 antigo (para a tela do CRM removido) se recuperam
+      { source: '/integration',            destination: '/settings?tab=integracoes',         permanent: false },
       { source: '/integration/ai',         destination: '/settings/integrations/ai',          permanent: true },
       { source: '/integration/google-ads', destination: '/settings/integrations/google-ads',  permanent: true },
       { source: '/integration/meta-ads',   destination: '/settings/integrations/meta-ads',    permanent: true },

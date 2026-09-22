@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils'
    vive na classe .field do globals.css, alcançável também por quem ainda não
    importa este componente.
 
-   `Select` foi adicionado porque os <select> das telas (kommo, settings,
-   conversas) eram os únicos controles sem nenhuma origem comum. */
+   `Select` foi adicionado porque os <select> das telas (settings, conversas)
+   eram os únicos controles sem nenhuma origem comum. */
 
 /* Padding, borda e fonte vêm só de .field, que é CSS sem camada e por isso
    anula utilitários como py-2.5 ou border-danger — nem aqui nem no className

@@ -1,7 +1,12 @@
 name: Cron diário
 
-# Substitui o cron do vercel.json, que só existe na Vercel. Chama /api/cron/all
-# (sync de Kommo, Ads e fontes SDR de todos os tenants) uma vez por dia.
+# Único agendador do app (o cron do vercel.json foi removido). Chama /api/cron/all
+# (sync de Ads e fontes SDR de todos os tenants) uma vez por dia.
+#
+# Só roda no repositório canônico (Hillstone-Tech/SDR-IA-300): o mesmo arquivo
+# existe no repositório antigo, e lá o `if` do job o deixa inerte. As duas
+# implantações dividem o mesmo Turso, e /api/cron/all ainda tem uma trava global
+# no banco (lib/cron-lock.ts) caso duas chamadas cheguem juntas.
 #
 # Precisa de dois secrets do repositório (Settings → Secrets and variables →
 # Actions): APP_URL, a origem pública do app, e CRON_SECRET, o mesmo valor
@@ -18,6 +23,7 @@ on:
 jobs:
   sync:
     name: sync diário
+    if: github.repository == 'Hillstone-Tech/SDR-IA-300'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
