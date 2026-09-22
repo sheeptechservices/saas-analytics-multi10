@@ -255,6 +255,18 @@ export default function SettingsPage() {
     if (tab !== 'equipe') { setManageEquipe(false); setEquipeSearch(''); setInviteOpen(false) }
   }, [tab])
 
+  // Abaixo do lg a barra de abas rola de lado: quem chega por link direto numa
+  // aba do fim (?tab=marca) a encontra à vista. Só mexe na rolagem da própria
+  // barra — onde ela não rola (lg em diante), atribuir scrollLeft não faz nada.
+  const tabBarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const bar = tabBarRef.current
+    const active = bar?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!bar || !active) return
+    const b = bar.getBoundingClientRect(), a = active.getBoundingClientRect()
+    if (a.left < b.left || a.right > b.right) bar.scrollLeft += a.left - b.left - (b.width - a.width) / 2
+  }, [tab, isLoading])
+
   useEffect(() => {
     if (!meData) return
     if (!visibleTabs.some(t => t.id === tab)) {
@@ -384,12 +396,16 @@ export default function SettingsPage() {
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>Configurações</div>
       </div>
 
-      {/* Tab bar */}
-      <div className="animate-slide-up delay-1" style={{ display: 'flex', borderBottom: '1px solid var(--gray3)', marginBottom: 28 }}>
+      {/* Tab bar — abaixo do lg as seis abas não cabem (celular, ou tablet ao lado
+          da sidebar): a barra rola de lado dentro de si, como as sub-abas do
+          Dashboard e do SDR, cada aba numa linha e com 40px no celular */}
+      <div ref={tabBarRef} className="animate-slide-up delay-1 max-lg:overflow-x-auto max-lg:overflow-y-hidden max-lg:pb-px max-lg:scrollbar-none" style={{ display: 'flex', borderBottom: '1px solid var(--gray3)', marginBottom: 28 }}>
         {visibleTabs.map(t => (
           <Link
             key={t.id}
             href={`/settings?tab=${t.id}`}
+            aria-current={tab === t.id ? 'page' : undefined}
+            className="block max-lg:shrink-0 max-lg:whitespace-nowrap max-md:flex max-md:min-h-10 max-md:items-center"
             style={{
               fontSize: 13, fontWeight: 700,
               color: tab === t.id ? 'var(--black)' : 'var(--gray2)',
@@ -397,7 +413,6 @@ export default function SettingsPage() {
               padding: '10px 16px',
               borderBottom: tab === t.id ? '2px solid var(--primary)' : '2px solid transparent',
               marginBottom: -1,
-              display: 'block',
               transition: 'color .15s',
             }}
             onMouseEnter={e => { if (tab !== t.id) (e.currentTarget as HTMLAnchorElement).style.color = 'var(--black)' }}
@@ -462,7 +477,7 @@ export default function SettingsPage() {
                 <span style={{ fontSize: 26, fontWeight: 800, color: me?.avatarBg ?? 'var(--ink)' }}>{initials(profileName || me?.name || '?')}</span>
               )}
             </div>
-            <div>
+            <div className="max-lg:wrap-anywhere">
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>{profileName || me?.name}</div>
               <div style={{ fontSize: 12, color: 'var(--gray2)', marginTop: 2 }}>{me?.email}</div>
             </div>
@@ -490,6 +505,7 @@ export default function SettingsPage() {
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em', marginBottom: 10 }}>COR PRIMÁRIA</label>
+              {/* Amostras com 40px no celular (alvo de toque), 32px a partir do md */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 {PRESET_COLORS.map(color => {
                   const selected = localColor === color
@@ -498,8 +514,9 @@ export default function SettingsPage() {
                       key={color}
                       onClick={() => handleColorChange(color)}
                       aria-label={color}
+                      className="size-10 md:size-8"
                       style={{
-                        width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: color, cursor: 'pointer',
+                        borderRadius: 'var(--radius-sm)', background: color, cursor: 'pointer',
                         border: '2px solid var(--white)',
                         boxShadow: selected ? `0 0 0 2px ${color}` : '0 0 0 1px var(--gray3)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -557,7 +574,7 @@ export default function SettingsPage() {
                   ? <img src={localLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                   : <span style={{ fontSize: 18, fontWeight: 800, color: textOn(localColor) }}>{initials(localName || 'M')}</span>}
               </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>{localName || 'Sua marca'}</div>
+              <div className="max-lg:min-w-0 max-lg:wrap-anywhere" style={{ fontSize: 16, fontWeight: 800, color: 'var(--black)' }}>{localName || 'Sua marca'}</div>
             </div>
             <button type="button" disabled style={{ width: '100%', padding: '11px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: localColor, color: textOn(localColor), border: 'none', borderRadius: 'var(--radius-pill)', cursor: 'default' }}>Botão primário</button>
             <div>
@@ -587,12 +604,15 @@ export default function SettingsPage() {
                   const sdrTooltip = isError && item.slug === 'sdr-source' && sdrSyncMeta
                     ? [sdrSyncMeta.error ?? 'Erro no sync', sdrSyncMeta.lastSyncAt ? relTime(sdrSyncMeta.lastSyncAt) : null].filter(Boolean).join(' · ')
                     : undefined
+                  // No celular o texto não cabe entre o ícone e o status: a linha
+                  // quebra em duas, nome e descrição em cima, status e ação embaixo.
                   return (
                     <Link
                       key={item.slug}
                       href={item.href}
+                      className="gap-4 max-md:flex-wrap max-md:gap-y-3"
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 16,
+                        display: 'flex', alignItems: 'center',
                         padding: '14px 16px',
                         background: 'var(--white)', border: '1px solid var(--gray3)',
                         borderRadius: 'var(--radius-md)', textDecoration: 'none',
@@ -613,7 +633,7 @@ export default function SettingsPage() {
                       </div>
 
                       {/* Label + desc */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="flex-1 max-md:basis-[calc(100%-56px)]" style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--black)' }}>{item.label}</div>
                         <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginTop: 2 }}>{item.desc}</div>
                       </div>
@@ -621,6 +641,7 @@ export default function SettingsPage() {
                       {/* Status badge */}
                       <div
                         title={sdrTooltip}
+                        className="max-md:ml-14"
                         style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, marginRight: 8 }}
                       >
                         {st === 'loading' ? (
@@ -642,7 +663,7 @@ export default function SettingsPage() {
                       </div>
 
                       {/* Action pill */}
-                      <div style={{
+                      <div className="max-md:ml-auto" style={{
                         padding: '6px 14px', borderRadius: 'var(--radius-pill)', flexShrink: 0,
                         background: 'var(--bg)', border: '1px solid var(--gray3)',
                         fontSize: 12, fontWeight: 700, color: 'var(--gray)',
@@ -673,12 +694,19 @@ export default function SettingsPage() {
 
       {/* ── Equipe ─────────────────────────────────────────────────────────── */}
       {tab === 'equipe' && (
-        <div className="animate-slide-up delay-2">
-          {/* Shared header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
+        // Os modais de usuário (Overlay, position: fixed) moram aqui dentro. A
+        // entrada com fill "both" deixa um transform aplicado para sempre, e todo
+        // transform prende o fixed ao próprio elemento: o modal ficava do tamanho
+        // da lista, cortado. Abaixo do lg a animação não segura o estado final
+        // (backwards) e o modal volta a cobrir a tela; o resultado visual é o mesmo.
+        <div className="animate-slide-up delay-2 max-lg:[animation-fill-mode:backwards]!">
+          {/* Shared header — no celular a busca desce para uma linha própria, em
+              largura total, e o botão da direita fica no alto, à direita */}
+          <div className="max-md:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
             {manageEquipe ? (
               <button
                 onClick={() => setManageEquipe(false)}
+                className="max-md:min-h-10"
                 style={{ padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--bg)', color: 'var(--gray)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer', flexShrink: 0 }}
               >
                 ← Ver equipe
@@ -688,7 +716,7 @@ export default function SettingsPage() {
                 Equipe
               </div>
             )}
-            <div style={{ flex: 1, maxWidth: 280, position: 'relative' }}>
+            <div className="flex-1 max-md:order-last max-md:basis-full md:max-w-[280px]" style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray2)', pointerEvents: 'none' }} />
               <input
                 value={equipeSearch}
@@ -703,6 +731,7 @@ export default function SettingsPage() {
               manageEquipe ? (
                 <button
                   onClick={() => setInviteOpen(true)}
+                  className="max-md:ml-auto max-md:min-h-10"
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--primary)', color: 'var(--primary-contrast)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: 'pointer', flexShrink: 0 }}
                 >
                   + Convidar usuário
@@ -710,6 +739,7 @@ export default function SettingsPage() {
               ) : (
                 <button
                   onClick={() => setManageEquipe(true)}
+                  className="max-md:ml-auto max-md:min-h-10"
                   style={{ padding: '6px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, background: 'var(--primary)', color: 'var(--primary-contrast)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: 'pointer', flexShrink: 0 }}
                 >
                   Gerenciar usuários
@@ -730,7 +760,7 @@ export default function SettingsPage() {
                   <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-pill)', flexShrink: 0, background: u.avatarColor, color: u.avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>
                     {initials(u.name)}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="max-lg:wrap-anywhere" style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{u.name}</div>
                     <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500 }}>{u.email}</div>
                   </div>
@@ -809,26 +839,35 @@ function Field({ value, onChange, type = 'text', placeholder, disabled }: React.
   )
 }
 
+// No celular: 16px das bordas da tela, nunca mais alto que ela (tela baixa ou
+// teclado aberto), rolando por dentro. O fundo do cartão sai (pb-0) porque o
+// rodapé com Cancelar fica preso embaixo (BtnRow) e traz o próprio respiro.
+// Abaixo do lg o modal cobre a tela inteira (ver a aba Equipe): fica acima da
+// topbar (z 200) e tira da frente o botão flutuante da IA (data-hides-ai-launcher).
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      data-hides-ai-launcher=""
+      className="z-[100] p-4 max-lg:z-[1000] md:p-6"
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', padding: '28px 32px', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', animation: 'modalSlideUp .2s ease both' }}>
+      <div className="px-8 py-7 max-md:max-h-full max-md:overflow-y-auto max-md:px-5 max-md:pt-6 max-md:pb-0" style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', animation: 'modalSlideUp .2s ease both' }}>
         {children}
       </div>
     </div>
   )
 }
 
+// Rodapé dos modais. No celular fica preso ao pé do cartão que rola: Cancelar e a
+// ação continuam à vista com o formulário comprido ou o teclado aberto.
 function BtnRow({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>{children}</div>
+  return <div className="max-md:sticky max-md:bottom-0 max-md:bg-(--white) max-md:pt-3 max-md:pb-6" style={{ display: 'flex', gap: 10, marginTop: 4 }}>{children}</div>
 }
 
 function CancelBtn({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} style={{ flex: 1, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--bg)', color: 'var(--gray)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer' }}>
+    <button type="button" onClick={onClick} className="max-md:min-h-10" style={{ flex: 1, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--bg)', color: 'var(--gray)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer' }}>
       Cancelar
     </button>
   )
@@ -836,7 +875,7 @@ function CancelBtn({ onClick }: { onClick: () => void }) {
 
 function SubmitBtn({ loading, children }: { loading: boolean; children: React.ReactNode }) {
   return (
-    <button type="submit" disabled={loading} style={{ flex: 2, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: loading ? 'var(--gray3)' : 'var(--primary)', color: loading ? 'var(--gray)' : 'var(--primary-contrast)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: loading ? 'not-allowed' : 'pointer' }}>
+    <button type="submit" disabled={loading} className="max-md:min-h-10" style={{ flex: 2, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: loading ? 'var(--gray3)' : 'var(--primary)', color: loading ? 'var(--gray)' : 'var(--primary-contrast)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: loading ? 'not-allowed' : 'pointer' }}>
       {children}
     </button>
   )
@@ -942,14 +981,16 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
 
   return (
     <>
-      <div className="animate-slide-up delay-4" style={{ marginTop: 4 }}>
+      {/* Abaixo do lg as seis colunas não cabem: a tabela rola de lado dentro
+          deste quadro, sem alargar a página */}
+      <div className="animate-slide-up delay-4 max-lg:overflow-x-auto" style={{ marginTop: 4 }}>
           {isLoading && (
             <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Carregando…</div>
           )}
           {isError && (
             <div style={{ padding: '24px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 13, color: 'var(--red)', marginBottom: 12 }}>Erro ao carregar usuários.</div>
-              <button onClick={() => refetch()} style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', background: 'var(--primary-dim)', border: 'none', padding: '6px 14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={() => refetch()} className="max-md:min-h-10" style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', background: 'var(--primary-dim)', border: 'none', padding: '6px 14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Tentar novamente
               </button>
             </div>
@@ -1018,7 +1059,7 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 4 }}>Convidar usuário</div>
           <div style={{ fontSize: 13, color: 'var(--gray)', marginBottom: 24 }}>O usuário receberá um link para criar sua senha.</div>
           {inviteSuccess ? (
-            <div style={{ padding: 20, background: 'var(--success-dim)', border: '1px solid rgba(30,138,62,0.25)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, color: 'var(--success-text)', textAlign: 'center' }}>
+            <div className="max-md:mb-6" style={{ padding: 20, background: 'var(--success-dim)', border: '1px solid rgba(30,138,62,0.25)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, color: 'var(--success-text)', textAlign: 'center' }}>
               ✓ Convite enviado com sucesso!
             </div>
           ) : (
@@ -1063,14 +1104,15 @@ function UsersSection({ meId, search, inviteOpen, onInviteOpenChange }: { meId: 
       {deleteUser && (
         <Overlay onClose={() => setDeleteUser(null)}>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 12 }}>Remover usuário</div>
-          <p style={{ fontSize: 14, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 24 }}>
+          <p className="max-lg:wrap-anywhere" style={{ fontSize: 14, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 24 }}>
             Tem certeza que deseja remover <strong style={{ color: 'var(--black)' }}>{deleteUser.name}</strong>? Esta ação não pode ser desfeita.
           </p>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div className="max-md:sticky max-md:bottom-0 max-md:bg-(--white) max-md:pt-3 max-md:pb-6" style={{ display: 'flex', gap: 10 }}>
             <CancelBtn onClick={() => setDeleteUser(null)} />
             <button
               onClick={handleDelete}
               disabled={deleteLoading}
+              className="max-md:min-h-10"
               style={{ flex: 2, padding: '10px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: deleteLoading ? 'var(--gray3)' : 'var(--red)', color: deleteLoading ? 'var(--gray)' : 'var(--white)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: deleteLoading ? 'not-allowed' : 'pointer' }}
             >
               {deleteLoading ? 'Removendo…' : 'Remover'}
@@ -1134,14 +1176,16 @@ function AuditSection() {
 
   return (
     <div>
-      {/* Filter bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
+      {/* Filter bar — no celular o filtro desce para uma linha própria, em
+          largura total, e o total fica ao lado do título */}
+      <div className="max-md:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 14, borderBottom: '1px solid var(--gray3)', marginBottom: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gray2)', flexShrink: 0 }}>
           Auditoria
         </div>
         <select
           value={actionFilter}
           onChange={e => { setActionFilter(e.target.value); setOffset(0) }}
+          className="max-md:order-last max-md:min-w-0 max-md:basis-full"
           style={{ padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
         >
           <option value="">Todas as ações</option>
@@ -1224,6 +1268,7 @@ function AuditSection() {
           <button
             onClick={() => load(offset + LIMIT, actionFilter, true)}
             disabled={loadingMore}
+            className="max-md:min-h-10"
             style={{ padding: '8px 24px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: loadingMore ? 'var(--gray3)' : 'var(--bg)', color: loadingMore ? 'var(--gray)' : 'var(--black)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: loadingMore ? 'not-allowed' : 'pointer' }}
           >
             {loadingMore ? 'Carregando…' : `Carregar mais (${total - logs.length} restantes)`}
@@ -1234,12 +1279,14 @@ function AuditSection() {
   )
 }
 
+// 40px no celular (alvo de toque), 30px a partir do md.
 function IconBtn({ children, title, onClick, hoverColor, hoverBorder }: { children: React.ReactNode; title: string; onClick: () => void; hoverColor: string; hoverBorder: string }) {
   return (
     <button
       title={title}
       onClick={onClick}
-      style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--gray)', transition: 'all .15s' }}
+      className="size-10 md:size-[30px]"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--gray)', transition: 'all .15s' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = hoverBorder; e.currentTarget.style.color = hoverColor }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--gray3)'; e.currentTarget.style.color = 'var(--gray)' }}
     >

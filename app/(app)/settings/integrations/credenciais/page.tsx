@@ -38,10 +38,13 @@ function SecretInput({
         onFocus={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
         onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
       />
+      {/* The eye is ~23px: on phones an invisible 40×40 band (::before), centred
+          on it, makes it tappable without moving it or the field's text */}
       <button
         type="button"
         onClick={onToggle}
         title={show ? 'Ocultar' : 'Mostrar'}
+        className="max-md:before:absolute max-md:before:top-1/2 max-md:before:left-1/2 max-md:before:size-10 max-md:before:-translate-x-1/2 max-md:before:-translate-y-1/2"
         style={{
           position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
           background: 'none', border: 'none', cursor: 'pointer',
@@ -263,6 +266,7 @@ export default function CredenciaisPage() {
       <div>
         <Link
           href="/settings?tab=integracoes"
+          className="max-md:min-h-10"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--gray)', textDecoration: 'none', marginBottom: 20 }}
         >
           ← Voltar para Integrações
@@ -275,9 +279,10 @@ export default function CredenciaisPage() {
 
   return (
     <div>
-      {/* Back link */}
+      {/* Back link — 40px tall on phones */}
       <Link
         href="/settings?tab=integracoes"
+        className="max-md:min-h-10"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -351,7 +356,7 @@ export default function CredenciaisPage() {
               </div>
             )}
             {dispatchResult !== undefined && !dispatchResult.ok && (
-              <div style={{
+              <div className="max-lg:wrap-anywhere" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 fontSize: 12, fontWeight: 700,
                 background: 'rgba(239,68,68,0.08)', color: 'var(--red)',
@@ -409,8 +414,8 @@ export default function CredenciaisPage() {
           />
         </Card>
 
-        {/* Save bar */}
-        <div style={{ marginTop: 8, paddingBottom: 48, display: 'flex', alignItems: 'center', gap: 14 }}>
+        {/* Save bar — on phones the result message drops below the button */}
+        <div className="max-md:flex-wrap" style={{ marginTop: 8, paddingBottom: 48, display: 'flex', alignItems: 'center', gap: 14 }}>
           <Button variant="primary" size="lg" onClick={save} disabled={saving}>
             {saving ? 'Salvando...' : 'Salvar credenciais'}
           </Button>
@@ -421,7 +426,7 @@ export default function CredenciaisPage() {
             </span>
           )}
           {saveError && !saved && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
+            <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
               ✗ {saveError}
             </span>
           )}

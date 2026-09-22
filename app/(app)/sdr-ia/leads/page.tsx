@@ -725,9 +725,11 @@ export default function NovDisparoPage() {
 
               {/* Below lg the five columns don't fit beside the sidebar (or on a
                   phone): the table scrolls sideways inside its own frame, the
-                  checkbox and the name first. From lg the frame clips, as before. */}
+                  checkbox and the name first. From lg the frame clips, as before.
+                  The frame is also a size container below lg (@container), so the
+                  empty-state message can take exactly its visible width. */}
               {!leadsLoading && !leadsError && (
-                <div className="overflow-hidden max-lg:overflow-x-auto" style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', marginBottom: 16 }}>
+                <div className="overflow-hidden max-lg:overflow-x-auto max-lg:@container" style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', marginBottom: 16 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg)' }}>
@@ -766,7 +768,11 @@ export default function NovDisparoPage() {
                       {(leadsData?.items ?? []).length === 0 ? (
                         <tr>
                           <td colSpan={6} className="max-lg:wrap-anywhere" style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
-                            {debQ ? `Nenhum lead encontrado para "${debQ}"` : 'Nenhum lead encontrado'}
+                            {/* Below lg the row spans the whole scrolled width of the
+                                table: the message keeps to the visible frame instead —
+                                pinned to its left edge (sticky), as wide as it (100cqw),
+                                and centred there, so it reads without scrolling sideways */}
+                            <div className="max-lg:sticky max-lg:left-0 max-lg:-mx-5 max-lg:w-[100cqw] max-lg:px-5">{debQ ? `Nenhum lead encontrado para "${debQ}"` : 'Nenhum lead encontrado'}</div>
                           </td>
                         </tr>
                       ) : (leadsData?.items ?? []).map((lead, i) => {
@@ -1040,8 +1046,11 @@ export default function NovDisparoPage() {
                     <span style={{ flexShrink: 0, marginLeft: 8, fontSize: 11, opacity: 0.6 }}>▾</span>
                   </button>
 
+                  {/* While the panel is open the floating AI button steps aside below
+                      lg (data-hides-ai-launcher, globals.css): at the bottom of a phone
+                      screen it sat on the panel's lower-right corner */}
                   {templateOpen && (
-                    <div style={{
+                    <div data-hides-ai-launcher="" style={{
                       position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 2000,
                       background: 'var(--white)', border: '1px solid var(--gray3)',
                       borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-menu)',

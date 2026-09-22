@@ -59,18 +59,21 @@ function ConfirmModal({ pipelineName, onConfirm, onCancel }: {
   return (
     <div
       onClick={e => { if (!cardRef.current?.contains(e.target as Node)) onCancel() }}
+      className="p-4 md:p-6"
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(18,19,22,0.45)', backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24, animation: 'fadeIn .18s ease both',
+        animation: 'fadeIn .18s ease both',
       }}
     >
-      <div ref={cardRef} style={{
+      {/* On phones: 16px from the screen edges, never taller than the screen
+          (short screen), scrolling inside with the Cancel/confirm footer pinned
+          to the bottom. From md it clips as before. */}
+      <div ref={cardRef} className="md:overflow-hidden max-md:max-h-full max-md:overflow-y-auto" style={{
         background: 'var(--white)', borderRadius: 'var(--radius-xl)', width: '100%', maxWidth: 460,
         boxShadow: '0 24px 60px rgba(0,0,0,0.22)',
         animation: 'modalSlideUp .22s cubic-bezier(0.34,1.56,0.64,1) both',
-        overflow: 'hidden',
       }}>
         {/* Header */}
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--gray3)', background: 'var(--bg)' }}>
@@ -110,10 +113,11 @@ function ConfirmModal({ pipelineName, onConfirm, onCancel }: {
           </div>
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: '0 24px 20px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        {/* Footer — pinned to the bottom of the scrolling card on phones */}
+        <div className="px-6 pb-5 max-md:sticky max-md:bottom-0 max-md:bg-(--white) max-md:pt-3" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button
             onClick={onCancel}
+            className="max-md:min-h-10"
             style={{
               padding: '10px 20px', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray3)',
               background: 'var(--white)', fontSize: 13, fontWeight: 600,
@@ -124,6 +128,7 @@ function ConfirmModal({ pipelineName, onConfirm, onCancel }: {
           </button>
           <button
             onClick={onConfirm}
+            className="max-md:min-h-10"
             style={{
               padding: '10px 22px', borderRadius: 'var(--radius-md)', border: 'none',
               background: 'var(--primary)', fontSize: 13, fontWeight: 800,
@@ -172,7 +177,7 @@ function SyncProgressCard({ progress }: { progress: SyncProgress }) {
       {/* Stage row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <meta.Icon size={18} color={meta.color} className={meta.spin ? 'animate-spin' : undefined} />
-        <div style={{ flex: 1 }}>
+        <div className="max-lg:min-w-0 max-lg:wrap-anywhere" style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: meta.color }}>{meta.label}</div>
           {progress.message && progress.stage !== 'done' && progress.stage !== 'error' && (
             <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, marginTop: 2 }}>{progress.message}</div>
@@ -443,9 +448,10 @@ export default function IntegrationPage() {
 
   return (
     <div>
-      {/* Back link */}
+      {/* Back link — 40px tall on phones */}
       <Link
         href="/settings?tab=integracoes"
+        className="max-md:min-h-10"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           fontSize: 13, fontWeight: 600, color: 'var(--gray)',
@@ -461,21 +467,21 @@ export default function IntegrationPage() {
         <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: 2 }}>Conecte e sincronize seus leads do Kommo</div>
       </div>
 
-      {/* Stepper */}
-      <div className="animate-slide-up delay-2" style={{
+      {/* Stepper — the three steps don't fit side by side on a phone: they stack,
+          without the connecting lines */}
+      <div className="animate-slide-up delay-2 flex items-center max-md:flex-col max-md:items-stretch max-md:gap-3" style={{
         background: 'var(--white)', border: '1px solid var(--gray3)',
         borderRadius: 'var(--radius-lg)', padding: '16px 24px', marginBottom: 20, boxShadow: 'var(--shadow)',
-        display: 'flex', alignItems: 'center',
       }}>
         <StepIndicator current={step} step={1} label="Configurar app" sub="Client ID e Secret" />
-        <div style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
+        <div className="max-md:hidden" style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
         <StepIndicator current={step} step={2} label="Autorizar" sub="OAuth 2.0 Kommo" />
-        <div style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
+        <div className="max-md:hidden" style={{ flex: 1, height: 1, background: 'var(--gray3)', margin: '0 16px', maxWidth: 60 }} />
         <StepIndicator current={step} step={3} label="Sincronizar" sub="Importar leads" />
       </div>
 
       {successMsg && (
-        <div className="animate-slide-up" style={{
+        <div className="animate-slide-up max-lg:wrap-anywhere" style={{
           padding: '12px 16px', borderRadius: 'var(--radius-md)', marginBottom: 16, fontSize: 13, fontWeight: 600,
           background: successMsg.includes('sucesso') ? 'var(--success-dim)' : 'var(--danger-dim)',
           border: `1px solid ${successMsg.includes('sucesso') ? 'rgba(30,138,62,0.25)' : 'rgba(217,48,37,0.2)'}`,
@@ -495,12 +501,14 @@ export default function IntegrationPage() {
             Credenciais do Aplicativo Kommo
           </div>
 
-          <div style={{ padding: '12px 16px', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', borderRadius: 'var(--radius-md)', marginBottom: 20, fontSize: 13, fontWeight: 600, color: 'var(--primary-text)', lineHeight: 1.6 }}>
+          {/* The callback URL is one long word: it wraps below lg */}
+          <div className="max-lg:wrap-anywhere" style={{ padding: '12px 16px', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', borderRadius: 'var(--radius-md)', marginBottom: 20, fontSize: 13, fontWeight: 600, color: 'var(--primary-text)', lineHeight: 1.6 }}>
             Acesse <strong>kommo.com → Configurações → Integrações → Criar integração</strong> para obter as credenciais.
             Use <code style={{ background: 'var(--white)', padding: '1px 6px', borderRadius: 'var(--radius-xs)', fontSize: 12 }}>http://localhost:3000/api/kommo/callback</code> como URL de redirecionamento.
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          {/* Client ID and Secret: one under the other on phones, side by side from md */}
+          <div className="grid-cols-1 md:grid-cols-[1fr_1fr]" style={{ display: 'grid', gap: 16, marginBottom: 16 }}>
             {[
               { label: 'Client ID', value: clientId, set: setClientId, placeholder: 'Ex: abc123def456…' },
               { label: 'Client Secret', value: clientSecret, set: setClientSecret, placeholder: 'Ex: xyz789…', type: 'password' },
@@ -523,10 +531,13 @@ export default function IntegrationPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em' }}>DOMÍNIO DA CONTA</label>
             <div style={{ display: 'flex', alignItems: 'center' }}>
+              {/* min-w-0 on phones: the field's intrinsic width plus the suffix
+                  would push the row past the card */}
               <input
                 value={accountDomain}
                 onChange={e => setAccountDomain(e.target.value)}
                 placeholder="suaconta"
+                className="max-md:min-w-0"
                 style={{ flex: 1, padding: '10px 14px', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--black)', background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)', outline: 'none', borderRight: 'none' }}
                 onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
                 onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
@@ -560,7 +571,7 @@ export default function IntegrationPage() {
           <div style={{ fontSize: 14, color: 'var(--gray)', marginBottom: 24, lineHeight: 1.6 }}>
             Clique no botão abaixo para autorizar o acesso ao seu Kommo via OAuth 2.0.
           </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <div className="max-md:flex-wrap" style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <button onClick={() => setStep(1)} style={{ padding: '11px 20px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-pill)', cursor: 'pointer', color: 'var(--gray)' }}>
               ← Editar credenciais
             </button>
@@ -577,7 +588,8 @@ export default function IntegrationPage() {
 
           {/* Status card */}
           <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            {/* Status and last sync side by side from md; stacked, left-aligned, on phones */}
+            <div className="items-center max-md:flex-col max-md:items-start max-md:gap-4" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--black)', marginBottom: 4 }}>Status da integração</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -594,6 +606,7 @@ export default function IntegrationPage() {
                       const data = await res.json()
                       if (data.oauthUrl) window.location.href = data.oauthUrl
                     }}
+                    className="max-md:min-h-10"
                     style={{
                       padding: '3px 10px', fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
                       background: 'var(--bg)', border: '1px solid var(--gray3)',
@@ -604,6 +617,7 @@ export default function IntegrationPage() {
                   </button>
                   <button
                     onClick={() => setStep(1)}
+                    className="max-md:min-h-10"
                     style={{
                       padding: '3px 10px', fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
                       background: 'var(--bg)', border: '1px solid var(--gray3)',
@@ -614,15 +628,17 @@ export default function IntegrationPage() {
                   </button>
                 </div>
               </div>
-              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              <div className="items-end text-right max-md:items-start max-md:text-left" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <div style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 600 }}>Última sincronização</div>
+                  {/* 40px on phones (touch target), 26px from md */}
                   <button
                     onClick={() => syncNow(false)}
                     disabled={!canSync}
                     title="Atualização rápida — busca apenas dados novos/alterados"
+                    className="size-10 md:size-[26px]"
                     style={{
-                      width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
+                      borderRadius: 'var(--radius-sm)', border: '1px solid var(--gray3)',
                       background: 'var(--bg)', cursor: canSync ? 'pointer' : 'not-allowed',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       opacity: !canSync ? 0.4 : 1, transition: 'opacity .2s',
@@ -659,7 +675,8 @@ export default function IntegrationPage() {
                   Nenhum funil encontrado. Certifique-se de que a integração está ativa.
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                // On phones the save button goes under the select, both full width
+                <div className="items-center max-md:flex-col max-md:items-stretch" style={{ display: 'flex', gap: 10 }}>
                   <select
                     value={selectedPipelineId}
                     onChange={e => {
@@ -685,6 +702,7 @@ export default function IntegrationPage() {
                   <button
                     onClick={savePipelineSelection}
                     disabled={savingPipeline || syncing || !selectedPipelineId}
+                    className="max-md:min-h-10"
                     style={{
                       padding: '10px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
                       background: pipelineSaved ? 'var(--success-dim)' : 'var(--bg)',
@@ -709,15 +727,15 @@ export default function IntegrationPage() {
               {/* Active pipeline badge — only shows when DB has a confirmed selection */}
               {hasSavedPipeline && !hasUnsavedChange && (
                 <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', color: 'var(--primary-text)', border: '1px solid var(--primary-mid)' }}>
+                  <span className="max-lg:wrap-anywhere" style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', color: 'var(--primary-text)', border: '1px solid var(--primary-mid)' }}>
                     Funil ativo: {dbPipelineName}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Sync button */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Sync button — on phones the read-only notice drops below it */}
+            <div className="max-md:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <button
                 onClick={() => setShowConfirm(true)}
                 disabled={!canSync}

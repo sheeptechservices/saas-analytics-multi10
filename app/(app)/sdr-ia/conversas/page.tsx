@@ -456,7 +456,13 @@ export default function ConversasPage() {
         ? entry.convSession
         : sessionFromParam(new URLSearchParams(window.location.search).get('session'))
       if (sessionId) {
-        if (sessionId !== activeIdRef.current) loadThread(sessionId)
+        // Forward reopening a thread sends focus to its back button, as a tap
+        // on the list does (the focus effect only moves it where that button
+        // is rendered, below lg)
+        if (sessionId !== activeIdRef.current) {
+          focusBackRef.current = true
+          loadThread(sessionId)
+        }
       } else if (activeIdRef.current) {
         clearThread()
       }

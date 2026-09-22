@@ -73,9 +73,11 @@ function isAreaId(v: unknown): v is AreaId {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// No celular o cartão fica dentro da área colapsável (também com borda e
+// respiro): as margens laterais encolhem para sobrar largura aos campos.
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', padding: '20px 24px', marginBottom: 16 }}>
+    <div className="px-4 py-5 md:px-6" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', marginBottom: 16 }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--gray2)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 18 }}>
         {title}
       </div>
@@ -151,7 +153,7 @@ function CollapsibleArea({
         />
       </button>
       {open && (
-        <div id={`area-${id}`} style={{ padding: '20px 20px 4px', background: 'var(--bg)' }}>
+        <div id={`area-${id}`} className="px-3 pt-5 pb-1 md:px-5" style={{ background: 'var(--bg)' }}>
           {children}
         </div>
       )}
@@ -378,13 +380,15 @@ export function CampaignConfig() {
       >
         {/* Status da campanha */}
         <SectionCard title="Status da campanha">
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          {/* No celular os três botões não cabem numa linha: quebram, cada um
+              inteiro numa linha só e com 40px de altura */}
+          <div className="max-md:flex-wrap" style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             {(['active', 'paused', 'draft'] as Status[]).map(s => {
               const labels:  Record<Status, string> = { active: '● Ativa', paused: '⏸ Pausada', draft: '✏ Rascunho' }
               const colors:  Record<Status, string> = { active: 'var(--green)', paused: 'var(--gray2)', draft: 'var(--primary-text)' }
               const on = status === s
               return (
-                <button key={s} onClick={() => setStatus(s)} style={{
+                <button key={s} onClick={() => setStatus(s)} className="max-md:min-h-10 max-md:whitespace-nowrap" style={{
                   padding: '7px 18px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
                   fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   border:      `1.5px solid ${on ? colors[s] : 'var(--gray3)'}`,
@@ -443,7 +447,8 @@ export function CampaignConfig() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            {/* Toques e intervalo: um embaixo do outro no celular, lado a lado do md */}
+            <div className="grid-cols-1 md:grid-cols-[1fr_1fr]" style={{ display: 'grid', gap: 24 }}>
               <div>
                 <FieldLabel>
                   Toques na sequência{' '}
@@ -515,10 +520,12 @@ export function CampaignConfig() {
             </FieldLabel>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
               <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>10</span>
+              {/* 40px de altura no celular: a faixa inteira responde ao toque */}
               <input
                 type="range" min={10} max={1000} step={10}
                 value={settings.limiteDiario}
                 onChange={e => upd('limiteDiario', Number(e.target.value))}
+                className="max-md:h-10"
                 style={{ flex: 1, accentColor: 'var(--primary)' }}
               />
               <span style={{ fontSize: 11, color: 'var(--gray2)', fontWeight: 500, flexShrink: 0 }}>1000</span>
@@ -529,7 +536,7 @@ export function CampaignConfig() {
               {DIAS.map(({ num, label }) => {
                 const on = settings.diasAtivos.includes(num)
                 return (
-                  <button key={num} onClick={() => toggleDia(num)} style={{
+                  <button key={num} onClick={() => toggleDia(num)} className="max-md:min-h-10" style={{
                     padding: '6px 14px', borderRadius: 'var(--radius-pill)', fontFamily: 'inherit',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     border:     `1.5px solid ${on ? 'var(--primary)' : 'var(--gray3)'}`,
@@ -560,7 +567,7 @@ export function CampaignConfig() {
               <Check size={14} style={{ flexShrink: 0 }} />
               Integração configurada
               <span style={{ color: 'var(--gray3)' }}>·</span>
-              <Link href="/settings/integrations/credenciais" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
+              <Link href="/settings/integrations/credenciais" className="max-md:inline-flex max-md:min-h-10 max-md:items-center" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
                 gerenciar em Credenciais
               </Link>
             </div>
@@ -568,7 +575,7 @@ export function CampaignConfig() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--gray)', flexWrap: 'wrap' as const }}>
               <span style={{ fontWeight: 500 }}>Não configurada</span>
               <span style={{ color: 'var(--gray3)' }}>·</span>
-              <Link href="/settings/integrations/credenciais" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
+              <Link href="/settings/integrations/credenciais" className="max-md:inline-flex max-md:min-h-10 max-md:items-center" style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'none' }}>
                 configurar em Credenciais
               </Link>
             </div>
@@ -580,7 +587,7 @@ export function CampaignConfig() {
             A conexão com a fonte de dados e a integração são configuradas separadamente.
             As configurações de campanha acima serão aplicadas quando a fonte estiver conectada e a integração ativada.
           </div>
-          <Link href="/settings/integrations/sdr-source" style={{
+          <Link href="/settings/integrations/sdr-source" className="max-md:min-h-10" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 13, fontWeight: 700, color: 'var(--primary-text)',
             background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)',
@@ -593,7 +600,8 @@ export function CampaignConfig() {
 
       {/* ── Salvar — sempre visível ──────────────────────────────── */}
       <div style={{ marginTop: 16, paddingBottom: 48 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+        {/* No celular o aviso ao lado do botão desce para a linha de baixo */}
+        <div className="max-md:flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <Button
             variant="primary"
             size="lg"
@@ -615,7 +623,7 @@ export function CampaignConfig() {
             </span>
           )}
           {saveError && !saved && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
+            <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>
               ✗ {saveError}
             </span>
           )}
@@ -642,7 +650,7 @@ export function CampaignConfig() {
           </div>
         )}
         {n8nDelivery !== null && n8nDelivery !== undefined && !n8nDelivery.ok && (
-          <div style={{
+          <div className="max-md:flex-wrap max-lg:wrap-anywhere" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 12, fontWeight: 700,
             background: 'var(--warn-dim)', color: 'var(--warn-text)',
@@ -664,6 +672,7 @@ export function CampaignConfig() {
       <div style={{ marginTop: 40, borderTop: '1.5px solid var(--gray3)', paddingTop: 28, paddingBottom: 48 }}>
         <button
           onClick={() => setFerramentasOpen(o => !o)}
+          className="max-md:min-h-10"
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: 'none', border: 'none', cursor: 'pointer',
@@ -727,7 +736,8 @@ export function CampaignConfig() {
               onBlur={e  => (e.currentTarget.style.borderColor = 'var(--gray3)')}
             />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 16, marginBottom: 20 }}>
+            {/* Idioma e variáveis: um embaixo do outro no celular */}
+            <div className="grid-cols-1 md:grid-cols-[120px_1fr]" style={{ display: 'grid', gap: 16, marginBottom: 20 }}>
               <div>
                 <FieldLabel>Idioma</FieldLabel>
                 <input
@@ -796,14 +806,14 @@ export function CampaignConfig() {
                 {testSending ? 'Enviando...' : 'Enviar teste'}
               </Button>
               {testError && (
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
+                <span className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ {testError}</span>
               )}
             </div>
 
             {testResults && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {testResults.map((r, i) => (
-                  <div key={i} style={{
+                  <div key={i} className="max-md:flex-wrap max-lg:wrap-anywhere" style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     background: r.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
                     border: `1px solid ${r.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,

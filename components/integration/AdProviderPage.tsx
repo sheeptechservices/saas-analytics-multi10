@@ -209,7 +209,8 @@ export function AdProviderPage({ provider }: { provider: AdProvider }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        {/* One field per row on phones, two per row from md */}
+        <div className="grid-cols-1 md:grid-cols-[1fr_1fr]" style={{ display: 'grid', gap: 16, marginBottom: 20 }}>
           {config.fields.map(field => (
             <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 800, color: 'var(--gray)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
@@ -234,7 +235,7 @@ export function AdProviderPage({ provider }: { provider: AdProvider }) {
         </div>
 
         {msg && (
-          <div style={{
+          <div className="max-lg:wrap-anywhere" style={{
             padding: '10px 14px', borderRadius: 10, marginBottom: 20, fontSize: 12, fontWeight: 600,
             background: msg.ok ? 'rgba(30,138,62,0.06)' : 'rgba(217,48,37,0.06)',
             border: `1px solid ${msg.ok ? 'rgba(30,138,62,0.2)' : 'rgba(217,48,37,0.2)'}`,
@@ -244,11 +245,13 @@ export function AdProviderPage({ provider }: { provider: AdProvider }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* On phones Remove and Save wrap onto two rows when they don't fit */}
+        <div className="max-md:flex-wrap max-md:gap-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {isConnected ? (
             <button
               onClick={handleRemove}
               disabled={removing}
+              className="max-md:min-h-10"
               style={{
                 padding: '9px 18px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
                 background: 'rgba(217,48,37,0.06)', border: '1px solid rgba(217,48,37,0.2)',
