@@ -1,7 +1,9 @@
 'use client'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { useModules } from '@/components/ModulesProvider'
+import { useModules, useEndpointAllowed } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha, textoDeModuloDesligado } from '@/lib/api-error'
 import { ADS_PROVIDER_MODULE } from '@/lib/modules'
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
@@ -30,6 +32,18 @@ const PROVIDER_DISPLAY: Record<string, string> = {
   google_ads: 'Google Ads',
   meta_ads: 'Meta Ads',
   tiktok_ads: 'TikTok Ads',
+}
+
+/* Resposta de /api/ads/insights. As três listas seguem `any[]`, como já eram as
+ * variáveis locais antes desta mudança: os gráficos leem campos por nome e
+ * tipá-los aqui seria outra tarefa. `totals` e `hasIntegrations`, que a tela
+ * pinta direto, ganharam tipo. */
+interface InsightsResponse {
+  hasIntegrations?: boolean
+  totals?: Record<string, number>
+  timeSeries?: any[]
+  byProvider?: any[]
+  top10?: any[]
 }
 
 function periodDates(period: Period): { startDate: string; endDate: string } {
@@ -234,16 +248,24 @@ export default function MarketingPage() {
   const qs = new URLSearchParams({ startDate, endDate })
   if (provider) qs.set('provider', provider)
 
-  const { data, isLoading } = useQuery({
+  // Mesma chave da própria rota (/dashboard/marketing exige dashboard.marketing),
+  // então aqui isto é defesa em profundidade: o layout de (app) só barra quem
+  // chega pelo servidor, e ele não é refeito na navegação do cliente.
+  const { permitido, moduleKey } = useEndpointAllowed('/api/ads/insights')
+
+  const { data, isLoading, isError, error, refetch } = useQuery<InsightsResponse>({
     queryKey: ['ads-insights', startDate, endDate, provider],
-    queryFn: () => fetch(`/api/ads/insights?${qs}`).then(r => r.json()),
+    // Sem conferir o status, o corpo do 403/500 virava `{}` e a tela pintava um
+    // painel inteiro zerado como se o cliente não tivesse gasto nada (issue #98).
+    queryFn: () => fetchJson<InsightsResponse>(`/api/ads/insights?${qs}`),
     staleTime: 5 * 60_000,
+    enabled: permitido,
   })
 
   const totals = data?.totals ?? {}
-  const timeSeries: any[] = data?.timeSeries ?? []
-  const byProvider: any[] = data?.byProvider ?? []
-  const top10: any[] = data?.top10 ?? []
+  const timeSeries = data?.timeSeries ?? []
+  const byProvider = data?.byProvider ?? []
+  const top10 = data?.top10 ?? []
   const hasIntegrations: boolean = data?.hasIntegrations ?? true
 
   // Pivot timeSeries → { date, google_ads: n, meta_ads: n, tiktok_ads: n }
@@ -259,6 +281,21 @@ export default function MarketingPage() {
   const providersInData = [...new Set(timeSeries.map(r => r.provider))]
 
   const roasData = byProvider.map(r => ({ ...r, label: PROVIDER_DISPLAY[r.provider] ?? r.provider }))
+
+  // Módulo fora do plano e falha do servidor não podem virar um painel de zeros:
+  // cada um sai com a sua própria frase, em português.
+  if (!permitido) {
+    return <ApiErrorState texto={textoDeModuloDesligado(moduleKey!)} />
+  }
+
+  if (isError) {
+    return (
+      <ApiErrorState
+        texto={textoDaFalha(error, 'os dados de anúncios')}
+        onRetry={() => { void refetch() }}
+      />
+    )
+  }
 
   if (!isLoading && data && !hasIntegrations) {
     return (

@@ -1,9 +1,11 @@
 'use client'
 import { useCallback, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDeLeituraPerdida } from '@/lib/api-error'
 
 // As cinco URLs de n8n que esta tela edita. A rota trata cada par URL/segredo
 // separadamente: URL ausente no PUT mantém a guardada, URL diferente derruba o
@@ -189,7 +191,10 @@ export default function CredenciaisPage() {
 
   const [loading,      setLoading]      = useState(true)
   const [loaded,       setLoaded]       = useState(false)
-  const [loadError,    setLoadError]    = useState<string | null>(null)
+  // O erro inteiro, e não a frase pronta: o aviso de "nada pode ser salvo" é o
+  // mesmo em toda falha (é ele que trava o Salvar), mas a causa — 403 do plano,
+  // 500 do servidor, queda de rede — precisa aparecer. Ver textoDeLeituraPerdida.
+  const [loadError,    setLoadError]    = useState<unknown>(null)
   const [loadedUrlKeys, setLoadedUrlKeys] = useState<string[]>([])
   const [version,      setVersion]      = useState<number | null>(null)
   const [saving,       setSaving]       = useState(false)
@@ -206,9 +211,8 @@ export default function CredenciaisPage() {
   const loadSettings = useCallback(() => {
     setLoading(true)
     setLoadError(null)
-    fetch('/api/sdr/settings')
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then((d: { configured: boolean; status: string; version?: number; settings: Record<string, unknown>; secretsSet?: Record<string, boolean> }) => {
+    fetchJson<{ configured: boolean; status: string; version?: number; settings: Record<string, unknown>; secretsSet?: Record<string, boolean> }>('/api/sdr/settings')
+      .then(d => {
         const {
           n8nWebhookUrl: wh, n8nDispatchUrl: di, n8nEnrollUrl: en,
           n8nImportUrl: im, n8nBlastUrl: bl,
@@ -226,10 +230,13 @@ export default function CredenciaisPage() {
         setN8nBlastUrl(typeof bl === 'string' ? bl : '')
         setLoaded(true)
       })
-      .catch(() => {
+      .catch((e: unknown) => {
+        // QUALQUER falha — 403, 500, rede — derruba `loaded` e `loadedUrlKeys`.
+        // São esses dois que desligam o Salvar e tiram as URLs não lidas do PUT
+        // (ver save()); distinguir o status muda só o texto, nunca a trava.
         setLoaded(false)
         setLoadedUrlKeys([])
-        setLoadError('Não foi possível carregar as credenciais. Nada pode ser salvo até a leitura dar certo — salvar agora apagaria as URLs e os segredos já configurados.')
+        setLoadError(e)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -345,19 +352,13 @@ export default function CredenciaisPage() {
       </div>
 
       {/* Falha ao carregar — sem estilo em linha: classes do design system */}
-      {loadError && (
-        <div className="mb-4 flex flex-wrap items-start gap-3 rounded-(--radius-md) border border-(--danger-mid) bg-(--danger-dim) p-4">
-          {/* No celular a mensagem ocupa a linha inteira e o botão desce */}
-          <div className="max-md:basis-full flex flex-1 items-start gap-3">
-            <AlertTriangle size={14} className="shrink-0 text-(--danger-text)" />
-            <div className="max-lg:wrap-anywhere text-13 font-medium text-(--danger-text)">
-              {loadError}
-            </div>
-          </div>
-          <Button variant="secondary" size="sm" onClick={loadSettings}>
-            <RefreshCw size={13} /> Tentar novamente
-          </Button>
-        </div>
+      {loadError != null && (
+        <ApiErrorState
+          className="mb-4"
+          compacto
+          texto={textoDeLeituraPerdida(loadError, 'as URLs e os segredos já configurados')}
+          onRetry={loadSettings}
+        />
       )}
 
       {/* Card 1: URL de integração */}

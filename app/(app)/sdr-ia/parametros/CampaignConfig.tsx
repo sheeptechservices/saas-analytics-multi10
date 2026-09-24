@@ -1,9 +1,12 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Check, ChevronDown, ExternalLink, Info, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Info } from 'lucide-react'
 import { SkeletonForm, SkeletonBlock } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
+import { useEndpointAllowed } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDeLeituraPerdida } from '@/lib/api-error'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -170,7 +173,9 @@ export function CampaignConfig() {
   const [preservedN8nUrls, setPreservedN8nUrls] = useState<Record<string, string>>({})
   const [remetenteError,  setRemetenteError]  = useState<string | null>(null)
   const [version,         setVersion]         = useState<number | null>(null)
-  const [loadError,       setLoadError]       = useState<string | null>(null)
+  // O erro inteiro: 403 (módulo fora do plano) e 500 (servidor caiu) não podem
+  // sair com a mesma frase, e nenhum dos dois pode virar "salvar por cima".
+  const [loadError,       setLoadError]       = useState<unknown>(null)
   const [loading,            setLoading]            = useState(true)
   const [saving,             setSaving]             = useState(false)
   const [saved,              setSaved]              = useState(false)
@@ -187,6 +192,13 @@ export function CampaignConfig() {
   const [testResults,      setTestResults]      = useState<Array<{ to: string; ok: boolean; id?: string; status?: string; error?: string }> | null>(null)
   const [testError,        setTestError]        = useState<string | null>(null)
   const [ferramentasOpen,  setFerramentasOpen]  = useState(false)
+
+  /* A Campanha SDR vive na aba de sdr.parametros, mas o Teste de disparo fala
+   * com a YCloud (/api/ycloud/templates e /api/ycloud/test-send), que é o
+   * módulo do WhatsApp. Quem contratou só a campanha disparava esse GET a cada
+   * montagem e levava 403 — e a lista de templates ficava vazia, sem explicar
+   * nada (issue #98). Agora a ferramenta inteira some junto com a requisição. */
+  const { permitido: podeTestarEnvio } = useEndpointAllowed('/api/ycloud/templates')
 
   // ── Áreas colapsáveis — persistidas em localStorage ──────────────────────────
   const [openAreas, setOpenAreas] = useState<Set<AreaId>>(() => {
@@ -218,15 +230,17 @@ export function CampaignConfig() {
 
   // ── Fetch templates YCloud ────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/ycloud/templates')
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { templates?: Array<{ name: string; language: string; status: string }> } | null) => {
+    if (!podeTestarEnvio) return
+    fetchJson<{ templates?: Array<{ name: string; language: string; status: string }> }>('/api/ycloud/templates')
+      .then(d => {
         if (d?.templates) {
           setTestTemplates(d.templates.filter(t => t.status === 'approved'))
         }
       })
-      .catch(() => {})
-  }, [])
+      // Lista vazia é o estado normal de quem não tem template aprovado; o campo
+      // aceita o nome digitado à mão, então a falha aqui não trava a ferramenta.
+      .catch(() => setTestTemplates([]))
+  }, [podeTestarEnvio])
 
   // ── Fetch settings ────────────────────────────────────────────────────────────
   // O GET que falhava em silêncio renderizava os DEFAULTS como se fossem os
@@ -236,8 +250,7 @@ export function CampaignConfig() {
   const loadSettings = useCallback(() => {
     setLoading(true)
     setLoadError(null)
-    fetch('/api/sdr/settings')
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    fetchJson<ApiData>('/api/sdr/settings')
       .then((d: ApiData) => {
         const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, n8nImportUrl: importUrl, n8nBlastUrl: blastUrl, ...coreSettings } = d.settings
         const coreWithDefaults = { ...DEFAULTS, ...coreSettings }
@@ -253,9 +266,11 @@ export function CampaignConfig() {
         if (blastUrl) urls.n8nBlastUrl = blastUrl
         setPreservedN8nUrls(urls)
       })
-      .catch(() => {
+      .catch((e: unknown) => {
+        // Zerar o baseline é o que trava o Salvar (ver save()); vale para
+        // QUALQUER falha, 403 ou 500 — só o texto muda.
         setBaseline(null)
-        setLoadError('Não foi possível carregar as configurações da campanha. Nada pode ser salvo até a leitura dar certo — salvar agora apagaria a integração.')
+        setLoadError(e)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -375,21 +390,15 @@ export function CampaignConfig() {
       {/* ── Falha ao carregar ─────────────────────────────────────
           Sem estilo em linha: o alerta sai das classes do design system
           (mesmos tokens de --danger que .pill-danger usa). */}
-      {loadError && (
-        <div className="mb-4 flex flex-wrap items-start gap-3 rounded-(--radius-md) border border-(--danger-mid) bg-(--danger-dim) p-4">
-          {/* No celular a mensagem ocupa a linha inteira e o botão desce */}
-          <div className="max-md:basis-full flex flex-1 items-start gap-3">
-            <AlertTriangle size={14} className="shrink-0 text-(--danger-text)" />
-            <div className="max-lg:wrap-anywhere text-13 font-medium text-(--danger-text)">
-              {loadError}
-            </div>
-          </div>
-          {/* Sem `disabled`: assim que loadSettings liga o loading a tela volta
-              para o esqueleto, então não dá para clicar duas vezes */}
-          <Button variant="secondary" size="sm" onClick={loadSettings}>
-            <RefreshCw size={13} /> Tentar novamente
-          </Button>
-        </div>
+      {/* Sem `disabled` no botão: assim que loadSettings liga o loading a tela
+          volta para o esqueleto, então não dá para clicar duas vezes. */}
+      {loadError != null && (
+        <ApiErrorState
+          className="mb-4"
+          compacto
+          texto={textoDeLeituraPerdida(loadError, 'a integração da campanha')}
+          onRetry={loadSettings}
+        />
       )}
 
       {/* ── Nota de integração ───────────────────────────────────── */}
@@ -739,7 +748,16 @@ export function CampaignConfig() {
           />
         </button>
 
-        {ferramentasOpen && (
+        {ferramentasOpen && !podeTestarEnvio && (
+          <SectionCard title="Teste de disparo (números selecionados)">
+            <div className="text-13 text-(--gray2)">
+              O teste envia pelo WhatsApp, e o módulo YCloud (WhatsApp) não faz
+              parte do plano contratado. Fale com o suporte para liberá-lo.
+            </div>
+          </SectionCard>
+        )}
+
+        {ferramentasOpen && podeTestarEnvio && (
           <SectionCard title="Teste de disparo (números selecionados)">
             <div style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,

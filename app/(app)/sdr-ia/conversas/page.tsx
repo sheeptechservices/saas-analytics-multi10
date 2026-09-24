@@ -7,6 +7,9 @@ import { timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { BREAKPOINTS } from '@/lib/hooks/useMediaQuery'
 import { Skeleton, SkeletonSessionList } from '@/components/Skeleton'
+import { useEndpointAllowed } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha, textoDeModuloDesligado } from '@/lib/api-error'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -294,7 +297,14 @@ export default function ConversasPage() {
   const [sessTotal,   setSessTotal]   = useState(0)
   const [sessPage,    setSessPage]    = useState(1)
   const [sessLoading, setSessLoading] = useState(true)
-  const [sessError,   setSessError]   = useState(false)
+  // Tudo nesta tela — inclusive /api/sdr/sync — é liberado pela mesma chave
+  // (integration.ycloud-whatsapp), a mesma da rota. Gating aqui é defesa em
+  // profundidade: o layout de (app) não é refeito na navegação do cliente.
+  const { permitido, moduleKey } = useEndpointAllowed('/api/ycloud/conversations')
+  // O erro em si, não um booleano: 403 e 500 saem com frases diferentes.
+  const [sessError,   setSessError]   = useState<unknown>(null)
+  const [threadError, setThreadError] = useState<unknown>(null)
+  const [tplError,    setTplError]    = useState<unknown>(null)
 
   // Active thread. A ?session= deep link starts selected (and loading) already in
   // the server HTML: below lg the list and the thread take turns, and a phone must
@@ -340,6 +350,7 @@ export default function ConversasPage() {
   const scrollToBottomOnLoadRef = useRef(false)
   const lidasRef                = useRef<Record<string, number>>({})
   const didMountSyncRef         = useRef(false)
+  const permitidoRef            = useRef(false)
   const didDeepLinkRef          = useRef(false)
   // Master-detail focus (below lg): a tap on the list sends focus to the back
   // button of the thread that replaces it; the back button returns it to the row.
@@ -350,17 +361,17 @@ export default function ConversasPage() {
 
   // ── Fetch session list ──────────────────────────────────────────────────────
   useEffect(() => {
+    if (!permitido) { setSessLoading(false); return }
     setSessLoading(true)
-    setSessError(false)
-    fetch(`/api/ycloud/conversations?page=${sessPage}&limit=${SESSION_LIMIT}`)
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    setSessError(null)
+    fetchJson<{ items: SessionItem[]; total: number }>(`/api/ycloud/conversations?page=${sessPage}&limit=${SESSION_LIMIT}`)
       .then((d: { items: SessionItem[]; total: number }) => {
         setSessions(d.items)
         setSessTotal(d.total)
       })
-      .catch(() => setSessError(true))
+      .catch((e: unknown) => setSessError(e))
       .finally(() => setSessLoading(false))
-  }, [sessPage, syncEpoch])
+  }, [sessPage, syncEpoch, permitido])
 
   // ── Smart auto-scroll ───────────────────────────────────────────────────────
   // When a conversation is opened/switched, loadThread() sets scrollToBottomOnLoadRef
@@ -398,17 +409,20 @@ export default function ConversasPage() {
   useEffect(() => {
     if (thread && !thread.inWindow && !tplLoaded && !tplLoading) {
       setTplLoading(true)
-      fetch('/api/ycloud/templates')
-        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      setTplError(null)
+      fetchJson<{ templates: WaTemplate[] }>('/api/ycloud/templates')
         .then((d: { templates: WaTemplate[] }) =>
           setTemplates(d.templates.filter(t => t.status === 'approved'))
         )
-        .catch(() => setTemplates([]))
+        // Antes a falha virava lista vazia, indistinguível de "a conta não tem
+        // template aprovado". Agora o compositor diz o que aconteceu.
+        .catch((e: unknown) => { setTemplates([]); setTplError(e) })
         .finally(() => { setTplLoading(false); setTplLoaded(true) })
     }
   }, [thread, tplLoaded, tplLoading])
 
   // Keep refs in sync with state so the polling interval (empty deps) reads fresh values
+  useEffect(() => { permitidoRef.current = permitido }, [permitido])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { sessPageRef.current = sessPage }, [sessPage])
 
@@ -490,22 +504,30 @@ export default function ConversasPage() {
   useEffect(() => {
     function pollOnce() {
       if (document.hidden) return
+      if (!permitidoRef.current) return
 
       // Refresh session list — no setSessLoading, so no spinner
-      fetch(`/api/ycloud/conversations?page=${sessPageRef.current}&limit=${SESSION_LIMIT}`)
-        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      fetchJson<{ items: SessionItem[]; total: number }>(`/api/ycloud/conversations?page=${sessPageRef.current}&limit=${SESSION_LIMIT}`)
         .then((d: { items: SessionItem[]; total: number }) => {
           setSessions(d.items)
           setSessTotal(d.total)
         })
+        // O poll é silencioso de propósito: o que está na tela continua válido,
+        // e a falha aparece na próxima leitura com estado de carregamento.
         .catch(() => {})
 
       // Refresh active thread — guard against stale response with captured id check
       const currentId = activeIdRef.current
       if (currentId) {
-        fetch(`/api/ycloud/conversations/${encodeURIComponent(currentId)}`)
-          .then(r => r.ok ? r.json() : Promise.reject(r.status))
-          .then((d: Thread) => { if (activeIdRef.current === currentId) setThread(d) })
+        fetchJson<Thread>(`/api/ycloud/conversations/${encodeURIComponent(currentId)}`)
+          .then((d: Thread) => {
+            if (activeIdRef.current !== currentId) return
+            setThread(d)
+            // O poll que dá certo apaga o erro da tentativa anterior. Sem isto, a
+            // faixa vermelha ficava pendurada acima das mensagens já carregadas,
+            // dizendo que a conversa não abriu enquanto ela estava ali na tela.
+            setThreadError(null)
+          })
           .catch(() => {})
       }
     }
@@ -523,7 +545,9 @@ export default function ConversasPage() {
 
   // ── Sync on demand ──────────────────────────────────────────────────────────
   async function syncNow() {
-    if (syncing) return
+    // /api/sdr/sync pede a mesma chave desta tela, mas a checagem fica explícita
+    // para o botão nunca disparar uma requisição que só voltaria 403.
+    if (syncing || !permitido) return
     setSyncing(true)
     setSyncFeedback(null)
     try {
@@ -553,14 +577,15 @@ export default function ConversasPage() {
     saveLidas(_next)
     setThread(null)
     setThreadLoading(true)
+    setThreadError(null)
     setSendError(null)
     setTextBody('')
     setSelTemplate(null)
     setTplVars([])
-    fetch(`/api/ycloud/conversations/${encodeURIComponent(sessionId)}`)
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    fetchJson<Thread>(`/api/ycloud/conversations/${encodeURIComponent(sessionId)}`)
       .then((d: Thread) => { if (fetchIdRef.current === fetchId) setThread(d) })
-      .catch(() => {})
+      // Sem isto a conversa abria num painel em branco, sem dizer por quê.
+      .catch((e: unknown) => { if (fetchIdRef.current === fetchId) setThreadError(e) })
       .finally(() => { if (fetchIdRef.current === fetchId) setThreadLoading(false) })
   }
 
@@ -774,18 +799,24 @@ export default function ConversasPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {sessLoading && <SkeletonSessionList items={7} />}
-          {sessError && (
-            <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--danger-text)', margin: 0 }}>
-              Falha ao carregar conversas
-            </p>
+          {permitido && sessLoading && <SkeletonSessionList items={7} />}
+          {!permitido && (
+            <ApiErrorState texto={textoDeModuloDesligado(moduleKey!)} compacto className="m-3" />
           )}
-          {!sessLoading && !sessError && sessions.length === 0 && (
+          {permitido && sessError != null && (
+            <ApiErrorState
+              texto={textoDaFalha(sessError, 'as conversas')}
+              compacto
+              className="m-3"
+              onRetry={() => setSyncEpoch(e => e + 1)}
+            />
+          )}
+          {permitido && !sessLoading && sessError == null && sessions.length === 0 && (
             <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--gray2)', margin: 0 }}>
               Nenhuma conversa ainda
             </p>
           )}
-          {!sessLoading && !sessError && sessions.length > 0 && filteredSessions.length === 0 && (
+          {permitido && !sessLoading && sessError == null && sessions.length > 0 && filteredSessions.length === 0 && (
             <p style={{ padding: '20px 16px', fontSize: 12, color: 'var(--gray2)', margin: 0 }}>
               Nenhum resultado
             </p>
@@ -960,7 +991,14 @@ export default function ConversasPage() {
             flex: 1, overflowY: 'auto', paddingTop: 14, paddingBottom: 14,
             display: 'flex', flexDirection: 'column', gap: 8,
           }}>
-            {thread?.messages.length === 0 && (
+            {!threadLoading && threadError != null && (
+              <ApiErrorState
+                texto={textoDaFalha(threadError, 'esta conversa')}
+                compacto
+                onRetry={() => loadThread(activeId!)}
+              />
+            )}
+            {threadError == null && thread?.messages.length === 0 && (
               <p style={{ margin: 'auto', fontSize: 12, color: 'var(--gray2)' }}>
                 Nenhuma mensagem nesta conversa
               </p>
@@ -1026,6 +1064,12 @@ export default function ConversasPage() {
                     onClick={() => { void send() }}
                   />
                 </div>
+              ) : tplError != null ? (
+                <ApiErrorState
+                  texto={textoDaFalha(tplError, 'os modelos de mensagem')}
+                  compacto
+                  onRetry={() => { setTplLoaded(false); setTplError(null) }}
+                />
               ) : (
                 <TemplateComposer
                   templates={templates}
