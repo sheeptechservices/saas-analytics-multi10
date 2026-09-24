@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { getProvider } from '@/lib/providers/registry'
 import { runBackfill } from '@/lib/sync/runner'
+import { closeSdrPool } from '@/lib/sdr/pg'
 import { waitUntil } from '@vercel/functions'
 
 const PROVIDER_KEY = 'supabase-n8n'
@@ -101,6 +102,17 @@ export async function POST(req: NextRequest) {
     let savedRow: typeof dataSources.$inferSelect
 
     if (existing) {
+      // O pool da credencial ANTIGA ficaria aberto para sempre contra um acesso que
+      // o cliente acabou de trocar. Derruba antes de salvar a nova.
+      if (existing.configEnc) {
+        try {
+          const antiga = JSON.parse(decrypt(existing.configEnc)) as { connectionString?: string }
+          if (antiga.connectionString) await closeSdrPool(antiga.connectionString)
+        } catch (err) {
+          console.error('[sdr source POST] não deu para derrubar o pool antigo', err)
+        }
+      }
+
       await db
         .update(dataSources)
         .set({ configEnc, status: 'connected', syncCursor: null, updatedAt: now })

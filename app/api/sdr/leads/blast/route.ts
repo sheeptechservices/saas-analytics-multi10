@@ -29,7 +29,7 @@ import { assertEntitlement } from '@/lib/entitlements'
 import { requireTenantUser } from '@/lib/auth-guard'
 import { readN8nSecret } from '@/lib/sdr/settings-merge'
 import { randomUUID } from 'crypto'
-import { Client } from 'pg'
+import { getSdrPool, mapSdrDbError } from '@/lib/sdr/pg'
 
 const PROVIDER_KEY  = 'supabase-n8n'
 const SOURCE        = 'sdr-n8n'
@@ -173,16 +173,16 @@ export async function POST(request: Request) {
   // não tem como falar com ele sem inventar um nome.
   const templateUsaNome = POSICIONAL_RE.test(templateBody)
 
-  const client = new Client({ connectionString })
   let recipients: { leadId: string; phone: string; first_name: string; message: string; session_id: string }[]
   let encontrados = 0
   let semNome = 0
   let remetente: string
 
   try {
-    await client.connect()
+    // Pool da credencial: TLS obrigatório e tetos de tempo — ver lib/sdr/pg.
+    const sdr = getSdrPool(connectionString)
 
-    const cfgRes = await client.query<{ remetente: string | null }>(
+    const cfgRes = await sdr.query<{ remetente: string | null }>(
       `SELECT remetente FROM campaign_config ORDER BY updated_at DESC LIMIT 1`,
     )
     const rem = cfgRes.rows[0]?.remetente?.trim()
@@ -191,7 +191,7 @@ export async function POST(request: Request) {
     }
     remetente = rem
 
-    const leadsRes = await client.query<LeadRow>(
+    const leadsRes = await sdr.query<LeadRow>(
       `SELECT id, name, phone, phone_adjusted FROM leads WHERE id = ANY($1)`,
       [leadIds],
     )
@@ -211,13 +211,13 @@ export async function POST(request: Request) {
       recipients.push({ leadId: r.id, phone, first_name, message, session_id })
     }
   } catch (err) {
+    // Texto do driver fica no log; o cliente recebe só código estável + português.
     console.error('[sdr blast resolve]', err)
+    const erro = mapSdrDbError(err)
     return NextResponse.json(
-      { error: 'db_error', message: (err as Error).message },
+      { error: 'db_error', code: erro.code, message: erro.message },
       { status: 502 },
     )
-  } finally {
-    await client.end().catch(() => {})
   }
 
   const skipped = leadIds.length - recipients.length
