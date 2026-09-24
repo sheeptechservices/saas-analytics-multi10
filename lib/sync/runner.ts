@@ -10,6 +10,7 @@ import {
   contacts,
 } from '@/lib/db/schema'
 import { decrypt } from '@/lib/crypto'
+import { jsonSemNulos } from '@/lib/json-seguro'
 import { getProvider } from '@/lib/providers/registry'
 import type { CanonicalBatch, SyncContext } from '@/lib/providers/types'
 
@@ -29,6 +30,69 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
   return out
+}
+
+/* Uma linha por id, a ÚLTIMA vence.
+ *
+ * Sem isto, um lote com o mesmo id duas vezes derruba o `ON CONFLICT DO UPDATE`
+ * com 21000 ("cannot affect row a second time"): o Postgres proíbe que um único
+ * comando toque a mesma linha duas vezes. O SQLite aplicava em silêncio, a
+ * última ganhando — que é exatamente o que reproduzimos aqui.
+ *
+ * E o id vem de dado do provedor, não nosso: `contacts.id` sai do telefone,
+ * `funnel_snapshots.id` sai de período+etapa. Basta uma página da YCloud listando
+ * o mesmo número duas vezes, ou uma view `funnel_metrics` com duas linhas para o
+ * mesmo mês, para o chunk inteiro estourar, `runSync` gravar `last_sync_error` e
+ * aquela fonte PARAR de sincronizar. */
+function dedupPorId<T extends { id: string }>(
+  linhas: T[],
+  juntar: (anterior: T, proximo: T) => T = (_anterior, proximo) => proximo,
+): T[] {
+  const porId = new Map<string, T>()
+  for (const linha of linhas) {
+    const anterior = porId.get(linha.id)
+    porId.set(linha.id, anterior ? juntar(anterior, linha) : linha)
+  }
+  return [...porId.values()]
+}
+
+/* ATENÇÃO: o `juntar` NÃO é enfeite, e o padrão (última vence) só serve para
+ * metrics, events, conversations e funnel_snapshots, cujo ON CONFLICT é só
+ * `excluded.*` — para essas, "última vence" em JS é idêntico a "última vence"
+ * em SQL.
+ *
+ * `contacts` é diferente: o ON CONFLICT dela ACUMULA (GREATEST na data, COALESCE
+ * no nome/telefone/e-mail). Deduplicar com "última vence" jogaria fora o que o
+ * SQL preservaria — duas linhas do mesmo número na mesma página da YCloud fariam
+ * o nome virar vazio e a "última interação" ANDAR PARA TRÁS, e sem se recuperar,
+ * porque o GREATEST da próxima sincronização compara com o valor já rebaixado.
+ * Por isso a função abaixo repete, em JS, exatamente as regras do bloco SQL. */
+
+type LinhaDeContato = typeof contacts.$inferInsert
+
+/** Novo valor vence só se vier preenchido — o `COALESCE(NULLIF(x, ''), ...)`. */
+function preferirPreenchido(novo: string | null | undefined, antigo: string | null | undefined) {
+  return novo != null && novo !== '' ? novo : antigo
+}
+
+/** A maior das duas datas, ignorando nulos — o `GREATEST` do Postgres. */
+function maiorData(a: Date | null | undefined, b: Date | null | undefined) {
+  if (a == null) return b
+  if (b == null) return a
+  return a >= b ? a : b
+}
+
+function juntarContatos(anterior: LinhaDeContato, proximo: LinhaDeContato): LinhaDeContato {
+  return {
+    ...proximo,
+    name:  preferirPreenchido(proximo.name,  anterior.name),
+    phone: preferirPreenchido(proximo.phone, anterior.phone),
+    email: preferirPreenchido(proximo.email, anterior.email),
+    lastInteractionAt: maiorData(proximo.lastInteractionAt, anterior.lastInteractionAt),
+    // createdAt: a primeira vence, espelhando o "preserved from the original
+    // INSERT" do ON CONFLICT (que simplesmente não lista a coluna).
+    createdAt: anterior.createdAt,
+  }
 }
 
 function hashDims(dims: Record<string, unknown> | undefined): string {
@@ -54,11 +118,12 @@ export async function upsertBatch(
       metricKey: m.metricKey,
       value: m.value,
       date: m.date,
-      dimensions: JSON.stringify(m.dimensions ?? {}),
-      extra: JSON.stringify(m.extra ?? {}),
+      dimensions: jsonSemNulos(m.dimensions ?? {}),
+      extra: jsonSemNulos(m.extra ?? {}),
       syncedAt: now,
     }))
-    for (const chk of chunk(rows, CHUNK_SIZE)) {
+    const unicas = dedupPorId(rows)
+    for (const chk of chunk(unicas, CHUNK_SIZE)) {
       await db.insert(metrics).values(chk).onConflictDoUpdate({
         target: metrics.id,
         set: {
@@ -69,7 +134,7 @@ export async function upsertBatch(
         },
       })
     }
-    counts.metrics = rows.length
+    counts.metrics = unicas.length
   }
 
   if (batch.events?.length) {
@@ -82,11 +147,12 @@ export async function upsertBatch(
       entityId:   e.entityId ?? null,
       occurredAt: new Date(e.occurredAt),
       sentiment:  e.sentiment ?? null,
-      payload:    JSON.stringify(e.payload ?? {}),
-      extra:      JSON.stringify(e.extra ?? {}),
+      payload:    jsonSemNulos(e.payload ?? {}),
+      extra:      jsonSemNulos(e.extra ?? {}),
       syncedAt:   now,
     }))
-    for (const chk of chunk(rows, CHUNK_SIZE)) {
+    const unicas = dedupPorId(rows)
+    for (const chk of chunk(unicas, CHUNK_SIZE)) {
       await db.insert(events).values(chk).onConflictDoUpdate({
         target: events.id,
         set: {
@@ -100,7 +166,7 @@ export async function upsertBatch(
         },
       })
     }
-    counts.events = rows.length
+    counts.events = unicas.length
   }
 
   if (batch.conversations?.length) {
@@ -113,10 +179,11 @@ export async function upsertBatch(
       role:       conv.role,
       content:    conv.content,
       occurredAt: conv.occurredAt != null ? new Date(conv.occurredAt) : null,
-      metadata:   JSON.stringify(conv.metadata ?? {}),
+      metadata:   jsonSemNulos(conv.metadata ?? {}),
       syncedAt:   now,
     }))
-    for (const chk of chunk(rows, CHUNK_SIZE)) {
+    const unicas = dedupPorId(rows)
+    for (const chk of chunk(unicas, CHUNK_SIZE)) {
       await db.insert(conversations).values(chk).onConflictDoUpdate({
         target: conversations.id,
         set: {
@@ -128,7 +195,7 @@ export async function upsertBatch(
         },
       })
     }
-    counts.conversations = rows.length
+    counts.conversations = unicas.length
   }
 
   if (batch.funnel?.length) {
@@ -142,10 +209,11 @@ export async function upsertBatch(
       stageName: f.stageName,
       count:     f.count,
       order:     f.order ?? 0,
-      extra:     JSON.stringify(f.extra ?? {}),
+      extra:     jsonSemNulos(f.extra ?? {}),
       syncedAt:  now,
     }))
-    for (const chk of chunk(rows, CHUNK_SIZE)) {
+    const unicas = dedupPorId(rows)
+    for (const chk of chunk(unicas, CHUNK_SIZE)) {
       await db.insert(funnelSnapshots).values(chk).onConflictDoUpdate({
         target: funnelSnapshots.id,
         set: {
@@ -157,7 +225,7 @@ export async function upsertBatch(
         },
       })
     }
-    counts.funnel = rows.length
+    counts.funnel = unicas.length
   }
 
   if (batch.contacts?.length) {
@@ -170,14 +238,15 @@ export async function upsertBatch(
       name:               c.name ?? null,
       phone:              c.phone ?? null,
       email:              c.email ?? null,
-      tags:               JSON.stringify(c.tags ?? []),
+      tags:               jsonSemNulos(c.tags ?? []),
       lastInteractionAt:  c.lastInteractionAt != null ? new Date(c.lastInteractionAt) : null,
-      metadata:           JSON.stringify(c.metadata ?? {}),
-      extra:              JSON.stringify(c.extra ?? {}),
+      metadata:           jsonSemNulos(c.metadata ?? {}),
+      extra:              jsonSemNulos(c.extra ?? {}),
       createdAt:          now,
       syncedAt:           now,
     }))
-    for (const chk of chunk(rows, CHUNK_SIZE)) {
+    const unicas = dedupPorId(rows, juntarContatos)
+    for (const chk of chunk(unicas, CHUNK_SIZE)) {
       await db.insert(contacts).values(chk).onConflictDoUpdate({
         target: contacts.id,
         set: {
@@ -191,15 +260,22 @@ export async function upsertBatch(
           metadata:          sql`excluded.metadata`,
           extra:             sql`excluded.extra`,
           // lastInteractionAt: keep the highest timestamp seen so far.
-          // COALESCE(…, 0) lets MAX work with NULLs; NULLIF(…, 0) converts the
-          // "both were NULL → 0" edge case back to NULL instead of storing epoch 0.
-          lastInteractionAt: sql`NULLIF(MAX(COALESCE(excluded.last_interaction_at, 0), COALESCE(contacts.last_interaction_at, 0)), 0)`,
+          // GREATEST, não MAX: o MAX de 2 argumentos é escalar no SQLite, mas no
+          // Postgres MAX é agregado de 1 argumento — MAX(a, b) nem existe.
+          // O COALESCE(…, 0)/NULLIF(…, 0) que estava aqui sumiu por dois motivos:
+          // (1) a coluna agora é timestamptz, e comparar com 0 é erro de tipo;
+          // (2) não é mais preciso — o MAX do SQLite devolve NULL se QUALQUER
+          // argumento for NULL (daí o COALESCE), enquanto o GREATEST do Postgres
+          // IGNORA NULLs e só devolve NULL quando todos são NULL. As três
+          // situações dão o mesmo de antes: os dois preenchidos → o maior;
+          // um NULL → o outro; os dois NULL → NULL.
+          lastInteractionAt: sql`GREATEST(excluded.last_interaction_at, contacts.last_interaction_at)`,
           // createdAt: intentionally omitted — preserved from the original INSERT.
           syncedAt:          sql`excluded.synced_at`,
         },
       })
     }
-    counts.contacts = rows.length
+    counts.contacts = unicas.length
   }
 
   return counts

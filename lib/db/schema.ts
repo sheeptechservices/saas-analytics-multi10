@@ -1,16 +1,53 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, text, integer, real, primaryKey, index, unique } from 'drizzle-orm/sqlite-core'
+import {
+  pgTable,
+  text,
+  integer,
+  bigint,
+  boolean,
+  doublePrecision,
+  timestamp,
+  primaryKey,
+  index,
+  unique,
+} from 'drizzle-orm/pg-core'
 
-export const tenants = sqliteTable('tenants', {
+/* Dialeto: Postgres (Railway). Antes era SQLite/Turso — o mapa das conversões,
+ * para quem for escrever o script de cópia dos dados:
+ *
+ *   integer(..., { mode: 'timestamp' })  →  timestamp(..., { withTimezone: true, mode: 'date' })
+ *       No Turso a coluna guardava epoch em SEGUNDOS (é o que o modo 'timestamp'
+ *       do drizzle grava). Em Postgres passa a ser timestamptz. Em TypeScript o
+ *       tipo continua `Date` dos dois lados, então nenhuma linha do app muda.
+ *
+ *   integer(..., { mode: 'boolean' })    →  boolean        (0/1  →  false/true)
+ *
+ *   real()                               →  doublePrecision()
+ *       Conversão exata: REAL do SQLite e float8 do Postgres são o mesmo IEEE-754
+ *       de 8 bytes, e o driver `pg` já devolve float8 como number nativo. Ver a
+ *       nota "dinheiro" mais abaixo para por que NÃO viramos numeric.
+ *
+ *   integer() guardando epoch em MILISSEGUNDOS  →  bigint({ mode: 'number' })
+ *       Esta é a armadilha silenciosa da migração. O INTEGER do SQLite é de 64
+ *       bits; o `integer` do Postgres é int4, que estoura em 2.147.483.647.
+ *       Date.now() vale ~1,77e12 — 800x o teto. Toda coluna que guarda
+ *       Date.now() virou bigint: ai_settings.created_at/updated_at,
+ *       ai_usage_logs.created_at, password_reset_tokens.*, job_locks.locked_until.
+ *       Contadores pequenos (order, type, count, tokens, version...) seguem int4.
+ *
+ *   text() guardando JSON                →  text()  (sem mudança — ver events.payload)
+ */
+
+export const tenants = pgTable('tenants', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   primaryColor: text('primary_color').notNull().default('#FFB400'),
   logoUrl: text('logo_url'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 })
 
-export const users = sqliteTable('users', {
+export const users = pgTable('users', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').references(() => tenants.id),
   name: text('name').notNull(),
@@ -19,45 +56,46 @@ export const users = sqliteTable('users', {
   // Conta única: toda conta de cliente nasce 'admin' — quem decide isso é
   // app/api/users/route.ts, que grava TENANT_ROLE e ignora papel vindo do corpo.
   // O default da coluna abaixo é letra morta: nenhum insert do projeto omite o
-  // papel (api/users, lib/db/seed*.ts, lib/db/create-master.ts). Mexer nele não
-  // mudaria comportamento nenhum e custaria caro: em SQLite, trocar o default
-  // obriga a recriar a tabela, e o drizzle-kit emitiria uma migração derrubando
-  // e refazendo os 17 índices. 'manager' e 'user' seguem no enum porque existem
-  // linhas antigas no banco; lib/roles.ts trata as duas como admin.
+  // papel (api/users, lib/db/seed*.ts, lib/db/create-master.ts). Em Postgres
+  // trocá-lo seria barato — um ALTER TABLE ... ALTER COLUMN ... SET DEFAULT, sem
+  // recriar tabela nem índice, ao contrário do que valia no SQLite —, mas segue
+  // como está porque mudar não teria efeito nenhum sobre o comportamento.
+  // 'manager' e 'user' seguem no enum porque existem linhas antigas no banco;
+  // lib/roles.ts trata as duas como admin.
   role: text('role', { enum: ['master', 'admin', 'manager', 'user'] }).notNull().default('user'),
   avatarColor: text('avatar_color').notNull().default('#FFB400'),
   avatarBg: text('avatar_bg').notNull().default('#121316'),
   photoUrl: text('photo_url'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 })
 
-export const integrations = sqliteTable('integrations', {
+export const integrations = pgTable('integrations', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   provider: text('provider').notNull().default('kommo'),
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
   accountDomain: text('account_domain'),
   accountId: text('account_id'),
   clientId: text('client_id'),
   clientSecret: text('client_secret'),
-  lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true, mode: 'date' }),
   selectedPipelineId: text('selected_pipeline_id'),
   selectedPipelineName: text('selected_pipeline_name'),
   metadata: text('metadata'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 })
 
-export const pipelines = sqliteTable('pipelines', {
+export const pipelines = pgTable('pipelines', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   kommoId: text('kommo_id'),
   name: text('name').notNull(),
-  isArchived: integer('is_archived', { mode: 'boolean' }).notNull().default(false),
+  isArchived: boolean('is_archived').notNull().default(false),
 })
 
-export const stages = sqliteTable('stages', {
+export const stages = pgTable('stages', {
   id: text('id').primaryKey(),
   pipelineId: text('pipeline_id').notNull().references(() => pipelines.id),
   kommoId: text('kommo_id'),
@@ -67,7 +105,7 @@ export const stages = sqliteTable('stages', {
   type: integer('type').notNull().default(0),
 })
 
-export const leads = sqliteTable('leads', {
+export const leads = pgTable('leads', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   pipelineId: text('pipeline_id').notNull().references(() => pipelines.id),
@@ -75,29 +113,30 @@ export const leads = sqliteTable('leads', {
   kommoId: text('kommo_id'),
   name: text('name').notNull(),
   responsibleName: text('responsible_name').notNull().default('—'),
-  price: real('price').notNull().default(0),
+  // Dinheiro, mas doublePrecision — ver a nota "dinheiro" no fim do arquivo.
+  price: doublePrecision('price').notNull().default(0),
   lossReason: text('loss_reason'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull(),
+  syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' }),
 })
 
-export const salesTeams = sqliteTable('sales_teams', {
+export const salesTeams = pgTable('sales_teams', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   name: text('name').notNull(),
   color: text('color').notNull().default('#FFB400'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 })
 
-export const teamMembers = sqliteTable('team_members', {
+export const teamMembers = pgTable('team_members', {
   id: text('id').primaryKey(),
   teamId: text('team_id').notNull().references(() => salesTeams.id),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   responsibleName: text('responsible_name').notNull(),
 })
 
-export const leadExtras = sqliteTable('lead_extras', {
+export const leadExtras = pgTable('lead_extras', {
   id: text('id').primaryKey(),
   leadId: text('lead_id').notNull().references(() => leads.id).unique(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
@@ -105,43 +144,48 @@ export const leadExtras = sqliteTable('lead_extras', {
   notes: text('notes').notNull().default(''),
   priority: text('priority', { enum: ['high', 'normal', 'low'] }).notNull().default('normal'),
   customFields: text('custom_fields').notNull().default('{}'),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull(),
 })
 
-export const aiSettings = sqliteTable('ai_settings', {
+export const aiSettings = pgTable('ai_settings', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().unique().references(() => tenants.id),
   apiKeyEnc: text('api_key_enc'),
   defaultModel: text('default_model').default('claude-haiku-4-5-20251001'),
-  monthlyBudgetBrl: real('monthly_budget_brl').default(0),
-  cachedSpendUsd: real('cached_spend_usd').default(0),
+  monthlyBudgetBrl: doublePrecision('monthly_budget_brl').default(0),
+  cachedSpendUsd: doublePrecision('cached_spend_usd').default(0),
   budgetMonth: text('budget_month'),
+  // Flag 0/1 numérica, não booleana: app/api/ai-chat compara `isActive === 0` e
+  // app/api/ai-settings grava `apiKey ? 1 : 0`. Continua inteiro de propósito.
   isActive: integer('is_active').default(0),
-  createdAt: integer('created_at'),
-  updatedAt: integer('updated_at'),
+  // bigint: guarda Date.now() (epoch ms), que não cabe em int4.
+  createdAt: bigint('created_at', { mode: 'number' }),
+  updatedAt: bigint('updated_at', { mode: 'number' }),
 })
 
-export const aiUsageLogs = sqliteTable('ai_usage_logs', {
+export const aiUsageLogs = pgTable('ai_usage_logs', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   model: text('model').notNull(),
   inputTokens: integer('input_tokens').notNull(),
   outputTokens: integer('output_tokens').notNull(),
-  costUsd: real('cost_usd').notNull(),
+  costUsd: doublePrecision('cost_usd').notNull(),
   feature: text('feature').default('chat'),
-  createdAt: integer('created_at').notNull(),
+  // bigint: Date.now() (epoch ms).
+  createdAt: bigint('created_at', { mode: 'number' }).notNull(),
 })
 
-export const passwordResetTokens = sqliteTable('password_reset_tokens', {
+export const passwordResetTokens = pgTable('password_reset_tokens', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: text('token').notNull().unique(),
-  expiresAt: integer('expires_at').notNull(),
-  usedAt: integer('used_at'),
-  createdAt: integer('created_at').notNull().$defaultFn(() => Date.now()),
+  // bigint nos três: todos guardam Date.now() (epoch ms).
+  expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+  usedAt: bigint('used_at', { mode: 'number' }),
+  createdAt: bigint('created_at', { mode: 'number' }).notNull().$defaultFn(() => Date.now()),
 })
 
-export const adCampaigns = sqliteTable('ad_campaigns', {
+export const adCampaigns = pgTable('ad_campaigns', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   provider: text('provider').notNull(),
@@ -149,16 +193,20 @@ export const adCampaigns = sqliteTable('ad_campaigns', {
   name: text('name').notNull(),
   status: text('status'),
   objective: text('objective'),
-  dailyBudget: real('daily_budget'),
-  lifetimeBudget: real('lifetime_budget'),
+  dailyBudget: doublePrecision('daily_budget'),
+  lifetimeBudget: doublePrecision('lifetime_budget'),
   currency: text('currency'),
   startDate: text('start_date'),
   endDate: text('end_date'),
   syncedAt: text('synced_at'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  // O `::text` é obrigatório: o Postgres recusa um default timestamptz numa
+  // coluna text ("default expression is of type timestamp with time zone").
+  // O texto sai com fração de segundo, que o CURRENT_TIMESTAMP do SQLite não
+  // tinha; ninguém lê esta coluna, então o formato não afeta nada.
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP::text`),
 })
 
-export const adAdsets = sqliteTable('ad_adsets', {
+export const adAdsets = pgTable('ad_adsets', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   provider: text('provider').notNull(),
@@ -166,12 +214,12 @@ export const adAdsets = sqliteTable('ad_adsets', {
   externalCampaignId: text('external_campaign_id').notNull(),
   name: text('name').notNull(),
   status: text('status'),
-  dailyBudget: real('daily_budget'),
+  dailyBudget: doublePrecision('daily_budget'),
   syncedAt: text('synced_at'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP::text`),
 })
 
-export const adAds = sqliteTable('ad_ads', {
+export const adAds = pgTable('ad_ads', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   provider: text('provider').notNull(),
@@ -182,10 +230,10 @@ export const adAds = sqliteTable('ad_ads', {
   status: text('status'),
   type: text('type'),
   syncedAt: text('synced_at'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP::text`),
 })
 
-export const adInsights = sqliteTable('ad_insights', {
+export const adInsights = pgTable('ad_insights', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   provider: text('provider').notNull(),
@@ -195,33 +243,33 @@ export const adInsights = sqliteTable('ad_insights', {
   date: text('date').notNull(),
   impressions: integer('impressions').default(0),
   clicks: integer('clicks').default(0),
-  spend: real('spend').default(0),
+  spend: doublePrecision('spend').default(0),
   reach: integer('reach').default(0),
-  conversions: real('conversions').default(0),
-  conversionValue: real('conversion_value').default(0),
-  ctr: real('ctr').default(0),
-  cpc: real('cpc').default(0),
-  cpm: real('cpm').default(0),
-  roas: real('roas').default(0),
-  frequency: real('frequency').default(0),
+  conversions: doublePrecision('conversions').default(0),
+  conversionValue: doublePrecision('conversion_value').default(0),
+  ctr: doublePrecision('ctr').default(0),
+  cpc: doublePrecision('cpc').default(0),
+  cpm: doublePrecision('cpm').default(0),
+  roas: doublePrecision('roas').default(0),
+  frequency: doublePrecision('frequency').default(0),
   syncedAt: text('synced_at'),
 })
 
-export const tenantModules = sqliteTable('tenant_modules', {
+export const tenantModules = pgTable('tenant_modules', {
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   moduleKey: text('module_key').notNull(),
-  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  enabled: boolean('enabled').notNull().default(true),
 }, (t) => ({
   pk: primaryKey({ columns: [t.tenantId, t.moduleKey] }),
 }))
 
-export const plans = sqliteTable('plans', {
+export const plans = pgTable('plans', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 })
 
-export const planModules = sqliteTable('plan_modules', {
+export const planModules = pgTable('plan_modules', {
   planId: text('plan_id').notNull().references(() => plans.id),
   moduleKey: text('module_key').notNull(),
 }, (t) => ({
@@ -233,7 +281,7 @@ export const planModules = sqliteTable('plan_modules', {
 // overloading the Kommo-shaped `integrations` table. Every row is scoped by
 // tenantId; provider-specific bits live in JSON `extra`/`config` columns.
 
-export const dataSources = sqliteTable('data_sources', {
+export const dataSources = pgTable('data_sources', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   providerKey: text('provider_key').notNull(),            // e.g. 'supabase-n8n'
@@ -241,12 +289,12 @@ export const dataSources = sqliteTable('data_sources', {
   configEnc: text('config_enc'),                          // encrypted JSON (url, read-only key, ...)
   status: text('status', { enum: ['pending', 'connected', 'error'] }).notNull().default('pending'),
   syncCursor: text('sync_cursor'),                        // JSON cursor for incremental sync
-  lastSyncAt: integer('last_sync_at', { mode: 'timestamp' }),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true, mode: 'date' }),
   lastSyncStatus: text('last_sync_status'),               // 'success' | 'error' | 'running'
   lastSyncError: text('last_sync_error'),
   webhookToken: text('webhook_token'),                      // nullable; set only for webhook-based providers
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull(),
 }, (t) => ({
   tenantProviderIdx: index('data_sources_tenant_provider_idx').on(t.tenantId, t.providerKey),
   webhookTokenUnq: unique('data_sources_webhook_token_idx').on(t.webhookToken),
@@ -254,40 +302,42 @@ export const dataSources = sqliteTable('data_sources', {
 
 // Generic numeric time-series (ad insights, KPIs, funnel counts over time, ...).
 // id is deterministic (tenant:source:metric:date:dims) so sync is idempotent via PK upsert.
-export const metrics = sqliteTable('metrics', {
+export const metrics = pgTable('metrics', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   dataSourceId: text('data_source_id').references(() => dataSources.id),
   source: text('source').notNull(),
   metricKey: text('metric_key').notNull(),
-  value: real('value').notNull().default(0),
+  value: doublePrecision('value').notNull().default(0),
   date: text('date').notNull(),                           // ISO date or period ('2026-05')
   dimensions: text('dimensions').notNull().default('{}'), // JSON {campaignId, stageId, ...}
   extra: text('extra').notNull().default('{}'),
-  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' }),
 }, (t) => ({
   lookupIdx: index('metrics_lookup_idx').on(t.tenantId, t.source, t.metricKey, t.date),
 }))
 
 // Discrete events / interactions (lead logs, touches). occurredAt drives incremental cursor.
-export const events = sqliteTable('events', {
+export const events = pgTable('events', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   dataSourceId: text('data_source_id').references(() => dataSources.id),
   source: text('source').notNull(),
   eventType: text('event_type').notNull(),
   entityId: text('entity_id'),                            // lead/contact id at the source
-  occurredAt: integer('occurred_at', { mode: 'timestamp' }).notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }).notNull(),
   sentiment: text('sentiment'),                           // positive | neutral | negative | null
+  // JSON em text, NÃO jsonb — ver a nota "payload" no fim do arquivo. As duas
+  // consultas que espiam dentro dele fazem `payload::jsonb ->> 'chave'`.
   payload: text('payload').notNull().default('{}'),
   extra: text('extra').notNull().default('{}'),
-  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' }),
 }, (t) => ({
   lookupIdx: index('events_lookup_idx').on(t.tenantId, t.source, t.occurredAt),
 }))
 
 // Conversation messages (chat histories). Grouped by sessionId; alternating roles.
-export const conversations = sqliteTable('conversations', {
+export const conversations = pgTable('conversations', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   dataSourceId: text('data_source_id').references(() => dataSources.id),
@@ -295,15 +345,15 @@ export const conversations = sqliteTable('conversations', {
   sessionId: text('session_id').notNull(),
   role: text('role', { enum: ['human', 'ai', 'system'] }).notNull(),
   content: text('content').notNull().default(''),
-  occurredAt: integer('occurred_at', { mode: 'timestamp' }),
+  occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' }),
   metadata: text('metadata').notNull().default('{}'),
-  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' }),
 }, (t) => ({
   sessionIdx: index('conversations_session_idx').on(t.tenantId, t.source, t.sessionId),
 }))
 
 // Funnel stage snapshots per period (mirrors the 300's funnel_metrics; also fits Kommo stages).
-export const funnelSnapshots = sqliteTable('funnel_snapshots', {
+export const funnelSnapshots = pgTable('funnel_snapshots', {
   id: text('id').primaryKey(),                            // deterministic: tenant:source:period:stageKey
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   dataSourceId: text('data_source_id').references(() => dataSources.id),
@@ -314,14 +364,14 @@ export const funnelSnapshots = sqliteTable('funnel_snapshots', {
   count: integer('count').notNull().default(0),
   order: integer('order').notNull().default(0),
   extra: text('extra').notNull().default('{}'),
-  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' }),
 }, (t) => ({
   periodIdx: index('funnel_snapshots_period_idx').on(t.tenantId, t.source, t.period),
 }))
 
 // Contact / conversation participant (WhatsApp end-user, CRM contact, etc.).
 // id is deterministic (tenant:source:externalId) so webhook upserts are idempotent.
-export const contacts = sqliteTable('contacts', {
+export const contacts = pgTable('contacts', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   dataSourceId: text('data_source_id').references(() => dataSources.id),
@@ -331,17 +381,17 @@ export const contacts = sqliteTable('contacts', {
   phone: text('phone'),
   email: text('email'),
   tags: text('tags').notNull().default('[]'),            // JSON string[]
-  lastInteractionAt: integer('last_interaction_at', { mode: 'timestamp' }),
+  lastInteractionAt: timestamp('last_interaction_at', { withTimezone: true, mode: 'date' }),
   metadata: text('metadata').notNull().default('{}'),
   extra: text('extra').notNull().default('{}'),
-  createdAt: integer('created_at', { mode: 'timestamp' }),
-  syncedAt: integer('synced_at', { mode: 'timestamp' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }),
+  syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' }),
 }, (t) => ({
   lookupIdx: index('contacts_lookup_idx').on(t.tenantId, t.source, t.lastInteractionAt),
 }))
 
 // Blast campaign header — one row per dispatch action.
-export const blastCampaigns = sqliteTable('blast_campaigns', {
+export const blastCampaigns = pgTable('blast_campaigns', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   template: text('template').notNull(),
@@ -352,13 +402,13 @@ export const blastCampaigns = sqliteTable('blast_campaigns', {
   status: text('status', { enum: ['enviando', 'concluido', 'erro'] }).notNull().default('enviando'),
   kind: text('kind', { enum: ['manual', 'campanha'] }).notNull().default('manual'),
   createdBy: text('created_by').references(() => users.id),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 }, (t) => ({
   tenantCreatedAtIdx: index('blast_campaigns_tenant_created_at_idx').on(t.tenantId, t.createdAt),
 }))
 
 // Per-recipient delivery record — one row per lead per campaign.
-export const blastRecipients = sqliteTable('blast_recipients', {
+export const blastRecipients = pgTable('blast_recipients', {
   id: text('id').primaryKey(),
   campaignId: text('campaign_id').notNull().references(() => blastCampaigns.id, { onDelete: 'cascade' }),
   leadId: text('lead_id').notNull(),
@@ -370,15 +420,15 @@ export const blastRecipients = sqliteTable('blast_recipients', {
   status: text('status', { enum: ['pendente', 'enviado', 'entregue', 'lido', 'falhou'] }).notNull().default('pendente'),
   errorCode: text('error_code'),
   errorMessage: text('error_message'),
-  lastStatusAt: integer('last_status_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  lastStatusAt: timestamp('last_status_at', { withTimezone: true, mode: 'date' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 }, (t) => ({
   campaignIdx: index('blast_recipients_campaign_idx').on(t.campaignId),
   ycloudMessageIdx: index('blast_recipients_ycloud_message_idx').on(t.ycloudMessageId),
 }))
 
 // Immutable audit trail — one row per significant action. Never updated or deleted.
-export const auditLogs = sqliteTable('audit_logs', {
+export const auditLogs = pgTable('audit_logs', {
   id:          text('id').primaryKey(),
   tenantId:    text('tenant_id'),                                // nullable: master ops may have no tenant
   actorId:     text('actor_id').references(() => users.id),     // nullable: no cascade
@@ -391,31 +441,81 @@ export const auditLogs = sqliteTable('audit_logs', {
   metadata:    text('metadata').notNull().default('{}'),        // JSON
   ip:          text('ip'),
   userAgent:   text('user_agent'),
-  createdAt:   integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdAt:   timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
 }, (t) => ({
   tenantCreatedAtIdx: index('audit_logs_tenant_created_at_idx').on(t.tenantId, t.createdAt),
 }))
 
 // Campaign / parameters config per tenant (the "Parâmetros" tab). Passive-persisted,
 // modelled with status + version for future write-back to n8n.
-export const campaignSettings = sqliteTable('campaign_settings', {
+export const campaignSettings = pgTable('campaign_settings', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').notNull().references(() => tenants.id),
   source: text('source').notNull().default('sdr-n8n'),
   settings: text('settings').notNull().default('{}'),     // JSON: tone, cadence, templates, ...
   status: text('status', { enum: ['draft', 'active', 'paused'] }).notNull().default('draft'),
   version: integer('version').notNull().default(1),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull(),
 }, (t) => ({
   tenantSourceUnq: unique('campaign_settings_tenant_source_unq').on(t.tenantId, t.source),
 }))
 
 // Global lock for scheduled jobs (lib/cron-lock.ts). The helper creates this table
 // itself with CREATE TABLE IF NOT EXISTS, since migrations don't run on deploy;
-// this definition and migration 0010 exist for the record. locked_until is epoch ms.
-export const jobLocks = sqliteTable('job_locks', {
+// this definition and the baseline migration exist for the record.
+// locked_until é epoch ms — logo bigint, não integer (Date.now() não cabe em int4).
+export const jobLocks = pgTable('job_locks', {
   name: text('name').primaryKey(),
-  lockedUntil: integer('locked_until').notNull(),
+  lockedUntil: bigint('locked_until', { mode: 'number' }).notNull(),
   owner: text('owner'),
 })
+
+/* ─── Nota "dinheiro": por que doublePrecision e não numeric ──────────────────
+ *
+ * Candidatas a numeric: leads.price, ai_settings.monthly_budget_brl e
+ * cached_spend_usd, ai_usage_logs.cost_usd, os budgets/métricas de ad_* e
+ * metrics.value. Todas ficaram doublePrecision, por três motivos:
+ *
+ * 1. O driver `pg` devolve numeric como STRING (o int8/numeric não cabe com
+ *    segurança num double, então o `pg` não converte por padrão). Isso quebraria
+ *    silenciosamente contas que já existem e que somam SEM Number():
+ *      app/api/ai-settings/usage/route.ts:53  logs.reduce((s, l) => s + l.costUsd, 0)
+ *      app/api/ai-settings/usage/route.ts:64  byModel[log.model].costUsd += log.costUsd
+ *      app/api/ai-chat/route.ts:130           cachedSpendUsd: spendBase + costUsd
+ *    Com string, `+` concatena: 0 + "0.0004" = "00.0004". Type-check passa, a
+ *    conta fica errada, ninguém percebe.
+ * 2. A alternativa seria registrar um parser global (pg.types.setTypeParser) —
+ *    mas o registro do `pg` é do PROCESSO, e lib/providers/supabase-n8n.ts e as
+ *    rotas app/api/sdr/leads/* abrem `new Client()` do mesmo `pg` contra o
+ *    Supabase do cliente. Um override global mudaria a leitura daquele banco
+ *    também, que não é nosso para mexer.
+ * 3. Precisão: no SQLite estes valores JÁ eram IEEE-754 de 8 bytes. float8 do
+ *    Postgres é o mesmo formato, bit a bit — a conversão é exata. numeric não
+ *    recuperaria precisão que nunca existiu; só daria uma falsa sensação de
+ *    exatidão sobre números que são relatório (gasto de anúncio, custo de API em
+ *    USD, valor de negócio espelhado do Kommo), não lançamento contábil.
+ *
+ * DECISÃO, não obviedade: se algum dia entrar cobrança de verdade (fatura,
+ * split, conciliação), a coluna certa é numeric(14,2) — e aí os três pontos de
+ * soma acima precisam de Number() explícito antes de virar numeric.
+ *
+ * ─── Nota "payload": por que events.payload segue text e não jsonb ────────────
+ *
+ * 1. Tipagem: com `text` o tipo em TypeScript continua `string`, então
+ *    lib/blast/reconcile.ts:90 (`JSON.parse(ev.payload)`) e lib/sync/runner.ts:85
+ *    (`JSON.stringify(...)`) seguem exatamente como estão. Com jsonb o drizzle
+ *    devolveria objeto e o JSON.parse quebraria.
+ * 2. Coerência: outras 11 colunas deste schema guardam JSON em text (extra,
+ *    metadata, dimensions, tags, settings, custom_fields, sync_cursor...).
+ *    Converter só uma seria arbitrário.
+ * 3. Cópia dos dados: text → text é cópia literal. jsonb validaria cada linha e
+ *    abortaria na primeira que não fosse JSON válido — o SQLite nunca exigiu isso.
+ * 4. Custo: as duas consultas que olham dentro do payload fazem
+ *    `payload::jsonb ->> 'messageId'`. Não existe índice sobre payload hoje, e a
+ *    tabela tem ~600 linhas: o cast é irrelevante.
+ *
+ * Para virar jsonb depois: ALTER TABLE events ALTER COLUMN payload TYPE jsonb
+ * USING payload::jsonb, trocar `text` por `jsonb` aqui, e ajustar o parse/
+ * stringify nos dois arquivos acima e as duas consultas (que perdem o `::jsonb`).
+ */

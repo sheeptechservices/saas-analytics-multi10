@@ -1,48 +1,42 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 /* Marca e perfil caem no padrão quando a consulta falha; o portão de módulos
- * continua estourando. Aqui a falha é real, não simulada: o banco apontado é um
- * arquivo vazio, sem uma migração sequer, então qualquer SELECT levanta
- * "no such table". É o mesmo caminho de erro de um Turso inalcançável —
- * a promise da consulta rejeita — sem precisar mockar o drizzle.
+ * continua estourando. Aqui a falha é real, não simulada: DATABASE_URL aponta
+ * para 127.0.0.1:1, porta onde nunca há nada escutando, então toda consulta
+ * rejeita com ECONNREFUSED na hora. É exatamente o caminho de erro de um banco
+ * inalcançável — e sem mockar o drizzle nem esperar timeout.
  *
- * O banco de produção nunca entra: TURSO_DATABASE_URL é sobrescrito com um
- * file: temporário ANTES do primeiro import de @/lib/db, e o token é apagado. */
+ * (No tempo do Turso o mesmo teste apontava para um arquivo SQLite vazio e a
+ * falha era "no such table". Com Postgres não existe arquivo local para apontar,
+ * e "banco fora do ar" é a falha que o app realmente precisa aguentar.)
+ *
+ * Nenhum banco real entra: a URL é 127.0.0.1, sobrescrita ANTES do primeiro
+ * import de @/lib/db, que só lê a variável no primeiro uso. */
 
-const PREFIXO = 'degradacao-test-'
-let dir: string
+// Porta 1 é privilegiada e nunca tem serviço: o sistema recusa na hora, sem DNS
+// e sem tráfego para fora da máquina.
+const URL_RECUSADA = 'postgres://ninguem:nada@127.0.0.1:1/inexistente'
 
 let getTenantBranding: (id: string) => Promise<{ primaryColor: string; logoUrl: string | null; brandName: string }>
 let BRANDING_PADRAO: { primaryColor: string; logoUrl: string | null; brandName: string }
 let getUserProfile: (id: string) => Promise<{ name: string; photoUrl: string | null }>
 let getEnabledModuleKeys: (id: string) => Promise<string[]>
 
-function limparSobras() {
-  const limite = Date.now() - 10 * 60_000
-  for (const nome of readdirSync(tmpdir())) {
-    if (!nome.startsWith(PREFIXO)) continue
-    const caminho = join(tmpdir(), nome)
-    try { if (statSync(caminho).mtimeMs < limite) rmSync(caminho, { recursive: true, force: true }) } catch {}
-  }
-}
-
 const avisos: string[] = []
 const warnOriginal = console.warn
+const errorOriginal = console.error
+const urlOriginal = process.env.DATABASE_URL
 
 before(async () => {
-  limparSobras()
-  dir = mkdtempSync(join(tmpdir(), PREFIXO))
-  process.env.TURSO_DATABASE_URL = pathToFileURL(join(dir, 'vazio.db')).href
-  delete process.env.TURSO_AUTH_TOKEN
+  process.env.DATABASE_URL = URL_RECUSADA
+  delete process.env.PGSSLMODE
 
   console.warn = (...args: unknown[]) => { avisos.push(args.map(String).join(' ')) }
+  // O pool loga '[db] conexão ociosa caiu' quando a conexão morre; é ruído esperado aqui.
+  console.error = () => {}
 
-  // Import dinâmico: o módulo lê a env na avaliação.
+  // Import dinâmico: garante que a env já está trocada antes do primeiro uso.
   ;({ getTenantBranding, BRANDING_PADRAO } = await import('@/lib/tenant'))
   ;({ getUserProfile } = await import('@/lib/user'))
   ;({ getEnabledModuleKeys } = await import('@/lib/entitlements'))
@@ -50,14 +44,16 @@ before(async () => {
 
 after(async () => {
   console.warn = warnOriginal
-  const { client } = await import('@/lib/db')
-  try { client.close() } catch {}
-  try { rmSync(dir, { recursive: true, force: true }) } catch {}
+  console.error = errorOriginal
+  const { pool } = await import('@/lib/db')
+  try { await pool.end() } catch {}
+  if (urlOriginal === undefined) delete process.env.DATABASE_URL
+  else process.env.DATABASE_URL = urlOriginal
 })
 
 test('a consulta realmente falha neste banco — a premissa do teste', async () => {
   const { db } = await import('@/lib/db')
-  await assert.rejects(db.run('select 1 from tenants'))
+  await assert.rejects(db.execute('select 1 from tenants'))
 })
 
 test('branding cai no padrão em vez de derrubar a árvore', async () => {

@@ -5,7 +5,7 @@ name: Cron diário
 #
 # Só roda no repositório canônico (Hillstone-Tech/SDR-IA-300): o mesmo arquivo
 # existe no repositório antigo, e lá o `if` do job o deixa inerte. As duas
-# implantações dividem o mesmo Turso, e /api/cron/all ainda tem uma trava global
+# implantações dividem o mesmo banco, e /api/cron/all ainda tem uma trava global
 # no banco (lib/cron-lock.ts) caso duas chamadas cheguem juntas.
 #
 # Precisa de dois secrets do repositório (Settings → Secrets and variables →
