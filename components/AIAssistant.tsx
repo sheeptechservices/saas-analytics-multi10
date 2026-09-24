@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { X, ArrowUp } from 'lucide-react'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
+import { fetchJson } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; streaming?: boolean }
@@ -60,9 +61,16 @@ export function AIAssistant() {
     setOpen(o => !o)
   }
 
+  /* Leitura de preferência, não de dado de tela: serve só para pré-selecionar o
+   * modelo. O componente inteiro já é montado apenas quando o tenant tem
+   * integration.ai (app/(app)/layout.tsx), então aqui não há 403 a evitar.
+   *
+   * O que muda com a issue #98 é o `r.json()` cru: o corpo de um 500 chegava
+   * como se fosse resposta boa. Falhando, o modelo continua sendo o padrão e o
+   * chat funciona — degradar em silêncio aqui é proposital, e a falha de
+   * verdade (a do /api/ai-chat) já aparece na conversa. */
   useEffect(() => {
-    fetch('/api/ai-settings')
-      .then(r => r.json())
+    fetchJson<{ defaultModel?: string }>('/api/ai-settings')
       .then(data => { if (data.defaultModel) setSelectedModel(data.defaultModel) })
       .catch(() => {})
   }, [])

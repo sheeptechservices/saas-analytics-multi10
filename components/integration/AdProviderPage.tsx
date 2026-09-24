@@ -1,5 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha } from '@/lib/api-error'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -81,14 +83,20 @@ export function AdProviderPage({ provider }: { provider: AdProvider }) {
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [loadError, setLoadError] = useState<unknown>(null)
+  const [recarga, setRecarga] = useState(0)
 
+  // `status === null` significava duas coisas: "sem integração" e "a leitura
+  // falhou". A primeira convida a configurar; a segunda precisa dizer o que
+  // houve, senão o usuário reconfigura em cima de credenciais que já existem
+  // (issue #98).
   useEffect(() => {
-    fetch(`/api/ads/${provider}`)
-      .then(r => r.ok ? r.json() : null)
+    setLoadError(null)
+    fetchJson<{ accountId: string | null; clientId: string | null }>(`/api/ads/${provider}`)
       .then(setStatus)
-      .catch(() => setStatus(null))
+      .catch((e: unknown) => { setStatus(null); setLoadError(e) })
       .finally(() => setLoading(false))
-  }, [provider])
+  }, [provider, recarga])
 
   async function handleSave() {
     const body: Record<string, string> = {}
@@ -185,6 +193,15 @@ export function AdProviderPage({ provider }: { provider: AdProvider }) {
           </div>
         </div>
       </div>
+
+      {loadError != null && (
+        <ApiErrorState
+          className="mb-4"
+          compacto
+          texto={textoDaFalha(loadError, 'o estado da integração')}
+          onRetry={() => { setLoading(true); setRecarga(n => n + 1) }}
+        />
+      )}
 
       {/* ── Credentials form ── */}
       <div className="animate-slide-up delay-2" style={{

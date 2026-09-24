@@ -4,6 +4,9 @@ import { Search } from 'lucide-react'
 import { DataTable } from '@/components/widgets/DataTable'
 import type { DataTableColumn } from '@/components/widgets/DataTable'
 import { SkeletonTable } from '@/components/Skeleton'
+import { useEndpointAllowed } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha, textoDeModuloDesligado } from '@/lib/api-error'
 import { timeAgo } from '@/lib/format'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -91,10 +94,18 @@ const COLS: DataTableColumn[] = [
 export default function ContatosPage() {
   const [data,    setData]    = useState<ApiResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(false)
+  // O erro inteiro, não um booleano: a tela dizia "verifique se o módulo YCloud
+  // está ativo" também quando o servidor caía (issue #98).
+  const [error,   setError]   = useState<unknown>(null)
   const [page,    setPage]    = useState(1)
   const [q,       setQ]       = useState('')
   const [debQ,    setDebQ]    = useState('')
+  const [recarga, setRecarga] = useState(0)
+
+  // A rota /sdr-ia/contatos e /api/contacts pedem o mesmo módulo, então isto é
+  // defesa em profundidade — o layout de (app) só barra quem chega pelo
+  // servidor, e ele não é refeito na navegação do cliente (lib/hidden-route).
+  const { permitido, moduleKey } = useEndpointAllowed('/api/contacts')
 
   // Debounce search input by 300 ms
   useEffect(() => {
@@ -107,23 +118,24 @@ export default function ContatosPage() {
 
   // Fetch contacts
   useEffect(() => {
+    if (!permitido) { setLoading(false); return }
     let cancelled = false
     setLoading(true)
-    setError(false)
+    setError(null)
 
     const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) })
     if (debQ) params.set('q', debQ)
 
-    fetch(`/api/contacts?${params}`)
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    fetchJson<ApiResponse>(`/api/contacts?${params}`)
       .then((d: ApiResponse) => { if (!cancelled) { setData(d); setLoading(false) } })
-      .catch(() => { if (!cancelled) { setError(true); setLoading(false) } })
+      .catch((e: unknown) => { if (!cancelled) { setError(e); setLoading(false) } })
 
     return () => { cancelled = true }
-  }, [page, debQ])
+  }, [page, debQ, permitido, recarga])
 
   const total      = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
+  const falhou     = !permitido || error != null
   const hasPrev    = page > 1
   const hasNext    = page < totalPages
 
@@ -181,7 +193,7 @@ export default function ContatosPage() {
       </div>
 
       {/* ── Status line ─ echoes the search, which may be one unbroken word ── */}
-      {!loading && !error && data && (
+      {!falhou && !loading && data && (
         <div className="max-lg:wrap-anywhere" style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 16 }}>
           {total.toLocaleString('pt-BR')} contato{total !== 1 ? 's' : ''}
           {debQ && ` para "${debQ}"`}
@@ -190,26 +202,24 @@ export default function ContatosPage() {
       )}
 
       {/* ── Loading ────────────────────────────────────────────────── */}
-      {loading && (
+      {!falhou && loading && (
         <SkeletonTable rows={8} colWidths={['28%', '18%', '18%', '18%', '12%']} />
       )}
 
       {/* ── Error ──────────────────────────────────────────────────── */}
-      {!loading && error && (
-        <div style={{ padding: '48px 0', textAlign: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger-text)', marginBottom: 8 }}>
-            Falha ao carregar contatos
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--gray2)' }}>
-            Verifique se o módulo YCloud está ativo e tente novamente.
-          </div>
-        </div>
+      {!permitido && <ApiErrorState texto={textoDeModuloDesligado(moduleKey!)} />}
+
+      {permitido && !loading && error != null && (
+        <ApiErrorState
+          texto={textoDaFalha(error, 'os contatos')}
+          onRetry={() => { setError(null); setRecarga(n => n + 1) }}
+        />
       )}
 
       {/* ── Table ──────────────────────────────────────────────────── */}
       {/* Below lg DataTable shows cards, whose empty state echoes the search
           too: there it may break anywhere. From lg (the table) nothing changes. */}
-      {!loading && !error && (
+      {!falhou && !loading && (
         <div className="animate-slide-up delay-2 max-lg:wrap-anywhere" style={{
           background: 'var(--white)', borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--gray3)', overflow: 'hidden',
@@ -229,7 +239,7 @@ export default function ContatosPage() {
       )}
 
       {/* ── Pagination ─────────────────────────────────────────────── */}
-      {!loading && !error && totalPages > 1 && (
+      {!falhou && !loading && totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 20 }}>
           <button
             onClick={() => setPage(p => p - 1)}

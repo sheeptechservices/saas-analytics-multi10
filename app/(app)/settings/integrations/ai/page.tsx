@@ -1,6 +1,8 @@
 'use client'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha, textoDeLeituraPerdida } from '@/lib/api-error'
 
 type Step = 1 | 2 | 3
 type Period = 'day' | 'week' | 'month'
@@ -85,16 +87,19 @@ function UsageSection({ isActive }: { isActive: boolean }) {
   const [period, setPeriod] = useState<Period>('month')
   const [data, setData] = useState<UsageData | null>(null)
   const [loadingUsage, setLoadingUsage] = useState(true)
+  const [usageError, setUsageError] = useState<unknown>(null)
+  const [recarga, setRecarga] = useState(0)
 
   useEffect(() => {
     if (!isActive) return
     setLoadingUsage(true)
-    fetch(`/api/ai-settings/usage?period=${period}`)
-      .then(r => r.json())
+    setUsageError(null)
+    fetchJson<UsageData>(`/api/ai-settings/usage?period=${period}`)
       .then(setData)
-      .catch(() => {})
+      // Zerado e "consumo zero" são a mesma tela: a falha precisa dizer o nome.
+      .catch((e: unknown) => { setData(null); setUsageError(e) })
       .finally(() => setLoadingUsage(false))
-  }, [period, isActive])
+  }, [period, isActive, recarga])
 
   if (!isActive) return null
 
@@ -139,6 +144,12 @@ function UsageSection({ isActive }: { isActive: boolean }) {
         <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--gray2)', fontWeight: 500 }}>
           Carregando…
         </div>
+      ) : usageError != null ? (
+        <ApiErrorState
+          compacto
+          texto={textoDaFalha(usageError, 'o consumo do período')}
+          onRetry={() => setRecarga(n => n + 1)}
+        />
       ) : (
         <>
           {/* KPI cards — 2×2 below lg (four don't fit beside the sidebar or on a
@@ -284,22 +295,36 @@ export default function AIIntegrationPage() {
   const [saved, setSaved] = useState(false)
   const [existingKeyMasked, setExistingKeyMasked] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<unknown>(null)
   const [isActive, setIsActive] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/ai-settings')
-      .then(r => r.json())
+  /* Sem conferir o status, a falha desta leitura caía no mesmo lugar de "ainda
+   * não configurado": a tela voltava ao passo 1 e um Salvar dali gravava modelo
+   * e orçamento padrão por cima dos do cliente. Agora a falha é explícita e o
+   * Salvar só existe depois de uma leitura boa (issue #98). */
+  const carregar = useCallback(() => {
+    setLoading(true)
+    setLoadError(null)
+    fetchJson<{
+      configured?: boolean; apiKey?: string | null; defaultModel?: string | null
+      monthlyBudgetBrl?: number | null; isActive?: number
+    }>('/api/ai-settings')
       .then(data => {
         if (data.configured) {
-          setExistingKeyMasked(data.apiKey)
+          setExistingKeyMasked(data.apiKey ?? null)
           setModel(data.defaultModel ?? 'claude-haiku-4-5-20251001')
           setBudgetBrl(String(data.monthlyBudgetBrl ?? 0))
           setIsActive(data.isActive === 1)
           setStep(3)
         }
+        setLoaded(true)
       })
+      .catch((e: unknown) => { setLoaded(false); setLoadError(e) })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { carregar() }, [carregar])
 
   async function validateKey() {
     if (!apiKey) return
@@ -316,6 +341,8 @@ export default function AIIntegrationPage() {
   }
 
   async function saveSettings() {
+    // Sem leitura boa não há o que preservar — mesma trava da Campanha SDR.
+    if (!loaded) return
     setSaving(true)
     const body: Record<string, unknown> = {
       defaultModel: model,
@@ -367,6 +394,17 @@ export default function AIIntegrationPage() {
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em' }}>Integração Claude IA</div>
         <div style={{ fontSize: 13, color: 'var(--gray)', marginTop: 2 }}>Configure sua chave de API da Anthropic para usar recursos de inteligência artificial</div>
       </div>
+
+      {/* A leitura falhou: sem este aviso a tela voltaria ao passo 1 como se a
+          conta estivesse zerada, e o Salvar gravaria por cima do que já existe. */}
+      {loadError != null && (
+        <ApiErrorState
+          className="mb-5"
+          compacto
+          texto={textoDeLeituraPerdida(loadError, 'o modelo e o orçamento já configurados')}
+          onRetry={carregar}
+        />
+      )}
 
       {/* Stepper — the three steps don't fit side by side on a phone: they stack,
           without the connecting lines */}
@@ -579,8 +617,8 @@ export default function AIIntegrationPage() {
                 </button>
                 <button
                   onClick={saveSettings}
-                  disabled={saving}
-                  style={{ padding: '11px 28px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: saving ? 'not-allowed' : 'pointer', color: 'var(--primary-contrast)', display: 'flex', alignItems: 'center', gap: 8, opacity: saving ? 0.7 : 1 }}
+                  disabled={saving || !loaded}
+                  style={{ padding: '11px 28px', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, background: 'var(--primary)', border: 'none', borderRadius: 'var(--radius-pill)', cursor: saving || !loaded ? 'not-allowed' : 'pointer', color: 'var(--primary-contrast)', display: 'flex', alignItems: 'center', gap: 8, opacity: saving || !loaded ? 0.7 : 1 }}
                 >
                   {saving ? (
                     <>
