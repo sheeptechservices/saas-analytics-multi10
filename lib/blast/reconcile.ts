@@ -1,8 +1,8 @@
 // lib/blast/reconcile.ts
 //
-// Demand-driven reconciliation: reads whatsapp_status_* events from `events` (Turso),
+// Demand-driven reconciliation: reads whatsapp_status_* events from `events` (Postgres),
 // matches them to blast_recipients by ycloudMessageId, advances recipient statuses, and
-// recalculates campaign counters. Writes only to Turso — never to Supabase.
+// recalculates campaign counters. Writes only to the app's own DB — never to Supabase.
 //
 // Status rank (higher = better/further):  lido(4) > entregue(3) > enviado(2) > falhou(1)
 // 'lido' is the highest positive state and is never downgraded.
@@ -59,7 +59,13 @@ export async function reconcile(tenantId: string, campaignId?: string) {
   ]
   if (msgIds.length === 0) return
 
-  // ── 2. Fetch matching whatsapp_status_* events from Turso ─────────────────────
+  // ── 2. Fetch matching whatsapp_status_* events ───────────────────────────────
+  //    `payload::jsonb ->> 'messageId'` é o json_extract(payload,'$.messageId') do
+  //    SQLite: o `->>` desembrulha e devolve TEXT, então a comparação com os
+  //    msgIds (strings) segue sendo texto-com-texto. É AQUI que a escolha do
+  //    operador importa: com `->` o lado esquerdo vira jsonb e a consulta nem roda
+  //    — o Postgres tenta ler o literal de texto como json e estoura com "invalid
+  //    input syntax for type json". O `::jsonb` é porque payload é coluna text.
   const msgIdSql = sql.join(msgIds.map(id => sql`${id}`), sql`, `)
   const eventRows = await db
     .select({ payload: events.payload, eventType: events.eventType })
@@ -72,7 +78,7 @@ export async function reconcile(tenantId: string, campaignId?: string) {
         'whatsapp_status_read',
         'whatsapp_status_failed',
       ]),
-      sql`json_extract(${events.payload}, '$.messageId') IN (${msgIdSql})`,
+      sql`(${events.payload})::jsonb ->> 'messageId' IN (${msgIdSql})`,
     ))
 
   // ── 3. Compute best status per messageId ──────────────────────────────────────
@@ -131,7 +137,7 @@ export async function reconcile(tenantId: string, campaignId?: string) {
   const affectedCampaignIds = [...new Set(recipientRows.map(r => r.campaignId))]
   await Promise.all(affectedCampaignIds.map(async cId => {
     const counts = await db
-      .select({ status: blastRecipients.status, n: sql<number>`count(*)` })
+      .select({ status: blastRecipients.status, n: sql<number>`count(*)`.mapWith(Number) })
       .from(blastRecipients)
       .where(eq(blastRecipients.campaignId, cId))
       .groupBy(blastRecipients.status)

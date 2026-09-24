@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isCronAuthorized } from '@/lib/cron-auth'
 import { acquireJobLock, releaseJobLock } from '@/lib/cron-lock'
-import { db, client } from '@/lib/db'
+import { db, pool } from '@/lib/db'
 import { integrations, dataSources, tenantModules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { dailySync as googleDailySync } from '@/lib/ads/google'
@@ -30,7 +30,7 @@ type SdrResult = {
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
-// Trava global no Turso: durante a migração Vercel → Railway as duas implantações
+// Trava global no Postgres: durante a migração Vercel → Railway as duas implantações
 // dividem o banco, e uma segunda chamada simultânea (agendador duplicado, botão
 // "Run workflow", a outra implantação) não pode rodar o sync de novo por cima.
 // O TTL cobre folgado o sync mais longo (o job do Actions desiste em 15 min).
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const owner = await acquireJobLock(client, LOCK_NAME, { ttlMs: LOCK_TTL_MS, label: deploymentLabel() })
+  const owner = await acquireJobLock(pool, LOCK_NAME, { ttlMs: LOCK_TTL_MS, label: deploymentLabel() })
   if (!owner) {
     return NextResponse.json({ ok: true, skipped: 'locked' })
   }
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json(await syncAll())
   } finally {
-    await releaseJobLock(client, LOCK_NAME, owner).catch((err: unknown) => {
+    await releaseJobLock(pool, LOCK_NAME, owner).catch((err: unknown) => {
       // sem release, a trava vence sozinha no TTL
       console.error('[cron/all] falha ao soltar a trava', err instanceof Error ? err.message : err)
     })

@@ -11,7 +11,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { contacts } from '@/lib/db/schema'
-import { and, desc, eq, like, or, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
+import { filtroDeContatos, ordemDeContatos } from '@/lib/contacts-busca'
 import { assertEntitlement } from '@/lib/entitlements'
 
 const MAX_LIMIT     = 100
@@ -41,20 +42,13 @@ export async function GET(request: Request) {
   const q     = searchParams.get('q')?.trim() ?? ''
   const offset = (page - 1) * limit
 
-  const baseWhere = and(
-    eq(contacts.tenantId, tenantId),
-    eq(contacts.source, 'ycloud-whatsapp'),
-  )
-
-  const where = q
-    ? and(baseWhere, or(
-        like(contacts.name,  `%${q}%`),
-        like(contacts.phone, `%${q}%`),
-      ))
-    : baseWhere
+  // Filtro e ordem moram em lib/contacts-busca.ts: o Next só deixa um route.ts
+  // exportar GET/POST/..., então um helper exportado daqui seria erro de build —
+  // e sem helper exportado o teste teria de reescrever o SQL em vez de exercitá-lo.
+  const where = filtroDeContatos(tenantId, q)
 
   const [{ total }] = await db
-    .select({ total: sql<number>`count(*)` })
+    .select({ total: sql<number>`count(*)`.mapWith(Number) })
     .from(contacts)
     .where(where)
 
@@ -70,7 +64,7 @@ export async function GET(request: Request) {
     })
     .from(contacts)
     .where(where)
-    .orderBy(desc(contacts.lastInteractionAt))
+    .orderBy(ordemDeContatos)
     .limit(limit)
     .offset(offset)
 

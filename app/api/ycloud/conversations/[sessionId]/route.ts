@@ -1,7 +1,7 @@
 // GET /api/ycloud/conversations/{sessionId}
 //
 // Returns the merged message thread: YCloud (human inbound + manual AI sends)
-// merged with Turso-synced n8n messages (bot responses, source='supabase-n8n').
+// merged with n8n messages synced into the app's own Postgres (source='supabase-n8n').
 //
 // Phone variants: sessionId is E.164 (+55...). n8n stores the phone without '+'
 // and may toggle the Brazilian 9th-digit mobile prefix. We build all plausible
@@ -20,7 +20,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { conversations, contacts } from '@/lib/db/schema'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
+import { ascNulosPrimeiro } from '@/lib/db/ordem'
 import { assertEntitlement } from '@/lib/entitlements'
 
 const MODULE_KEY    = 'integration.ycloud-whatsapp'
@@ -84,7 +85,7 @@ export async function GET(
   const candidates = phoneVariants(sessionId)
 
   // ── Fetch messages from both sources in a single query ───────────────────
-  // Turso is the only DB queried; no Supabase access.
+  // Only the app's own Postgres is queried; no Supabase access.
   const rows = await db
     .select({
       id:         conversations.id,
@@ -100,7 +101,7 @@ export async function GET(
       inArray(conversations.source,    [YCLOUD, N8N]),
       inArray(conversations.sessionId, candidates),
     ))
-    .orderBy(asc(conversations.occurredAt))
+    .orderBy(ascNulosPrimeiro(conversations.occurredAt))
 
   // ── Normalise rows ────────────────────────────────────────────────────────
   type Origin = 'ycloud' | 'n8n'

@@ -25,7 +25,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { conversations, contacts } from '@/lib/db/schema'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
+import { descNulosPorUltimo } from '@/lib/db/ordem'
 import { assertEntitlement } from '@/lib/entitlements'
 
 const MODULE_KEY = 'integration.ycloud-whatsapp'
@@ -46,8 +47,10 @@ export async function GET(request: Request) {
   const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10)))
 
   // ── Fetch all conversation rows, newest first ─────────────────────────────
-  // Drizzle returns occurredAt as Date (mode:'timestamp' stores INTEGER seconds,
-  // converts to Date on read). First occurrence per sessionId in DESC order = latest.
+  // Drizzle devolve occurredAt como Date. A primeira ocorrência de cada sessionId
+  // na ordem DESC é a mais recente — e é por isso que o `nulls last` importa: no
+  // Postgres o DESC cru põe NULL no topo, e uma mensagem sem data seria eleita a
+  // última da sessão (ver lib/db/ordem.ts).
 
   const rows = await db
     .select({
@@ -61,7 +64,7 @@ export async function GET(request: Request) {
       eq(conversations.tenantId, tenantId),
       eq(conversations.source,   SOURCE),
     ))
-    .orderBy(desc(conversations.occurredAt))
+    .orderBy(descNulosPorUltimo(conversations.occurredAt))
     .limit(ROWS_LIMIT)
 
   if (rows.length === ROWS_LIMIT) {

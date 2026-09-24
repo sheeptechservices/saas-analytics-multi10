@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
   const totalsRows = await db
     .select({
       totalSpend: sql<number>`COALESCE(SUM(${adInsights.spend}), 0)`,
-      totalImpressions: sql<number>`COALESCE(SUM(${adInsights.impressions}), 0)`,
-      totalClicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${adInsights.impressions}), 0)`.mapWith(Number),
+      totalClicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`.mapWith(Number),
       totalConversions: sql<number>`COALESCE(SUM(${adInsights.conversions}), 0)`,
       totalConversionValue: sql<number>`COALESCE(SUM(${adInsights.conversionValue}), 0)`,
     })
@@ -106,8 +106,8 @@ export async function GET(request: NextRequest) {
       date: adInsights.date,
       provider: adInsights.provider,
       spend: sql<number>`COALESCE(SUM(${adInsights.spend}), 0)`,
-      impressions: sql<number>`COALESCE(SUM(${adInsights.impressions}), 0)`,
-      clicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`,
+      impressions: sql<number>`COALESCE(SUM(${adInsights.impressions}), 0)`.mapWith(Number),
+      clicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`.mapWith(Number),
       conversionValue: sql<number>`COALESCE(SUM(${adInsights.conversionValue}), 0)`,
     })
     .from(adInsights)
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
     .select({
       provider: adInsights.provider,
       spend: sql<number>`COALESCE(SUM(${adInsights.spend}), 0)`,
-      clicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`,
+      clicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`.mapWith(Number),
       conversionValue: sql<number>`COALESCE(SUM(${adInsights.conversionValue}), 0)`,
     })
     .from(adInsights)
@@ -151,8 +151,8 @@ export async function GET(request: NextRequest) {
       externalCampaignId: adInsights.externalCampaignId,
       provider: adInsights.provider,
       spend: sql<number>`COALESCE(SUM(${adInsights.spend}), 0)`,
-      clicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`,
-      impressions: sql<number>`COALESCE(SUM(${adInsights.impressions}), 0)`,
+      clicks: sql<number>`COALESCE(SUM(${adInsights.clicks}), 0)`.mapWith(Number),
+      impressions: sql<number>`COALESCE(SUM(${adInsights.impressions}), 0)`.mapWith(Number),
     })
     .from(adInsights)
     .where(and(...filters))

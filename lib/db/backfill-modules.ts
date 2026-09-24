@@ -1,22 +1,12 @@
 import { loadEnv } from './load-env'
 loadEnv()
-import { createClient } from '@libsql/client'
-import { drizzle } from 'drizzle-orm/libsql'
+/* O cliente vem de ./index: ele lê DATABASE_URL só no PRIMEIRO USO, nunca na
+ * importação — então o loadEnv() acima já rodou quando main() consulta. De
+ * quebra, o script herda a configuração do pool e a decisão de TLS do app, em
+ * vez de repetir uma conexão solta aqui. */
+import { db } from './index'
 import * as schema from './schema'
 import { ALL_MODULE_KEYS } from '../modules'
-import fs from 'fs'
-import path from 'path'
-
-if (!process.env.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL.startsWith('file:')) {
-  fs.mkdirSync(path.join(process.cwd(), 'data'), { recursive: true })
-}
-
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL ?? 'file:./data/app.db',
-  authToken: process.env.TURSO_AUTH_TOKEN,
-})
-
-const db = drizzle(client, { schema })
 
 async function main() {
   const allTenants = await db.select({ id: schema.tenants.id }).from(schema.tenants)
