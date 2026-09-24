@@ -1,30 +1,20 @@
-import { createClient } from '@libsql/client'
+import { loadEnv } from './load-env'
+loadEnv()
 import { getTableName } from 'drizzle-orm'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+/* O pool vem de ./index: ele lê DATABASE_URL só no primeiro uso, nunca na
+ * importação — então o loadEnv() acima já rodou quando main() consulta. */
+import { pool } from './index'
 import * as schema from './schema'
-
-// load .env.local so the script works outside of Next.js
-try {
-  const raw = readFileSync(resolve(process.cwd(), '.env.local'), 'utf-8')
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const eqIdx = trimmed.indexOf('=')
-    if (eqIdx === -1) continue
-    const key = trimmed.slice(0, eqIdx).trim()
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
-    if (key && !(key in process.env)) process.env[key] = val
-  }
-} catch { /* .env.local não encontrado — variáveis devem vir do ambiente */ }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const IGNORED_TABLES = new Set(['__drizzle_migrations', 'sqlite_sequence'])
-const IGNORED_PREFIX = 'libsql_'
+// O drizzle-kit guarda o histórico no schema `drizzle`, e a consulta abaixo já
+// filtra por `public` — mas a entrada segue aqui caso uma instalação antiga
+// tenha criado a tabela no schema padrão.
+const IGNORED_TABLES = new Set(['__drizzle_migrations'])
 
 function isIgnored(name: string) {
-  return IGNORED_TABLES.has(name) || name.startsWith(IGNORED_PREFIX)
+  return IGNORED_TABLES.has(name)
 }
 
 function bold(s: string) { return `\x1b[1m${s}\x1b[0m` }
@@ -76,31 +66,30 @@ function extractSchemaInfo(): Map<string, SchemaTable> {
 // ─── main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  const url = process.env.TURSO_DATABASE_URL ?? 'file:./data/app.db'
-  const authToken = process.env.TURSO_AUTH_TOKEN
-
-  if (!process.env.TURSO_DATABASE_URL) {
-    console.warn(yellow('⚠  TURSO_DATABASE_URL not set — connecting to local file: ' + url))
-  }
-
-  const client = createClient({ url, authToken })
-
-  // 1. fetch real tables
-  const tablesRes = await client.execute(
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+  // 1. tabelas reais. Equivalente Postgres do "SELECT name FROM sqlite_master
+  //    WHERE type='table'": information_schema.tables, restrito ao schema
+  //    `public` (é onde o drizzle cria tudo) e a BASE TABLE, para que view e
+  //    tabela estrangeira não entrem como se fossem tabela do schema.
+  const tablesRes = await pool.query<{ table_name: string }>(
+    `SELECT table_name
+       FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      ORDER BY table_name`,
   )
-  const dbTableNames = (tablesRes.rows as unknown as Array<{ name: string }>)
-    .map(r => r.name)
-    .filter(n => !isIgnored(n))
+  const dbTableNames = tablesRes.rows.map(r => r.table_name).filter(n => !isIgnored(n))
 
-  // 2. fetch columns per table from the db
+  // 2. colunas de todas as tabelas de uma vez. Equivalente do
+  //    PRAGMA table_info(x) — e numa consulta só, em vez de uma por tabela.
+  const colsRes = await pool.query<{ table_name: string; column_name: string }>(
+    `SELECT table_name, column_name
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+      ORDER BY table_name, ordinal_position`,
+  )
   const dbTables = new Map<string, Set<string>>()
-  for (const tbl of dbTableNames) {
-    const colRes = await client.execute(`PRAGMA table_info(${tbl})`)
-    const cols = new Set<string>(
-      (colRes.rows as unknown as Array<{ name: string }>).map(r => r.name)
-    )
-    dbTables.set(tbl, cols)
+  for (const nome of dbTableNames) dbTables.set(nome, new Set())
+  for (const { table_name, column_name } of colsRes.rows) {
+    dbTables.get(table_name)?.add(column_name)
   }
 
   // 3. extract schema expectations
@@ -132,7 +121,7 @@ async function main() {
 
   console.log()
   console.log(bold('══════════════════════════════════════════════════'))
-  console.log(bold('  Drizzle ↔ Turso schema check'))
+  console.log(bold('  Drizzle ↔ Postgres schema check'))
   console.log(bold('══════════════════════════════════════════════════'))
   console.log()
 
@@ -244,7 +233,7 @@ async function main() {
     console.log()
   }
 
-  await client.close()
+  await pool.end()
 }
 
 main().catch(err => {

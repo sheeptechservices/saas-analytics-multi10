@@ -1,7 +1,7 @@
 // POST /api/ycloud/messages
 //
 // Sends a WhatsApp message (text or template) and records the outbound
-// conversation as role='ai' in Turso (idempotent via YCloud message id).
+// conversation as role='ai' in the app's own Postgres (idempotent via YCloud message id).
 //
 // Request body (discriminated on type):
 //   { to: string; type: 'text'; body: string }
@@ -19,7 +19,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { dataSources, conversations } from '@/lib/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { descNulosPorUltimo } from '@/lib/db/ordem'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { yCloudProvider, sendWhatsappMessage } from '@/lib/providers/ycloud'
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
         eq(conversations.sessionId, to),
         eq(conversations.role,      'human'),
       ))
-      .orderBy(desc(conversations.occurredAt))
+      .orderBy(descNulosPorUltimo(conversations.occurredAt))
       .limit(1)
 
     // epoch ms of the last inbound message from this customer

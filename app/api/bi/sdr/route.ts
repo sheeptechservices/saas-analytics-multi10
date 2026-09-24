@@ -20,6 +20,8 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { events, conversations, contacts, funnelSnapshots, dataSources } from '@/lib/db/schema'
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { descNulosPorUltimo } from '@/lib/db/ordem'
+import { contagensDeMensagens } from '@/lib/bi/whatsapp-mensagens'
 import { assertEntitlement } from '@/lib/entitlements'
 
 const DAY = 86_400_000
@@ -70,7 +72,7 @@ export async function GET(request: Request) {
     .select({
       stageKey:  funnelSnapshots.stageKey,
       stageName: funnelSnapshots.stageName,
-      count:     sql<number>`sum(${funnelSnapshots.count})`,
+      count:     sql<number>`sum(${funnelSnapshots.count})`.mapWith(Number),
       order:     sql<number>`min(${funnelSnapshots.order})`,
     })
     .from(funnelSnapshots)
@@ -87,7 +89,7 @@ export async function GET(request: Request) {
   const priorFunnelRows = await db
     .select({
       stageKey: funnelSnapshots.stageKey,
-      count:    sql<number>`sum(${funnelSnapshots.count})`,
+      count:    sql<number>`sum(${funnelSnapshots.count})`.mapWith(Number),
     })
     .from(funnelSnapshots)
     .where(and(
@@ -102,7 +104,7 @@ export async function GET(request: Request) {
   const sentimentRows = await db
     .select({
       sentiment: events.sentiment,
-      count:     sql<number>`count(*)`,
+      count:     sql<number>`count(*)`.mapWith(Number),
     })
     .from(events)
     .where(and(
@@ -129,7 +131,7 @@ export async function GET(request: Request) {
       eq(conversations.source, 'supabase-n8n'),
       gte(conversations.occurredAt, periodStart),
     ))
-    .orderBy(desc(conversations.occurredAt))
+    .orderBy(descNulosPorUltimo(conversations.occurredAt))
     .limit(2000)
 
   // ── Data source for lastSyncAt ────────────────────────────────────────────
@@ -143,16 +145,12 @@ export async function GET(request: Request) {
     .limit(1)
 
   // ── WhatsApp totals: distinct MESSAGES por status mais avançado (não eventos) ──
-  //  Contar eventos crus quebra a relação do funil (um delivered perdido faz read
-  //  passar de delivered → taxa de leitura > 100%). Aqui contamos messageIds
-  //  distintos com IMPLICAÇÃO: lida ⊆ entregue ⊆ enviada. Exato, sem limite de linhas.
+  //  As quatro contagens moram em lib/bi/whatsapp-mensagens.ts, com a explicação
+  //  do `->>` e do porquê de contar mensagem em vez de evento. Ficam fora daqui
+  //  porque o Next não deixa um route.ts exportar nada além de GET/POST/... — e
+  //  sem export o teste teria de reescrever o SQL em vez de exercitá-lo.
   const [yMsgCounts] = await db
-    .select({
-      sent:      sql<number>`count(distinct case when ${events.eventType} in ('whatsapp_status_sent','whatsapp_status_delivered','whatsapp_status_read') then json_extract(${events.payload}, '$.messageId') end)`,
-      delivered: sql<number>`count(distinct case when ${events.eventType} in ('whatsapp_status_delivered','whatsapp_status_read') then json_extract(${events.payload}, '$.messageId') end)`,
-      read:      sql<number>`count(distinct case when ${events.eventType} = 'whatsapp_status_read' then json_extract(${events.payload}, '$.messageId') end)`,
-      failed:    sql<number>`count(distinct case when ${events.eventType} = 'whatsapp_status_failed' then json_extract(${events.payload}, '$.messageId') end)`,
-    })
+    .select(contagensDeMensagens)
     .from(events)
     .where(and(
       eq(events.tenantId, tenantId),
@@ -161,7 +159,7 @@ export async function GET(request: Request) {
     ))
 
   const [yConvCountRow] = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
     .from(conversations)
     .where(and(
       eq(conversations.tenantId, tenantId),
@@ -196,7 +194,7 @@ export async function GET(request: Request) {
       eq(conversations.role, 'human'),
       gte(conversations.occurredAt, periodStart),
     ))
-    .orderBy(desc(conversations.occurredAt))
+    .orderBy(descNulosPorUltimo(conversations.occurredAt))
     .limit(WA_LIMIT)
 
   if (yConvRows.length === WA_LIMIT) {

@@ -5,11 +5,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { db } from '@/lib/db'
-import { blastCampaigns, blastRecipients, users } from '@/lib/db/schema'
-import { and, eq, sql, desc } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 import { reconcile } from '@/lib/blast/reconcile'
+import { listarCampanhas } from '@/lib/blast/campanhas'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -25,33 +23,7 @@ export async function GET(req: NextRequest) {
   // Reconcile all campaigns for this tenant before returning
   await reconcile(tenantId).catch(err => console.error('[blast campaigns reconcile]', err))
 
-  const rows = await db
-    .select({
-      id:              blastCampaigns.id,
-      kind:            blastCampaigns.kind,
-      template:        blastCampaigns.template,
-      totalSolicitado: blastCampaigns.totalSolicitado,
-      skipped:         blastCampaigns.skipped,
-      started:         blastCampaigns.started,
-      status:          blastCampaigns.status,
-      createdAt:       blastCampaigns.createdAt,
-      createdByName:   users.name,
-      pendente:  sql<number>`SUM(CASE WHEN ${blastRecipients.status} = 'pendente'  THEN 1 ELSE 0 END)`,
-      enviado:   sql<number>`SUM(CASE WHEN ${blastRecipients.status} = 'enviado'   THEN 1 ELSE 0 END)`,
-      entregue:  sql<number>`SUM(CASE WHEN ${blastRecipients.status} = 'entregue'  THEN 1 ELSE 0 END)`,
-      lido:      sql<number>`SUM(CASE WHEN ${blastRecipients.status} = 'lido'      THEN 1 ELSE 0 END)`,
-      falhou:    sql<number>`SUM(CASE WHEN ${blastRecipients.status} = 'falhou'    THEN 1 ELSE 0 END)`,
-    })
-    .from(blastCampaigns)
-    .leftJoin(users, eq(blastCampaigns.createdBy, users.id))
-    .leftJoin(blastRecipients, eq(blastRecipients.campaignId, blastCampaigns.id))
-    .where(
-      validKind
-        ? and(eq(blastCampaigns.tenantId, tenantId), eq(blastCampaigns.kind, validKind))
-        : eq(blastCampaigns.tenantId, tenantId),
-    )
-    .groupBy(blastCampaigns.id)
-    .orderBy(desc(blastCampaigns.createdAt))
+  const rows = await listarCampanhas(tenantId, validKind)
 
   return NextResponse.json({
     campaigns: rows.map(r => ({

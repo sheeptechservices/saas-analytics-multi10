@@ -16,7 +16,7 @@ async function consultarBranding(tenantId: string): Promise<TenantBranding> {
   return { primaryColor: t.primaryColor ?? BRANDING_PADRAO.primaryColor, logoUrl: t.logoUrl ?? null, brandName: t.name }
 }
 
-/* Marca é enfeite: cor, logo e nome. Um soluço de rede no Turso não pode custar
+/* Marca é enfeite: cor, logo e nome. Um soluço no banco não pode custar
  * a tela inteira por causa deles — cai no padrão e a navegação segue. O oposto
  * vale para getEnabledModuleKeys (lib/entitlements.ts), que decide o que o
  * cliente pode ver e por isso continua falhando alto. */

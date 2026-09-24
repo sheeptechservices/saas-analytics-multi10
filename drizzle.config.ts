@@ -3,12 +3,16 @@ loadEnv()
 
 import type { Config } from 'drizzle-kit'
 
+/* `generate` não conecta em banco nenhum — lê só `schema` e `out`. O
+ * `dbCredentials` abaixo serve a `push`/`migrate`/`studio`, e por isso a URL não
+ * tem valor padrão: não existe Postgres local para cair em cima. Sem
+ * DATABASE_URL, esses comandos falham dizendo qual variável falta, em vez de
+ * tentarem um endereço inventado. */
 export default {
   schema: './lib/db/schema.ts',
   out: './drizzle',
-  dialect: 'turso',
+  dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.TURSO_DATABASE_URL ?? 'file:./data/app.db',
-    authToken: process.env.TURSO_AUTH_TOKEN,
+    url: process.env.DATABASE_URL ?? '',
   },
 } satisfies Config

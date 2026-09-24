@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
         .limit(limit)
         .offset(offset),
       db
-        .select({ total: sql<number>`count(*)` })
+        .select({ total: sql<number>`count(*)`.mapWith(Number) })
         .from(auditLogs)
         .where(where),
     ])
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
       .limit(limit)
       .offset(offset),
     db
-      .select({ total: sql<number>`count(*)` })
+      .select({ total: sql<number>`count(*)`.mapWith(Number) })
       .from(auditLogs)
       .where(where),
   ])

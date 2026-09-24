@@ -223,8 +223,12 @@ export const yCloudProvider: DataSourceProvider<YCloudConfig, YCloudContactRaw[]
   // guaranteeing that REST backfill and webhook upserts hit the same row (no duplicates).
   // Falls back to the YCloud contact id when phoneNumber is absent (edge case).
   //
-  // lastInteractionAt = parseMs(lastSeen). The upsertBatch MAX logic ensures this never
-  // regresses a more recent timestamp written by an earlier webhook event.
+  // lastInteractionAt = parseMs(lastSeen). Never regresses a more recent timestamp
+  // written by an earlier webhook event: upsertBatch keeps the greater of the two.
+  // That holds on BOTH paths, and both matter here — a page may list the same phone
+  // twice, so the value is merged once in JS (dedupPorId + juntarContatos) and once
+  // in SQL (GREATEST in the ON CONFLICT). Postgres has no 2-argument MAX; the old
+  // wording said MAX because the database used to be SQLite.
   normalize(raw: YCloudContactRaw[], _ctx: SyncContext): CanonicalBatch {
     const contacts: CanonicalContact[] = raw.map(c => {
       const externalId = c.phoneNumber ?? c.id
@@ -258,7 +262,7 @@ export const yCloudProvider: DataSourceProvider<YCloudConfig, YCloudContactRaw[]
 // ─── Webhook normalizer ───────────────────────────────────────────────────────
 //
 // Pure function (no I/O) called by the webhook route to convert a raw YCloud
-// event into canonical platform records for upsert into Turso.
+// event into canonical platform records for upsert into the app's own Postgres.
 
 /** Parses an ISO-8601 string to epoch ms; returns undefined on missing/invalid input. */
 function parseMs(iso: string | undefined): number | undefined {
