@@ -1,4 +1,4 @@
-import { Client } from 'pg'
+import { mapSdrDbError, withSdrDb, withSdrDbOnce } from '@/lib/sdr/pg'
 import type {
   DataSourceProvider,
   FetchPage,
@@ -116,16 +116,14 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
   },
 
   async testConnection(cfg: Config): Promise<{ ok: boolean; message?: string }> {
-    const client = new Client({ connectionString: cfg.connectionString })
+    // Pool descartável: a credencial ainda pode nem ser a que vai ficar salva, e
+    // cada tentativa do formulário deixaria um pool no cache para sempre.
     try {
-      await client.connect()
-      await client.query('SELECT 1')
+      await withSdrDbOnce(cfg.connectionString, sdr => sdr.query('SELECT 1'))
       return { ok: true }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return { ok: false, message: msg }
-    } finally {
-      await client.end().catch(() => {})
+      // Mensagem traduzida: o admin vê o que fazer, sem host nem texto do driver.
+      return { ok: false, message: mapSdrDbError(err).message }
     }
   },
 
@@ -137,22 +135,23 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
     const funnelDone = Boolean(raw?.funnelDone)
 
     const N = 500
-    const client = new Client({ connectionString: cfg.connectionString })
-    await client.connect()
 
-    try {
+    // O runner chama `fetch` uma vez por página (até 200); o pool guarda a conexão
+    // entre elas em vez de refazer TCP + TLS + SCRAM a cada página.
+    // SOMENTE SELECT — o sync nunca escreve na base do cliente.
+    return withSdrDb(cfg.connectionString, async sdr => {
       let funnel: FunnelRow[] = []
       if (!funnelDone) {
-        const res = await client.query<FunnelRow>('SELECT * FROM funnel_metrics')
+        const res = await sdr.query<FunnelRow>('SELECT * FROM funnel_metrics')
         funnel = res.rows
       }
 
-      const { rows: leadLogs } = await client.query<LeadLogRow>(
+      const { rows: leadLogs } = await sdr.query<LeadLogRow>(
         'SELECT * FROM lead_logs WHERE criado_em > $1 ORDER BY criado_em ASC LIMIT $2',
         [leadLogsAfter, N]
       )
 
-      const { rows: chats } = await client.query<ChatRow>(
+      const { rows: chats } = await sdr.query<ChatRow>(
         'SELECT * FROM n8n_chat_histories WHERE id > $1 ORDER BY id ASC LIMIT $2',
         [chatAfterId, N]
       )
@@ -171,9 +170,7 @@ export const supabaseN8nProvider: DataSourceProvider<Config, SupabaseN8nRaw> = {
         nextCursor,
         done: leadLogs.length < N && chats.length < N,
       }
-    } finally {
-      await client.end().catch(() => {})
-    }
+    })
   },
 
   normalize(raw: SupabaseN8nRaw, _ctx: SyncContext): CanonicalBatch {

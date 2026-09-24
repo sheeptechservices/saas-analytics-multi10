@@ -13,7 +13,7 @@ import { dataSources } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
-import { Client } from 'pg'
+import { getSdrPool, mapSdrDbError } from '@/lib/sdr/pg'
 
 const PROVIDER_KEY = 'supabase-n8n'
 const MAX_LIMIT    = 50
@@ -72,9 +72,9 @@ export async function GET(request: Request) {
     )
   }
 
-  const client = new Client({ connectionString })
   try {
-    await client.connect()
+    // Pool da credencial: TLS obrigatório e tetos de tempo — ver lib/sdr/pg.
+    const sdr = getSdrPool(connectionString)
 
     // Build parameterized WHERE clause — never interpolate user input into SQL
     const conditions: string[] = []
@@ -97,21 +97,24 @@ export async function GET(request: Request) {
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    // Count (separate query — Postgres planner handles this well on 23k rows)
-    const countRes = await client.query<{ count: string }>(
+    // Count e página vão juntos: cada query pega a sua conexão no pool, então as
+    // duas correm mesmo em paralelo em vez de uma esperar a outra.
+    const contagem = sdr.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM leads ${where}`,
       params,
     )
-    const total = parseInt(countRes.rows[0]?.count ?? '0', 10)
 
     // Rows — SELECT only, no writes
-    const dataRes = await client.query<LeadRow>(
+    const pagina = sdr.query<LeadRow>(
       `SELECT id, name, phone, phone_adjusted, company, source, status, ativo, dealid
          FROM leads ${where}
         ORDER BY created_at DESC
         LIMIT $${idx} OFFSET $${idx + 1}`,
       [...params, limit, offset],
     )
+
+    const [countRes, dataRes] = await Promise.all([contagem, pagina])
+    const total = parseInt(countRes.rows[0]?.count ?? '0', 10)
 
     const items = dataRes.rows.map(r => ({
       id:            r.id,
@@ -125,12 +128,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ items, page, limit, total })
   } catch (err) {
+    // Texto do driver fica no log; o cliente recebe só código estável + português.
     console.error('[sdr leads GET]', err)
+    const erro = mapSdrDbError(err)
     return NextResponse.json(
-      { error: 'db_error', message: (err as Error).message },
+      { error: 'db_error', code: erro.code, message: erro.message },
       { status: 502 },
     )
-  } finally {
-    await client.end().catch(() => {})
   }
 }
