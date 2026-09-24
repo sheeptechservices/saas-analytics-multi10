@@ -19,7 +19,7 @@ import { dataSources, campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
-import { Client } from 'pg'
+import { withSdrDb } from '@/lib/sdr/pg'
 import { normalizePhone, phoneKey } from '@/lib/sdr/leads-etl'
 import { readN8nSecret } from '@/lib/sdr/settings-merge'
 
@@ -101,10 +101,10 @@ export async function POST(request: Request) {
     if (dsRow?.configEnc) {
       const cfg = JSON.parse(decrypt(dsRow.configEnc)) as { connectionString?: string }
       if (cfg.connectionString) {
-        const pgClient = new Client({ connectionString: cfg.connectionString })
-        try {
-          await pgClient.connect()
-          const res = await pgClient.query<{
+        // Perfil 'largo' pelo mesmo motivo do import: é a tabela inteira de leads, e
+        // o catch abaixo segue sem dedup em vez de reprovar o cadastro.
+        await withSdrDb(cfg.connectionString, async sdr => {
+          const res = await sdr.query<{
             id: string; name: string | null; phone: string | null; phone_adjusted: string | null
           }>(
             `SELECT id, name, phone, phone_adjusted
@@ -120,9 +120,7 @@ export async function POST(request: Request) {
               break
             }
           }
-        } finally {
-          await pgClient.end().catch(() => {})
-        }
+        }, 'largo')
       }
     }
   } catch (err) {

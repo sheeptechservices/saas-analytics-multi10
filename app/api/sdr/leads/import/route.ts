@@ -16,7 +16,7 @@ import { dataSources, campaignSettings } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
-import { Client } from 'pg'
+import { withSdrDb } from '@/lib/sdr/pg'
 import { mapKey, normalizePhone, phoneKey, firstWord } from '@/lib/sdr/leads-etl'
 import {
   IMPORT_ERRORS,
@@ -181,20 +181,21 @@ export async function POST(request: Request) {
       .then(r => r[0])
 
     if (dsRow?.configEnc) {
-      let pgClient: Client | null = null
       try {
         const cfg = JSON.parse(decrypt(dsRow.configEnc)) as { connectionString?: string }
         if (cfg.connectionString) {
-          pgClient = new Client({ connectionString: cfg.connectionString })
-          await pgClient.connect()
-
           // Fetch broadly — exact-string match is unreliable across formats;
           // phoneKey normalizes both sides in the app. SELECT only — never writes.
-          const res = await pgClient.query<{ id: string; name: string | null; phone: string | null; phone_adjusted: string | null }>(
+          type DedupRow = { id: string; name: string | null; phone: string | null; phone_adjusted: string | null }
+          // Perfil 'largo': esta varredura é a consulta mais pesada da app (a tabela
+          // inteira de leads do cliente) e o catch abaixo engole a falha de propósito.
+          // Com o teto curto, uma base grande derrubaria a dedup em silêncio e os
+          // leads já cadastrados seriam importados — e disparados — de novo.
+          const res = await withSdrDb(cfg.connectionString, sdr => sdr.query<DedupRow>(
             `SELECT id, name, phone, phone_adjusted
                FROM leads
               WHERE phone IS NOT NULL OR phone_adjusted IS NOT NULL`,
-          )
+          ), 'largo')
           for (const r of res.rows) {
             const k1 = phoneKey(r.phone ?? '')
             const k2 = phoneKey(r.phone_adjusted ?? '')
@@ -206,8 +207,6 @@ export async function POST(request: Request) {
       } catch (err) {
         // Non-fatal: skip Supabase dedup if DB is unavailable, proceed with file-only dedup
         console.error('[sdr import dedup]', err)
-      } finally {
-        if (pgClient) await pgClient.end().catch(() => {})
       }
     }
   }
