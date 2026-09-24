@@ -1,15 +1,29 @@
 name: CI
 
-# Proteção de branch é recurso pago no GitHub, então o gate mora aqui e no script
-# de build: lint com erro reprova o job, e reprova o deploy na Vercel junto.
+# Proteção de branch é recurso pago no GitHub, então o portão mora aqui: quem
+# olha o PR vê o vermelho antes de clicar em merge. Não existe passo de deploy
+# neste arquivo — a hospedagem (Railway) constrói por conta própria a partir da
+# branch, e é justamente por isso que o job de build abaixo importa: sem ele, um
+# erro que só aparece no `next build` só apareceria lá, depois do merge.
 on:
+  # `push` só na branch padrão. Antes vinha sem filtro, e todo PR rodava a suíte
+  # duas vezes (uma pelo push da branch, outra pelo pull_request) — mesmo custo,
+  # mesmo resultado, dois lugares para olhar.
   push:
+    branches: [master]
   pull_request:
+
+# Commit novo cancela a execução anterior da mesma branch. Sem isso, empurrar
+# três vezes seguidas deixa três suítes correndo e a fila do repositório presa.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verificar:
     name: testes + lint + tipos
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +41,48 @@ jobs:
       - name: Testes
         run: npm test
 
-      - name: Lint
-        run: npm run lint
+      # O teto é o número de avisos de hoje, medido na master. Sem ele o lint
+      # nunca reprovava: o projeto tem 0 erros e milhares de avisos, e mais um
+      # aviso passava despercebido. Com o teto, a dívida pode encolher à vontade
+      # e não pode crescer.
+      #
+      # ESTE NÚMERO SÓ DESCE. Ao migrar uma tela e derrubar avisos, ajuste para
+      # a contagem nova — assim o que você limpou não volta pela porta dos
+      # fundos. Para saber a contagem atual: `npx eslint .`
+      - name: Lint (0 erros e no máximo 1713 avisos)
+        run: npx eslint . --max-warnings 1713
 
       - name: Tipos
         run: npm run type-check
+
+  build:
+    name: build de produção
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Job separado do lint de propósito: `npm run build` roda o lint antes do
+      # `next build`, e aí uma regressão de lint apareceria como "build quebrado".
+      # Aqui os dois correm em paralelo e cada vermelho diz o que é.
+      #
+      # Sem NENHUMA variável de banco, e isso é intencional: é o mesmo ambiente
+      # em que a Railway constrói. O deploy já morreu uma vez em "collecting page
+      # data" porque o cliente do banco nascia na importação do módulo; enquanto
+      # este job passar sem TURSO_DATABASE_URL, aquele defeito não volta.
+      - name: next build
+        env:
+          # Valor de mentira, e só porque o next-auth exige que exista algo para
+          # assinar. Não abre nada: o segredo de verdade vive no ambiente da
+          # hospedagem e nunca passa por aqui. Nenhum secret real é usado no CI.
+          AUTH_SECRET: ci-sem-segredo-real-0000000000000000000000000000
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npx next build
