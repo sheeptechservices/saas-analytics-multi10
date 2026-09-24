@@ -6,6 +6,10 @@ import { SkeletonTable } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useCountUp } from '@/components/widgets/KpiCard'
 import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
+import { useEndpointAllowed } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { ApiError, fetchJson, textoDaFalha, textoDeModuloDesligado } from '@/lib/api-error'
+import type { TextoDaFalha } from '@/lib/api-error'
 import { AddLeadForm } from '@/components/leads/AddLeadForm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -81,6 +85,11 @@ function primeiroNome(nome: string | null): string {
   return String(nome ?? '').trim().split(/\s+/)[0] ?? ''
 }
 
+/* Códigos de recusa que a rota devolve com instrução própria. Quem não estiver
+ * aqui cai no texto genérico por status — e o genérico de 400 diz "revise os
+ * filtros", que para uma recusa de configuração é conselho errado, ainda por cima
+ * com um botão de tentar de novo que nunca vai funcionar. Ao acrescentar um
+ * `error` novo em app/api/sdr/templates ou em /api/sdr/leads, acrescente aqui. */
 function friendlyBlastError(code: string): string {
   if (code === 'blast_url_nao_configurada')
     return 'URL de disparo de lista não configurada — acesse Configurações > Credenciais.'
@@ -88,7 +97,40 @@ function friendlyBlastError(code: string): string {
     return 'Remetente não configurado na campanha — defina em Parâmetros.'
   if (code === 'fonte_sdr_nao_configurada')
     return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
+  // 400 de app/api/sdr/templates: o estado normal de quem ainda não terminou o
+  // cadastro da YCloud. Sem esta linha, o cliente novo levava "o pedido foi
+  // recusado, revise os filtros" bem no meio da configuração inicial.
+  if (code === 'ycloud_nao_configurado')
+    return 'WhatsApp (YCloud) ainda não configurado — acesse Configurações > Integrações > YCloud.'
+  // 500: a credencial existe mas não pôde ser lida (chave de criptografia trocada
+  // ou JSON corrompido). Quem resolve isso é quem salva a credencial de novo.
+  if (code === 'config_invalid')
+    return 'A credencial da YCloud está salva mas não pôde ser lida — salve-a de novo em Configurações > Integrações > YCloud.'
+  // 502: a YCloud respondeu com erro. Não é nada que o operador configure.
+  if (code === 'ycloud_error')
+    return 'A YCloud recusou a consulta dos modelos. Tente de novo em alguns minutos.'
   return code
+}
+
+/* Dos códigos de negócio, só este é passageiro. Os outros descrevem configuração
+ * faltando: repetir o pedido dá exatamente o mesmo erro, e oferecer o botão só
+ * empurra a pessoa para longe da tela que resolveria o problema. */
+const CODIGOS_QUE_ADIANTA_REPETIR = new Set(['ycloud_error'])
+
+/* A rota tem dois tipos de recusa: a de negócio, que vem com um `error`
+ * conhecido e merece a instrução exata ("configure a fonte"), e a de
+ * infraestrutura (403/500), que só o status explica. O código cru nunca vai
+ * para a tela — era o que acontecia quando o `error` era um status solto. */
+function textoDoErroDeLead(erro: unknown, assunto: string): TextoDaFalha {
+  const codigo = erro instanceof ApiError ? erro.codigo : undefined
+  if (codigo && friendlyBlastError(codigo) !== codigo) {
+    return {
+      titulo: `Não foi possível carregar ${assunto}`,
+      detalhe: friendlyBlastError(codigo),
+      podeTentarDeNovo: CODIGOS_QUE_ADIANTA_REPETIR.has(codigo),
+    }
+  }
+  return textoDaFalha(erro, assunto)
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -336,7 +378,10 @@ export default function NovDisparoPage() {
   // ── Step 1: base selection ────────────────────────────────────────────────────
   const [leadsData,    setLeadsData]    = useState<ApiResponse | null>(null)
   const [leadsLoading, setLeadsLoading] = useState(true)
-  const [leadsError,   setLeadsError]   = useState<string | null>(null)
+  const [leadsError,   setLeadsError]   = useState<unknown>(null)
+  // Rota e API pedem a mesma chave (sdr.parametros): defesa em profundidade,
+  // já que o layout de (app) não é refeito na navegação do cliente.
+  const { permitido, moduleKey } = useEndpointAllowed('/api/sdr/leads')
   const [page,         setPage]         = useState(1)
   const [q,            setQ]            = useState('')
   const [debQ,         setDebQ]         = useState('')
@@ -360,7 +405,7 @@ export default function NovDisparoPage() {
   // ── Step 2: template ──────────────────────────────────────────────────────────
   const [blastTemplates,  setBlastTemplates]  = useState<{ nome_template: string; preview: string; fase_envio: string | null; usaNome: boolean }[] | null>(null)
   const [blastTplLoading, setBlastTplLoading] = useState(false)
-  const [blastTplError,   setBlastTplError]   = useState<string | null>(null)
+  const [blastTplError,   setBlastTplError]   = useState<unknown>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('')
   const [templateOpen,    setTemplateOpen]    = useState(false)
   const [templateSearch,  setTemplateSearch]  = useState('')
@@ -435,17 +480,17 @@ export default function NovDisparoPage() {
   // Fetch leads (base mode only)
   useEffect(() => {
     if (step !== 1 || source !== 'base') return
+    if (!permitido) { setLeadsLoading(false); return }
     let cancelled = false
     setLeadsLoading(true)
     setLeadsError(null)
     const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) })
     if (debQ) params.set('q', debQ)
-    fetch(`/api/sdr/leads?${params}`)
-      .then(r => r.ok ? r.json() : r.json().then((d: { error?: string }) => Promise.reject(d.error ?? r.status)))
+    fetchJson<ApiResponse>(`/api/sdr/leads?${params}`)
       .then((d: ApiResponse) => { if (!cancelled) { setLeadsData(d); setLeadsLoading(false) } })
-      .catch((e: unknown) => { if (!cancelled) { setLeadsError(String(e)); setLeadsLoading(false) } })
+      .catch((e: unknown) => { if (!cancelled) { setLeadsError(e); setLeadsLoading(false) } })
     return () => { cancelled = true }
-  }, [page, debQ, fetchSeq, step, source])
+  }, [page, debQ, fetchSeq, step, source, permitido])
 
   // Master checkbox indeterminate
   useEffect(() => {
@@ -538,12 +583,10 @@ export default function NovDisparoPage() {
     setBlastTplLoading(true)
     setBlastTplError(null)
     try {
-      const res = await fetch('/api/sdr/templates')
-      const data = await res.json() as { items?: { nome_template: string; preview: string; fase_envio: string | null; usaNome: boolean }[]; error?: string }
-      if (!res.ok) { setBlastTplError(data.error ?? `HTTP ${res.status}`); return }
+      const data = await fetchJson<{ items?: { nome_template: string; preview: string; fase_envio: string | null; usaNome: boolean }[] }>('/api/sdr/templates')
       setBlastTemplates(data.items ?? [])
     } catch (e) {
-      setBlastTplError((e as Error).message)
+      setBlastTplError(e)
     } finally {
       setBlastTplLoading(false)
     }
@@ -702,7 +745,7 @@ export default function NovDisparoPage() {
               </div>
 
               {/* Status line — echoes the search, which may be one unbroken word */}
-              {!leadsLoading && !leadsError && leadsData && (
+              {permitido && !leadsLoading && !leadsError && leadsData && (
                 <div className="max-lg:wrap-anywhere" style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500, marginBottom: 12 }}>
                   {total.toLocaleString('pt-BR')} lead{total !== 1 ? 's' : ''}
                   {debQ && ` para "${debQ}"`}
@@ -710,17 +753,15 @@ export default function NovDisparoPage() {
                 </div>
               )}
 
-              {leadsLoading && <SkeletonTable rows={8} colWidths={['28%', '18%', '18%', '14%', '10%']} />}
+              {permitido && leadsLoading && <SkeletonTable rows={8} colWidths={['28%', '18%', '18%', '14%', '10%']} />}
 
-              {!leadsLoading && leadsError && (
-                <div style={{ padding: '48px 0', textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--red)', marginBottom: 8 }}>Falha ao carregar leads</div>
-                  <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, color: 'var(--gray2)' }}>
-                    {leadsError === 'fonte_sdr_nao_configurada'
-                      ? 'Configure a fonte de dados do SDR primeiro.'
-                      : leadsError}
-                  </div>
-                </div>
+              {!permitido && <ApiErrorState texto={textoDeModuloDesligado(moduleKey!)} />}
+
+              {permitido && !leadsLoading && leadsError != null && (
+                <ApiErrorState
+                  texto={textoDoErroDeLead(leadsError, 'os leads')}
+                  onRetry={() => { setLeadsError(null); setFetchSeq(n => n + 1) }}
+                />
               )}
 
               {/* Below lg the five columns don't fit beside the sidebar (or on a
@@ -728,7 +769,7 @@ export default function NovDisparoPage() {
                   checkbox and the name first. From lg the frame clips, as before.
                   The frame is also a size container below lg (@container), so the
                   empty-state message can take exactly its visible width. */}
-              {!leadsLoading && !leadsError && (
+              {permitido && !leadsLoading && !leadsError && (
                 <div className="overflow-hidden max-lg:overflow-x-auto max-lg:@container" style={{ background: 'var(--white)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray3)', marginBottom: 16 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
@@ -821,7 +862,7 @@ export default function NovDisparoPage() {
               )}
 
               {/* Pagination */}
-              {!leadsLoading && !leadsError && totalPages > 1 && (
+              {permitido && !leadsLoading && !leadsError && totalPages > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 16 }}>
                   <button
                     onClick={() => setPage(p => p - 1)}
@@ -1021,10 +1062,12 @@ export default function NovDisparoPage() {
               {blastTplLoading && (
                 <div style={{ fontSize: 13, color: 'var(--gray2)', padding: '10px 0' }}>Carregando templates...</div>
               )}
-              {blastTplError && (
-                <div className="max-lg:wrap-anywhere" style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
-                  {friendlyBlastError(blastTplError)}
-                </div>
+              {blastTplError != null && (
+                <ApiErrorState
+                  texto={textoDoErroDeLead(blastTplError, 'os modelos de mensagem')}
+                  compacto
+                  onRetry={() => { setBlastTplError(null); void loadTemplates() }}
+                />
               )}
 
               {blastTemplates && (

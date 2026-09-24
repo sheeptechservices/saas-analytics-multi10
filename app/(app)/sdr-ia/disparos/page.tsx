@@ -6,6 +6,9 @@ import { Skeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { useQuery } from '@tanstack/react-query'
 import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
+import { useEndpointAllowed } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha, textoDeModuloDesligado } from '@/lib/api-error'
 import { toMs } from '@/lib/date'
 import { AddLeadForm } from '@/components/leads/AddLeadForm'
 import type { AddedInfo } from '@/components/leads/AddLeadForm'
@@ -195,11 +198,17 @@ function TabBar({ active, onChange }: { active: CampaignKind; onChange: (k: Camp
 
 function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => void }) {
   const { canDispatch } = useCanDispatch()
+  // A tela de Disparos abre com sdr.dashboard, mas a API dela exige
+  // sdr.parametros (issue #98). Sem o segundo módulo a requisição só rendia um
+  // 403 cujo corpo virava lista vazia — "nenhum disparo" no lugar de "sem
+  // acesso". Agora nem sai.
+  const { permitido, moduleKey } = useEndpointAllowed('/api/sdr/blast/campaigns')
   const [key, setKey] = useState(0)
-  const { data, isLoading, isError, refetch } = useQuery<DetailResponse>({
+  const { data, isLoading, isError, error, refetch } = useQuery<DetailResponse>({
     queryKey: ['blast-detail', campaignId, key],
-    queryFn:  () => fetch(`/api/sdr/blast/campaigns/${campaignId}`).then(r => r.json()),
+    queryFn:  () => fetchJson<DetailResponse>(`/api/sdr/blast/campaigns/${campaignId}`),
     staleTime: 0,
+    enabled: permitido,
   })
 
   const [reenvioMode,   setReenvioMode]   = useState<'idle' | 'confirm' | 'sending' | 'done'>('idle')
@@ -304,19 +313,25 @@ function DetailView({ campaignId, onBack }: { campaignId: string; onBack: () => 
         <PillBtn onClick={refresh} icon={<RefreshCw size={12} />} label="Atualizar" />
       </div>
 
-      {isLoading && (
+      {permitido && isLoading && (
         <div className="animate-slide-up delay-2" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[...Array(5)].map((_, i) => <Skeleton key={i} height={52} radius="var(--radius-md)" />)}
         </div>
       )}
 
-      {isError && (
-        <div className="animate-slide-up delay-2" style={{ padding: 24, textAlign: 'center', color: 'var(--red)', fontSize: 13 }}>
-          Erro ao carregar.{' '}
-          <button onClick={() => refetch()} className="max-md:min-h-10" style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer' }}>
-            Tentar novamente
-          </button>
-        </div>
+      {!permitido && (
+        <ApiErrorState
+          className="animate-slide-up delay-2"
+          texto={textoDeModuloDesligado(moduleKey!)}
+        />
+      )}
+
+      {permitido && isError && (
+        <ApiErrorState
+          className="animate-slide-up delay-2"
+          texto={textoDaFalha(error, 'o disparo')}
+          onRetry={() => { void refetch() }}
+        />
       )}
 
       {c && (
@@ -507,10 +522,14 @@ export default function DisparosPage() {
   const [showAddLead,  setShowAddLead]  = useState(false)
   const [addLeadDone,  setAddLeadDone]  = useState<AddedInfo | null>(null)
 
-  const { data, isLoading, isError, refetch } = useQuery<{ campaigns: Campaign[] }>({
+  // Mesmo módulo do detalhe: sem sdr.parametros a listagem não é pedida.
+  const { permitido, moduleKey } = useEndpointAllowed('/api/sdr/blast/campaigns')
+
+  const { data, isLoading, isError, error, refetch } = useQuery<{ campaigns: Campaign[] }>({
     queryKey: ['blast-campaigns', activeKind, listKey],
-    queryFn:  () => fetch(`/api/sdr/blast/campaigns?kind=${activeKind}`).then(r => r.json()),
+    queryFn:  () => fetchJson<{ campaigns: Campaign[] }>(`/api/sdr/blast/campaigns?kind=${activeKind}`),
     staleTime: 0,
+    enabled: permitido,
   })
 
   const refresh = useCallback(() => setListKey(k => k + 1), [])
@@ -541,8 +560,10 @@ export default function DisparosPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <PillBtn onClick={() => { setAddLeadDone(null); setShowAddLead(true) }} icon={<UserPlus size={13} />} label="Adicionar lead" />
-          <PillBtn onClick={refresh} icon={<RefreshCw size={13} />} label="Atualizar" />
+          {/* Os dois agem sobre /api/sdr/leads/manual e /api/sdr/blast/campaigns:
+              sem o módulo, o botão só levaria o usuário a um 403. */}
+          {permitido && <PillBtn onClick={() => { setAddLeadDone(null); setShowAddLead(true) }} icon={<UserPlus size={13} />} label="Adicionar lead" />}
+          {permitido && <PillBtn onClick={refresh} icon={<RefreshCw size={13} />} label="Atualizar" />}
         </div>
       </div>
 
@@ -625,7 +646,7 @@ export default function DisparosPage() {
 
       {/* List */}
       <div className="animate-slide-up delay-2" style={{ background: 'var(--white)', border: '1px solid var(--gray3)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        {isLoading && (
+        {permitido && isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {/* Same reflow as CampaignRow on phones */}
             {[...Array(4)].map((_, i) => (
@@ -642,16 +663,16 @@ export default function DisparosPage() {
           </div>
         )}
 
-        {isError && (
-          <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--red)' }}>
-            Erro ao carregar.{' '}
-            <button onClick={() => refetch()} className="max-md:min-h-10" style={{ background: 'none', border: 'none', color: 'var(--primary-text)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
-              Tentar novamente
-            </button>
-          </div>
+        {!permitido && <ApiErrorState texto={textoDeModuloDesligado(moduleKey!)} />}
+
+        {permitido && isError && (
+          <ApiErrorState
+            texto={textoDaFalha(error, 'os disparos')}
+            onRetry={() => { void refetch() }}
+          />
         )}
 
-        {!isLoading && !isError && campaigns.length === 0 && (
+        {permitido && !isLoading && !isError && campaigns.length === 0 && (
           <div style={{ padding: '48px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>
             {activeKind === 'campanha'
               ? 'Nenhum disparo da Campanha SDR registrado ainda.'
@@ -659,7 +680,7 @@ export default function DisparosPage() {
           </div>
         )}
 
-        {!isLoading && !isError && campaigns.map(c => (
+        {permitido && !isLoading && !isError && campaigns.map(c => (
           <CampaignRow key={c.id} c={c} onClick={() => setSelectedId(c.id)} />
         ))}
       </div>

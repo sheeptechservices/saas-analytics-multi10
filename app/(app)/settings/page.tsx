@@ -11,6 +11,8 @@ import { Pencil, Trash2, Search, Check, Database, KeyRound } from 'lucide-react'
 import { ACTION_LABELS, fmtDateTime, fmtDetail } from '@/lib/audit-format'
 import { SparkleIcon } from '@/components/icons/SparkleIcon'
 import { useModules } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha } from '@/lib/api-error'
 import { CampaignConfig } from '@/app/(app)/sdr-ia/parametros/CampaignConfig'
 import { BrandColorField } from '@/components/settings/BrandColorField'
 import { DEFAULT_PRIMARY, DEFAULT_BRAND_NAME } from '@/lib/brand'
@@ -73,6 +75,35 @@ function YCloudIcon() {
 }
 
 // ─── Integration groups config ────────────────────────────────────────────────
+
+/* Cartões cujo módulo é a própria chave 'integration.<slug>'; `moduleKey`
+ * existe para as exceções (Credenciais é da campanha, não uma integração
+ * própria). Vale tanto para esconder o cartão quanto para decidir se o status
+ * dele chega a ser pedido — ver o efeito de integStatuses. */
+function moduloDoCartao(item: { slug: string; moduleKey?: string }): string {
+  return item.moduleKey ?? ('integration.' + item.slug)
+}
+
+// Forma das respostas que esta tela lê. Antes o `r.json()` cru entregava `any`
+// e ninguém conferia nada; com fetchJson o tipo passa a valer.
+interface SettingsPayload {
+  tenant?: { primaryColor: string | null; logoUrl: string | null; name: string | null }
+  users?: UserRow[]
+}
+interface MePayload {
+  user?: {
+    id: string; name: string; email: string; role: string
+    avatarColor: string; avatarBg: string; photoUrl: string | null
+  }
+}
+/** Resposta comum dos endpoints de status de integração. */
+interface IntegPayload {
+  accountId?: string | null
+  configured?: boolean
+  lastSyncStatus?: string | null
+  lastSyncError?: string | null
+  lastSyncAt?: number | null
+}
 
 interface IntegrationItem {
   slug: string
@@ -205,14 +236,17 @@ export default function SettingsPage() {
   const [integFetched, setIntegFetched] = useState(false)
   const [sdrSyncMeta, setSdrSyncMeta] = useState<{ error: string | null; lastSyncAt: number | null } | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError: settingsError, error: settingsErro, refetch: refetchSettings } = useQuery({
     queryKey: ['settings'],
-    queryFn: () => fetch('/api/settings').then(r => r.json()),
+    queryFn: () => fetchJson<SettingsPayload>('/api/settings'),
   })
 
+  // Mesma queryKey do useCanDispatch: as duas leituras precisam usar a mesma
+  // queryFn, senão qual delas vale passa a depender de quem montar primeiro.
   const { data: meData } = useQuery({
     queryKey: ['me'],
-    queryFn: () => fetch('/api/me').then(r => r.json()),
+    queryFn: () => fetchJson<MePayload>('/api/me'),
+    staleTime: 5 * 60 * 1000,
   })
 
   // Cor gravada do tenant — o ponto para onde a pré-visualização volta.
@@ -264,20 +298,37 @@ export default function SettingsPage() {
     }
   }, [meData, tab])
 
-  // Fetch all integration statuses in parallel, once per page load when tab is visited
+  /* Status das integrações — um por cartão, quando a aba é aberta.
+   *
+   * Antes as seis requisições saíam sempre: quem não contratava Google Ads, IA
+   * ou YCloud levava um 403 em cada uma, a cada visita à aba, por um cartão que
+   * nem chega a ser desenhado (issue #98). Agora só sai o status do cartão
+   * visível, e "visível" é a mesma conta do .filter lá embaixo: moduloDoCartao. */
   useEffect(() => {
     if (tab !== 'integracoes' || integFetched) return
     setIntegFetched(true)
-    setIntegStatuses({ 'google-ads': 'loading', 'meta-ads': 'loading', 'tiktok-ads': 'loading', ai: 'loading', 'sdr-source': 'loading', 'ycloud-whatsapp': 'loading' })
 
-    Promise.all([
-      fetch('/api/ads/google_ads').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/ads/meta_ads').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/ads/tiktok_ads').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/ai-settings').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/sdr/source').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/ycloud/source').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([google, meta, tiktok, ai, sdrSource, ycloud]) => {
+    const pedidos: { slug: string; url: string }[] = [
+      { slug: 'google-ads',      url: '/api/ads/google_ads' },
+      { slug: 'meta-ads',        url: '/api/ads/meta_ads' },
+      { slug: 'tiktok-ads',      url: '/api/ads/tiktok_ads' },
+      { slug: 'ai',              url: '/api/ai-settings' },
+      { slug: 'sdr-source',      url: '/api/sdr/source' },
+      { slug: 'ycloud-whatsapp', url: '/api/ycloud/source' },
+    ]
+    const liberado = (slug: string) => modules.includes(moduloDoCartao({ slug }))
+
+    setIntegStatuses(Object.fromEntries(
+      pedidos.filter(p => liberado(p.slug)).map(p => [p.slug, 'loading' as IntegStatus]),
+    ))
+
+    // O módulo que o tenant não tem resolve em null sem sair daqui.
+    const buscar = (slug: string, url: string) =>
+      liberado(slug)
+        ? fetchJson<IntegPayload>(url).catch(() => null)
+        : Promise.resolve(null)
+
+    Promise.all(pedidos.map(p => buscar(p.slug, p.url))).then(([google, meta, tiktok, ai, sdrSource, ycloud]) => {
       const sdrStatus: IntegStatus = !sdrSource?.configured
         ? 'disconnected'
         : sdrSource.lastSyncStatus === 'error'
@@ -285,19 +336,24 @@ export default function SettingsPage() {
           : sdrSource.lastSyncStatus === 'ok'
             ? 'connected'
             : 'pending'
-      setIntegStatuses({
+      const apurado: Record<string, IntegStatus> = {
         'google-ads':       google?.accountId != null ? 'connected' : 'disconnected',
         'meta-ads':         meta?.accountId != null ? 'connected' : 'disconnected',
         'tiktok-ads':       tiktok?.accountId != null ? 'connected' : 'disconnected',
         'ai':               ai?.configured ? 'connected' : 'disconnected',
         'sdr-source':       sdrStatus,
         'ycloud-whatsapp':  ycloud?.configured ? 'connected' : 'disconnected',
-      })
+      }
+      // Só os cartões que existem para este tenant: senão um módulo não
+      // contratado entraria como 'disconnected', um status inventado.
+      setIntegStatuses(Object.fromEntries(
+        Object.entries(apurado).filter(([slug]) => liberado(slug)),
+      ))
       setSdrSyncMeta(sdrSource?.configured
         ? { error: sdrSource.lastSyncError ?? null, lastSyncAt: sdrSource.lastSyncAt ?? null }
         : null)
     })
-  }, [tab, integFetched])
+  }, [tab, integFetched, modules])
 
   function handleColorChange(color: string) {
     setLocalColor(color)
@@ -410,6 +466,17 @@ export default function SettingsPage() {
           </Link>
         ))}
       </div>
+
+      {/* A falha de /api/settings deixava a tela pintada com a marca padrão,
+          indistinguível de um tenant sem marca configurada (issue #98). */}
+      {settingsError && (
+        <ApiErrorState
+          className="mb-6"
+          compacto
+          texto={textoDaFalha(settingsErro, 'os dados da conta')}
+          onRetry={() => { void refetchSettings() }}
+        />
+      )}
 
       {/* ── Perfil ─────────────────────────────────────────────────────────── */}
       {tab === 'perfil' && (
@@ -576,7 +643,7 @@ export default function SettingsPage() {
       {tab === 'integracoes' && (
         <div className="animate-slide-up delay-2">
           {INTEGRATION_GROUPS
-            .map(g => ({ ...g, items: g.items.filter(i => modules.includes(i.moduleKey ?? ('integration.' + i.slug))) }))
+            .map(g => ({ ...g, items: g.items.filter(i => modules.includes(moduloDoCartao(i))) }))
             .filter(g => g.items.length > 0)
             .map(group => (
             <div key={group.group} style={{ marginBottom: 28 }}>
@@ -873,9 +940,11 @@ function ErrorBanner({ msg }: { msg: string }) {
 function UsersSection({ meId, canDelete, search, inviteOpen, onInviteOpenChange }: { meId: string; canDelete: boolean; search: string; inviteOpen: boolean; onInviteOpenChange: (v: boolean) => void }) {
   const qc = useQueryClient()
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery<{ users?: UserRow[] }>({
     queryKey: ['admin-users'],
-    queryFn: () => fetch('/api/users').then(r => r.json()),
+    // Sem conferir o status, o 500 virava `users: undefined` -> tabela vazia, e
+    // o estado de erro logo abaixo (que ja existia) nunca aparecia.
+    queryFn: () => fetchJson<{ users?: UserRow[] }>('/api/users'),
   })
 
   const [inviteName, setInviteName] = useState('')
@@ -963,12 +1032,10 @@ function UsersSection({ meId, canDelete, search, inviteOpen, onInviteOpenChange 
             <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 13, color: 'var(--gray2)' }}>Carregando…</div>
           )}
           {isError && (
-            <div style={{ padding: '24px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 13, color: 'var(--red)', marginBottom: 12 }}>Erro ao carregar usuários.</div>
-              <button onClick={() => refetch()} className="max-md:min-h-10" style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary-text)', background: 'var(--primary-dim)', border: 'none', padding: '6px 14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                Tentar novamente
-              </button>
-            </div>
+            <ApiErrorState
+              texto={textoDaFalha(error, 'os usuários')}
+              onRetry={() => { void refetch() }}
+            />
           )}
 
           {!isLoading && !isError && (
