@@ -14,7 +14,7 @@ import { dataSources } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
-import { Client } from 'pg'
+import { withSdrDb } from '@/lib/sdr/pg'
 import ExcelJS from 'exceljs'
 
 const PROVIDER_KEY = 'supabase-n8n'
@@ -81,17 +81,14 @@ export async function GET() {
   // ── Introspect columns (SOMENTE SELECT) ──────────────────────────────────────
   let columns: string[] = FILLABLE_COLUMNS
 
-  const client = new Client({ connectionString })
   try {
-    await client.connect()
-
-    const res = await client.query<{ column_name: string }>(
+    const res = await withSdrDb(connectionString, sdr => sdr.query<{ column_name: string }>(
       `SELECT column_name
          FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name   = 'leads'
         ORDER BY ordinal_position`,
-    )
+    ))
 
     if (res.rows.length > 0) {
       const dbCols = new Set(res.rows.map(r => r.column_name.toLowerCase()))
@@ -100,8 +97,6 @@ export async function GET() {
     }
   } catch (err) {
     console.error('[sdr leads template] introspection failed, using fallback', err)
-  } finally {
-    await client.end().catch(() => {})
   }
 
   // ── Build styled workbook with exceljs ───────────────────────────────────────

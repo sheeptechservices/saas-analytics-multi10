@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { canActInTenant } from '@/lib/roles'
+import { fetchJson } from '@/lib/api-error'
 
 interface MeData { user?: { role?: string } }
 
@@ -18,7 +19,12 @@ interface MeData { user?: { role?: string } }
 export function useCanDispatch(): { canDispatch: boolean } {
   const { data } = useQuery<MeData>({
     queryKey: ['me'],
-    queryFn:  () => fetch('/api/me').then(r => r.json()),
+    // fetchJson, e não `r.json()` cru: o corpo de um 401/500 não pode virar um
+    // `user` de mentira. E tem de ser a mesma queryFn da tela de Configurações,
+    // que divide esta queryKey — senão qual das duas vale passa a depender de
+    // quem montar primeiro. Falhando, `data` fica undefined e canDispatch cai
+    // em false: o padrão seguro já documentado acima.
+    queryFn:  () => fetchJson<MeData>('/api/me'),
     staleTime: 5 * 60 * 1000,
   })
   return { canDispatch: canActInTenant(data?.user?.role) }

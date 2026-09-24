@@ -42,6 +42,11 @@ const PATH_MODULE_OVERRIDES: Record<string, string> = {
   '/sdr-ia/contatos':  'integration.ycloud-whatsapp',
   '/sdr-ia/conversas': 'integration.ycloud-whatsapp',
   '/sdr-ia/leads':     'sdr.parametros',
+  // A tela de Credenciais só edita as URLs/segredos de n8n da campanha, e toda
+  // a sua API é /api/sdr/settings — a mesma chave que já esconde o cartão dela
+  // em Configurações › Integrações. Sem esta linha a rota ficava aberta e
+  // quem chegasse por link direto batia num 403 em vez de ser redirecionado.
+  '/settings/integrations/credenciais': 'sdr.parametros',
 }
 
 export function moduleKeyForPath(pathname: string): string | null {
@@ -81,4 +86,88 @@ export function firstAllowedPath(modules: string[]): string {
   if (modules.includes('sdr.parametros')) return '/sdr-ia/leads'
   if (modules.includes('pipeline') && !isModuleHidden('pipeline')) return '/pipeline'
   return '/settings'
+}
+
+// ─── Endpoint da API → módulo ────────────────────────────────────────────────
+//
+// Espelho, no cliente, do que cada rota exige no servidor (assertEntitlement em
+// app/api/**). O servidor continua sendo quem decide: isto aqui só evita montar
+// a requisição que ele responderia com 403 — e dá à tela a palavra certa para
+// dizer por que não há dado. Ao mexer numa rota da API, mexa também aqui; o
+// teste de lib/modules.test.ts varre app/ e components/ e quebra se aparecer um
+// endpoint que nenhuma das duas listas declara.
+//
+// A chave é o prefixo do caminho: vale para ele e para tudo abaixo dele
+// ('/api/sdr/leads' cobre '/api/sdr/leads/import'). Na dúvida entre dois, vence
+// o mais longo.
+export const API_MODULE: Record<string, string> = {
+  '/api/ads/insights':        'dashboard.marketing',
+  '/api/ai-chat':             'integration.ai',
+  '/api/ai-settings':         'integration.ai',
+  '/api/bi/sdr':              'sdr.dashboard',
+  '/api/contacts':            'integration.ycloud-whatsapp',
+  '/api/sdr/blast/campaigns': 'sdr.parametros',
+  '/api/sdr/dispatch':        'sdr.parametros',
+  '/api/sdr/enroll':          'sdr.parametros',
+  '/api/sdr/leads':           'sdr.parametros',
+  '/api/sdr/settings':        'sdr.parametros',
+  '/api/sdr/source':          'integration.sdr-source',
+  // A sincronização puxa as conversas da YCloud — é o módulo do WhatsApp que a
+  // libera, não o da fonte SDR. Ver app/api/sdr/sync/route.ts.
+  '/api/sdr/sync':            'integration.ycloud-whatsapp',
+  '/api/sdr/templates':       'sdr.parametros',
+  '/api/ycloud':              'integration.ycloud-whatsapp',
+}
+
+// Rotas que qualquer usuário autenticado do tenant acessa: não passam por
+// assertEntitlement, então não há o que esconder no cliente. Estão declaradas
+// só para o teste de varredura saber que não foram esquecidas.
+export const UNGATED_API_ENDPOINTS: string[] = [
+  '/api/audit-logs',
+  '/api/auth',
+  '/api/me',
+  '/api/settings',
+  '/api/users',
+]
+
+function normalizeEndpoint(endpoint: string): string {
+  const semQuery = endpoint.split('?')[0].split('#')[0]
+  return semQuery.length > 1 && semQuery.endsWith('/') ? semQuery.slice(0, -1) : semQuery
+}
+
+function matchPrefix(path: string, prefixes: string[]): string | null {
+  let melhor: string | null = null
+  for (const p of prefixes) {
+    if (path === p || path.startsWith(p + '/')) {
+      if (melhor === null || p.length > melhor.length) melhor = p
+    }
+  }
+  return melhor
+}
+
+/** Módulo que o servidor exige no endpoint, ou null quando a rota é aberta a
+ *  todo usuário do tenant. Aceita a URL já montada, com query string. */
+export function moduleKeyForEndpoint(endpoint: string): string | null {
+  const path = normalizeEndpoint(endpoint)
+  const prefixo = matchPrefix(path, Object.keys(API_MODULE))
+  if (prefixo) return API_MODULE[prefixo]
+  // /api/ads/<provider> é rota dinâmica: o módulo sai do provider. Vem depois
+  // do mapa porque /api/ads/insights ocupa o mesmo formato e não é provider.
+  const ads = /^\/api\/ads\/([^/]+)$/.exec(path)
+  if (ads) return ADS_PROVIDER_MODULE[ads[1]] ?? null
+  return null
+}
+
+/** O endpoint está declarado numa das duas listas? Usado só pelo teste de
+ *  varredura — uma rota nova que ninguém classificou tem de falhar ali, e não
+ *  em produção, em silêncio, como se fosse aberta. */
+export function isDeclaredEndpoint(endpoint: string): boolean {
+  const path = normalizeEndpoint(endpoint)
+  if (!path.startsWith('/api')) return false
+  if (/^\/api\/ads(\/|$)/.test(path)) return true
+  const declarados = [...Object.keys(API_MODULE), ...UNGATED_API_ENDPOINTS]
+  if (matchPrefix(path, declarados)) return true
+  // Prefixo estático de um template literal ('/api/sdr/' de `/api/sdr/${x}`):
+  // basta que alguma rota declarada comece por ele.
+  return declarados.some(d => d.startsWith(path))
 }

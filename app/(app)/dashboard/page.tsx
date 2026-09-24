@@ -13,7 +13,9 @@ import { DataTable } from '@/components/widgets/DataTable'
 import type { DataTableColumn } from '@/components/widgets/DataTable'
 import { BarChart } from '@/components/widgets/BarChart'
 import type { BarChartItem, BarChartSeries } from '@/components/widgets/BarChart'
-import { useModules } from '@/components/ModulesProvider'
+import { useModules, useEndpointAllowed } from '@/components/ModulesProvider'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha, textoDeModuloDesligado } from '@/lib/api-error'
 import { SkeletonKpiBand, SkeletonBlock } from '@/components/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -216,6 +218,10 @@ const TABLE_COLS: DataTableColumn[] = [
 function EmptyState({ configured, onSync }: { configured: boolean; onSync: () => void }) {
   const [syncing,   setSyncing]   = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  // A sincronização puxa as conversas da YCloud — quem a libera é o módulo do
+  // WhatsApp, não o da fonte SDR (app/api/sdr/sync). Sem ele o botão só levaria
+  // a um 403, então some (issue #98).
+  const { permitido: podeSincronizar } = useEndpointAllowed('/api/sdr/sync')
 
   async function handleSync() {
     if (syncing) return
@@ -247,9 +253,9 @@ function EmptyState({ configured, onSync }: { configured: boolean; onSync: () =>
           {syncError && (
             <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600 }}>{syncError}</div>
           )}
-          <Button variant="primary" disabled={syncing} onClick={() => { void handleSync() }}>
+          {podeSincronizar && <Button variant="primary" disabled={syncing} onClick={() => { void handleSync() }}>
             {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
-          </Button>
+          </Button>}
         </>
       ) : (
         <>
@@ -372,7 +378,9 @@ export default function DashboardPage() {
   const [period,       setPeriod]       = useState<Period>('30d')
   const [data,         setData]         = useState<SdrBiData | null>(null)
   const [loading,      setLoading]      = useState(true)
-  const [error,        setError]        = useState(false)
+  // O erro inteiro, não um booleano: 403 (módulo fora do plano) e 500 (servidor
+  // caiu) não podem sair com a mesma frase — ver lib/api-error.
+  const [error,        setError]        = useState<unknown>(null)
   const [ready,        setReady]        = useState(false)
   const [fetchEpoch,   setFetchEpoch]   = useState(0)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todas')
@@ -380,6 +388,9 @@ export default function DashboardPage() {
   const router    = useRouter()
   const modules   = useModules()
   const hasYCloud = modules.includes('integration.ycloud-whatsapp')
+  // A Visão Geral abre com dashboard.overview, mas o seu único endpoint exige
+  // sdr.dashboard: quem tem só o primeiro batia num 403 a cada montagem.
+  const { permitido: podeVerBi, moduleKey: moduloBi } = useEndpointAllowed('/api/bi/sdr')
 
   // Funnel visibility
   const [visibleStageIds, setVisibleStageIds] = useState<Set<string>>(new Set())
@@ -392,24 +403,24 @@ export default function DashboardPage() {
 
   // Fetch data
   useEffect(() => {
+    if (!podeVerBi) { setLoading(false); return }
     let cancelled = false
     setLoading(true)
-    setError(false)
+    setError(null)
     setReady(false)
     setFilterOpen(false)
 
-    fetch(`/api/bi/sdr?period=${period}`)
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    fetchJson<SdrBiData>(`/api/bi/sdr?period=${period}`)
       .then((d: SdrBiData) => {
         if (cancelled) return
         setData(d)
         setLoading(false)
         setTimeout(() => { if (!cancelled) setReady(true) }, 80)
       })
-      .catch(() => { if (!cancelled) { setLoading(false); setError(true) } })
+      .catch((e: unknown) => { if (!cancelled) { setLoading(false); setError(e) } })
 
     return () => { cancelled = true }
-  }, [period, fetchEpoch])
+  }, [period, fetchEpoch, podeVerBi])
 
   // ── Funil ──────────────────────────────────────────────────────────────────
   const funnel = data?.funnel ?? []
@@ -542,7 +553,7 @@ export default function DashboardPage() {
         <SegmentedControl label="Período" options={PERIOD_OPTIONS} value={period} onChange={setPeriod} />
       </header>
 
-      {loading && (
+      {podeVerBi && loading && (
         <>
           <span className="sr-only" role="status">Carregando os dados do período…</span>
           <SkeletonKpiBand count={4} />
@@ -554,29 +565,25 @@ export default function DashboardPage() {
         </>
       )}
 
-      {!loading && error && (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          minHeight: '40vh', gap: 16, textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--black)' }}>Não foi possível carregar os dados</div>
-          <div style={{ fontSize: 13, color: 'var(--gray2)', maxWidth: 320 }}>
-            Verifique a conexão e tente novamente.
-          </div>
-          <Button variant="primary" onClick={() => { setError(false); setFetchEpoch(e => e + 1) }}>
-            Tentar de novo
-          </Button>
-        </div>
+      {!podeVerBi && (
+        <ApiErrorState texto={textoDeModuloDesligado(moduloBi!)} />
       )}
 
-      {!loading && !error && !hasData && (
+      {podeVerBi && !loading && error != null && (
+        <ApiErrorState
+          texto={textoDaFalha(error, 'os dados do período')}
+          onRetry={() => { setError(null); setFetchEpoch(e => e + 1) }}
+        />
+      )}
+
+      {podeVerBi && !loading && error == null && !hasData && (
         <EmptyState
           configured={data?.sourceConfigured ?? false}
           onSync={() => setFetchEpoch(e => e + 1)}
         />
       )}
 
-      {!loading && !error && hasData && heroKpi && (
+      {podeVerBi && !loading && error == null && hasData && heroKpi && (
         <>
           {/* ── Faixa de KPIs ──────────────────────────────────────── */}
           <KpiBand className="animate-slide-up delay-2" hero={heroKpi} items={kpiItems} />

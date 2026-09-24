@@ -2,6 +2,8 @@
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2, CheckCircle2, XCircle, Copy, Eye, EyeOff } from 'lucide-react'
+import { ApiErrorState } from '@/components/ApiErrorState'
+import { fetchJson, textoDaFalha } from '@/lib/api-error'
 
 interface SourceData {
   configured: boolean
@@ -156,12 +158,14 @@ export default function YCloudPage() {
   // Webhook URL returned after a successful save — takes priority over sourceData.webhookUrl
   const [savedWebhookUrl, setSavedWebhookUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  // Mesma armadilha da Fonte de Dados SDR: leitura que falha em silêncio parece
+  // "nunca configurado", e a tela esconde a chave que está gravada (issue #98).
+  const [loadError, setLoadError] = useState<unknown>(null)
 
   const fetchStatus = useCallback(() => {
-    return fetch('/api/ycloud/source')
-      .then(r => r.json())
-      .then((d: SourceData) => setSourceData(d))
-      .catch(() => {})
+    return fetchJson<SourceData>('/api/ycloud/source')
+      .then((d: SourceData) => { setSourceData(d); setLoadError(null) })
+      .catch((e: unknown) => setLoadError(e))
   }, [])
 
   useEffect(() => {
@@ -247,6 +251,15 @@ export default function YCloudPage() {
       >
         ← Voltar para Integrações
       </Link>
+
+      {loadError != null && (
+        <ApiErrorState
+          className="mb-5"
+          compacto
+          texto={textoDaFalha(loadError, 'a integração YCloud')}
+          onRetry={() => { void fetchStatus() }}
+        />
+      )}
 
       {/* Header */}
       <div className="animate-slide-up delay-1" style={{ marginBottom: 24 }}>
