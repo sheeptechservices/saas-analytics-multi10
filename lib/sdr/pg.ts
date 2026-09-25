@@ -8,7 +8,9 @@
 // pool por credencial, com teto de conexões e três relógios (conectar, consulta no
 // servidor, consulta no cliente).
 //
-// REGRA DO PRODUTO: a app SÓ LÊ a base do cliente. Nada neste arquivo escreve.
+// O QUE A APP FAZ COM A BASE DO CLIENTE: lê na maior parte do produto e, em pontos
+// contados, escreve — a importação de leads é um deles (ver lib/sdr/leads-write).
+// Nada NESTE arquivo escreve: ele só entrega a conexão; o SQL mora em quem chama.
 //
 // COMO USAR
 //   const { rows } = await withSdrDb(connectionString, sdr =>
@@ -20,9 +22,11 @@
 // direto com `getSdrPool(connectionString)` e mapear o erro com `mapSdrDbError` —
 // é o mesmo caminho, sem callback.
 //
-// Transação não existe aqui de propósito: tudo é leitura. Um consumidor futuro que
-// precise de uma só teria de acrescentar `connect()` à interface `SdrPool` (o objeto
-// por baixo é um `pg.Pool` de verdade) e devolver o client com `release()`.
+// Transação não existe aqui, e `connect()` fica FORA da interface `SdrPool` de
+// propósito. Quem precisa de duas operações confirmando juntas resolve com CTEs numa
+// instrução só (lib/sdr/leads-write): o Postgres já trata cada instrução como
+// transação. Abrir `connect()` obrigaria todo caminho de erro a lembrar do
+// `release()` — é essa conta que a instrução única evita.
 //
 // O cache é por CREDENCIAL, não por tenant: o provider (lib/providers/supabase-n8n)
 // só recebe uma config, nunca um tenantId, e trocar a credencial de um tenant tem
@@ -71,7 +75,7 @@ export const SDR_POOL_LIMITS = {
  * é mais do que qualquer pessoa aguenta.
  *
  * `largo` existe para a dedup de leads, que varre a tabela inteira do cliente
- * (~23 mil linhas hoje) e roda uma vez por importação. Sob o teto curto ela passaria
+ * (60.077 linhas no censo de 25/09/2026) e roda uma vez por importação. Sob o teto curto ela passaria
  * a abortar onde antes terminava — e o call site engole falha de dedup de propósito,
  * para não travar a importação inteira quando a base do cliente está fora. O
  * resultado seria o pior possível: "ok" na tela, leads já cadastrados importados de
