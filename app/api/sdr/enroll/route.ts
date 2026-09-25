@@ -1,24 +1,28 @@
 // POST /api/sdr/enroll
 //
-// Envia leadIds ao webhook de enrollment do n8n, que é responsável por criar
-// as lead_actions. A plataforma NÃO escreve no Postgres/Supabase.
+// Inscreve leads na campanha do SDR, criando `lead_actions` na base do cliente.
+//
+// Isto era um salto pelo n8n (`settings.n8nEnrollUrl`): a app mandava os ids e o
+// fluxo escrevia no Supabase montando o SQL com os valores colados no texto. O salto
+// saiu — a app escreve direto, com consulta parametrizada (lib/sdr/enroll-write) —
+// e com ele saiu a contagem de mentira: `enrolled` era o que o n8n tivesse devolvido,
+// quando devolvia, e virava `undefined` no resto das vezes. Agora é o número de
+// linhas que o banco realmente criou.
 //
 // Body:     { leadIds: string[], fase?: string, agendarPara?: string }
-// Response: { ok: boolean, status?: number, enrolled?: number, error?: string }
+// Response: { ok: true, enrolled: number } | { error: string, code?: string, message?: string }
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { db } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { campaignSettings } from '@/lib/db/schema'
-import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 import { requireTenantUser } from '@/lib/auth-guard'
-import { readN8nSecret } from '@/lib/sdr/settings-merge'
+import { conexaoDoTenant } from '@/lib/sdr/conexao-tenant'
+import { InscricaoInvalida, inscreverLeads } from '@/lib/sdr/enroll-write'
+import { mapSdrDbError } from '@/lib/sdr/pg'
 
-const SOURCE      = 'sdr-n8n'
-const MAX_LEADS   = 100
-const UUID_RE     = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_LEADS = 100
+const UUID_RE   = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function POST(request: Request) {
   const session = await auth()
@@ -54,57 +58,42 @@ export async function POST(request: Request) {
   const fase        = typeof body.fase === 'string' && body.fase ? body.fase : 'Template 1'
   const agendarPara = typeof body.agendarPara === 'string' && body.agendarPara ? body.agendarPara : undefined
 
-  // Load enrollment URL + secret from campaign settings
-  const [row] = await db
-    .select()
-    .from(campaignSettings)
-    .where(and(eq(campaignSettings.tenantId, tenantId), eq(campaignSettings.source, SOURCE)))
-    .limit(1)
-
-  let settings: Record<string, unknown> = {}
-  if (row) {
-    try { settings = JSON.parse(row.settings) } catch {}
+  // Sem fonte cadastrada não há onde gravar — e isto é erro, não um passo a pular:
+  // responder "ok" aqui seria dizer que a campanha começou sem ninguém nela. E
+  // credencial ilegível não é fonte faltando: mandar cadastrar o que já está
+  // cadastrado é conselho que não sai do lugar. 400 e 500, como nas rotas irmãs.
+  const fonte = await conexaoDoTenant(tenantId)
+  if (fonte.estado === 'nao_configurada') {
+    return NextResponse.json({ error: 'fonte_sdr_nao_configurada' }, { status: 400 })
   }
-
-  const enrollUrl =
-    typeof settings.n8nEnrollUrl === 'string' && settings.n8nEnrollUrl
-      ? settings.n8nEnrollUrl
-      : null
-
-  if (!enrollUrl) {
-    return NextResponse.json({ error: 'enroll_url_nao_configurada' }, { status: 400 })
+  if (fonte.estado === 'ilegivel') {
+    return NextResponse.json({ error: 'config_invalid' }, { status: 500 })
   }
-
-  // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
-  const enrollSecret = readN8nSecret(settings, 'n8nEnrollSecret') ?? undefined
-
-  const payload = { tenantId, leadIds, fase, ...(agendarPara ? { agendarPara } : {}) }
 
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (enrollSecret) headers['Authorization'] = `Bearer ${enrollSecret}`
+    const { inscritos } = await inscreverLeads(fonte.connectionString, { leadIds, fase, agendarPara })
 
-    const res = await fetch(enrollUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15_000),
+    await logAudit({
+      req: request,
+      session,
+      action: 'enroll',
+      metadata: { leadCount: leadIds.length, enrolled: inscritos, fase, agendarPara },
     })
 
-    // Try to extract enrolled count if n8n returns it
-    let enrolled: number | undefined
-    try {
-      const data = await res.json() as Record<string, unknown>
-      if (typeof data.enrolled === 'number') enrolled = data.enrolled
-      else if (typeof data.count === 'number')    enrolled = data.count
-      else if (Array.isArray(data.created))       enrolled = data.created.length
-    } catch { /* n8n response not JSON or no count field */ }
-
-    if (res.ok) await logAudit({ req: request, session, action: 'enroll', metadata: { leadCount: leadIds.length, fase, agendarPara } })
-    return NextResponse.json({ ok: res.ok, status: res.status, enrolled })
+    // `enrolled` pode vir menor que `leadCount`, e sem falha nenhuma: as guardas do
+    // INSERT pulam quem não existe mais e quem já tem ação ativa. O número é o que o
+    // banco gravou — a tela prefere ver 0 a ver um palpite.
+    return NextResponse.json({ ok: true, enrolled: inscritos })
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err)
-    console.error('[sdr enroll → n8n]', error)
-    return NextResponse.json({ ok: false, error })
+    if (err instanceof InscricaoInvalida) {
+      return NextResponse.json({ error: err.code, message: err.message }, { status: 400 })
+    }
+    // Texto do driver fica no log; o cliente recebe só código estável + português.
+    console.error('[sdr enroll]', err)
+    const erro = mapSdrDbError(err)
+    return NextResponse.json(
+      { error: 'db_error', code: erro.code, message: erro.message },
+      { status: 502 },
+    )
   }
 }
