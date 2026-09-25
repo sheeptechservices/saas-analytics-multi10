@@ -99,6 +99,55 @@ test('fetchJson estoura no 403 em vez de devolver o corpo do erro como dado', as
   assert.equal(erro.codigo, 'module_disabled')
 })
 
+/* Este bloco nasceu de um caso real em produção: a base do SDR de um cliente
+ * apresentava certificado autoassinado, o servidor respondia
+ * `{ code: 'sdr_db_tls', message: 'A conexão segura ... confira o certificado' }`
+ * — a frase exata do que fazer — e a tela mostrava "a falha foi do servidor",
+ * com um botão de repetir que nunca ia funcionar. */
+
+test('a frase que o servidor escreveu para o usuário chega à tela', async () => {
+  const frase = 'A conexão segura com a base do SDR não pôde ser verificada. Confira o certificado do servidor da fonte.'
+  stubFetch({ ok: false, status: 502, jsonValue: { error: 'db_error', code: 'sdr_db_tls', message: frase } })
+  const erro = await fetchJson('/api/sdr/leads').then(() => null, (e: unknown) => e)
+
+  assert.ok(erro instanceof ApiError)
+  assert.equal(erro.codigoDetalhado, 'sdr_db_tls')
+  assert.equal(erro.detalheDoServidor, frase)
+  assert.equal(textoDaFalha(erro, 'os leads').detalhe, frase,
+    'a tela tem de mostrar a explicação do servidor, não o texto genérico de 500')
+})
+
+test('certificado errado não oferece "tentar novamente"; base fora do ar oferece', async () => {
+  // Repetir não conserta certificado: o botão tiraria a pessoa da tela que resolve.
+  stubFetch({ ok: false, status: 502, jsonValue: { error: 'db_error', code: 'sdr_db_tls', message: 'x' } })
+  const tls = await fetchJson('/api/sdr/leads').then(() => null, (e: unknown) => e)
+  assert.equal(textoDaFalha(tls).podeTentarDeNovo, false)
+
+  // Já a base indisponível pode voltar sozinha.
+  stubFetch({ ok: false, status: 502, jsonValue: { error: 'db_error', code: 'sdr_db_indisponivel', message: 'y' } })
+  const fora = await fetchJson('/api/sdr/leads').then(() => null, (e: unknown) => e)
+  assert.equal(textoDaFalha(fora).podeTentarDeNovo, true)
+})
+
+test('mensagem de rota sem código reconhecido NÃO vira texto de tela', async () => {
+  /* A regra geral continua valendo: corpo de erro não é texto para o usuário.
+   * `config_invalid` devolve o texto da decifragem (Hillstone-Tech/SDR-IA-300#22),
+   * que descreve implementação e não ajuda ninguém. Só as mensagens que vêm com um
+   * código `sdr_(db|tls|conn)_*` passam, porque lib/sdr/pg.ts as documenta como
+   * seguras e escritas para serem lidas. */
+  stubFetch({
+    ok: false, status: 500,
+    jsonValue: { error: 'config_invalid', message: 'Unsupported state or unable to authenticate data' },
+  })
+  const erro = await fetchJson('/api/sdr/leads').then(() => null, (e: unknown) => e)
+
+  assert.ok(erro instanceof ApiError)
+  assert.equal(erro.detalheDoServidor, undefined)
+  const texto = textoDaFalha(erro, 'os leads')
+  assert.ok(!texto.detalhe.includes('authenticate'), 'texto interno não pode vazar para a tela')
+  assert.equal(texto.detalhe, 'A falha foi do servidor, não do seu acesso. Tente de novo em instantes.')
+})
+
 test('fetchJson estoura no 500 com corpo vazio ou HTML', async () => {
   stubFetch({ ok: false, status: 500, jsonThrows: true })
   const erro = await fetchJson('/api/bi/sdr').then(() => null, (e: unknown) => e)
