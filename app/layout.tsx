@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, JetBrains_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 import { cookies } from 'next/headers'
 import './globals.css'
 import { Providers } from '@/components/Providers'
@@ -11,16 +11,36 @@ import { ANIMATION_GATE_SCRIPT } from './animation-gate-script'
 // var(--font-inter) e var(--font-jetbrains-mono) dentro do bloco @theme. Se
 // viessem por className, --font-sans cairia na cadeia de reserva e o produto
 // inteiro renderizaria em system-ui — sem erro de build e sem aviso de lint.
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
+/* Os arquivos moram em app/fonts, e não vêm do Google durante o build.
+ *
+ * Com `next/font/google`, cada `next build` baixa as fontes e monta o CSS a partir
+ * da resposta. Quando ela não vem, vem truncada ou esbarra em limite de taxa, o
+ * build falha com `TypeError: Cannot read properties of null (reading '1')` — que
+ * não menciona rede em lugar nenhum e custa caro até alguém entender. Aconteceu
+ * uma vez no CI, num PR que não tocava neste arquivo, e a mesma oscilação pode
+ * reprovar um deploy de produção.
+ *
+ * São dois arquivos só porque as duas são fontes VARIÁVEIS: um arquivo cobre toda
+ * a faixa de peso, em vez de um por peso. Daí o `weight` ser uma faixa.
+ *
+ * Subconjunto latino, o mesmo que o `subsets: ['latin']` de antes pedia. Ele cobre
+ * U+0000-00FF, onde moram todos os acentos do português.
+ *
+ * Em app/fonts, e não em public/: asset servido de public depende de o matcher do
+ * middleware excluir a extensão, e já tivemos 404 por causa disso. Por aqui os
+ * arquivos passam pelo empacotador e não encostam no middleware. */
+const inter = localFont({
+  src: './fonts/inter-latin-variable.woff2',
+  weight: '400 800',
+  style: 'normal',
   display: 'swap',
   variable: '--font-inter',
 })
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+const jetbrainsMono = localFont({
+  src: './fonts/jetbrains-mono-latin-variable.woff2',
+  weight: '400 500',
+  style: 'normal',
   display: 'swap',
   variable: '--font-jetbrains-mono',
 })
