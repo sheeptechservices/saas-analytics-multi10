@@ -1,7 +1,10 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['better-sqlite3'],
+  /* `serverExternalPackages` saiu: ele listava `better-sqlite3`, que não é
+   * dependência deste projeto — nem como direta nem como transitiva. Era
+   * configuração apontando para um pacote inexistente, sobra da época em que o
+   * banco era SQLite local. */
   // O lint roda antes do build, pelo script: npm run build = npm run lint && next
   // build. Rodar de novo aqui dobraria o tempo, e o passo embutido sai no Next 16 —
   // o gate precisa viver no script para sobreviver a essa remoção.

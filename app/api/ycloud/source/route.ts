@@ -8,7 +8,7 @@ import { randomUUID, randomBytes } from 'crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { getProvider } from '@/lib/providers/registry'
 import { runBackfill } from '@/lib/sync/runner'
-import { waitUntil } from '@vercel/functions'
+import { after } from 'next/server'
 import { configuredOrigin } from '@/lib/origin'
 
 const PROVIDER_KEY = 'ycloud-whatsapp'
@@ -166,8 +166,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    /* `after` do Next, e não o `waitUntil` da Vercel: o backfill roda depois da
+     * resposta, sem segurar o operador esperando uma sincronização que pode levar
+     * minutos.
+     *
+     * O `waitUntil` do `@vercel/functions` era NO-OP fora da Vercel — `getContext()`
+     * devolvia `{}` e a chamada não fazia nada. O backfill acontecia assim mesmo, por
+     * acidente: a promessa já tinha sido criada e o processo Node persiste. Funcionava
+     * e não era suportado por ninguém. O `after` é a mesma intenção com apoio do
+     * framework, e sem depender de um pacote de outra hospedagem. */
     try {
-      waitUntil(runBackfill(savedRow).catch(err => console.error('[ycloud backfill]', err)))
+      after(() => runBackfill(savedRow).catch(err => console.error('[ycloud backfill]', err)))
     } catch (err) {
       console.error('[ycloud backfill schedule]', err)
     }
