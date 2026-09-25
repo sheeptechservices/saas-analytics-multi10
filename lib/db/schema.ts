@@ -10,6 +10,7 @@ import {
   primaryKey,
   index,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
 /* Dialeto: Postgres (Railway). Antes era SQLite/Turso — o mapa das conversões,
@@ -425,6 +426,87 @@ export const blastRecipients = pgTable('blast_recipients', {
 }, (t) => ({
   campaignIdx: index('blast_recipients_campaign_idx').on(t.campaignId),
   ycloudMessageIdx: index('blast_recipients_ycloud_message_idx').on(t.ycloudMessageId),
+}))
+
+/* Livro-caixa das RESERVAS da régua de disparo — uma linha por `lead_actions`
+ * reservada na base do CLIENTE (ver lib/sdr/reservas e lib/sdr/regua).
+ *
+ * POR QUE ESTA TABELA EXISTE, e por que ela mora no banco DA APP
+ * A régua reserva marcando `lead_actions.ativo = false` na base do cliente. Aquele
+ * schema é do cliente: não dá para acrescentar coluna nenhuma lá. E sem marca, a
+ * reserva fica invisível de dois jeitos que custam caro:
+ *
+ *   1. a COTA do dia é contada em `blast_recipients`, onde só o ack escreve — DEPOIS
+ *      de o n8n enviar. Reserva em voo não aparece, então duas rodadas em sequência
+ *      rápida recebem cada uma a cota inteira e um limite de 10 vira 20+;
+ *   2. uma linha reservada é byte a byte igual a uma que terminou a campanha. Morto o
+ *      processo depois da reserva, aqueles ids somem e o lead sai da campanha em
+ *      silêncio, para sempre.
+ *
+ * Cada linha daqui é o recibo que faltava: quem reservou, quando, em que balde, e
+ * como terminou.
+ *
+ * NOMES: `phase`/`phase_number` são `lead_actions.fase`/`id_fase` da base do cliente.
+ * As colunas mudam de idioma porque as tabelas da app são em inglês; os VALORES de
+ * `status` ficam em português, como em `blast_recipients.status`, com o qual esta
+ * tabela compartilha vocabulário ('enviada' aqui é o 'enviado' de lá).
+ */
+export const dispatchClaims = pgTable('dispatch_claims', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull().references(() => tenants.id),
+  // A `lead_actions.id` reservada na base do cliente. NÃO é chave estrangeira: a
+  // tabela apontada mora em outro banco, que não é nosso.
+  leadActionId: text('lead_action_id').notNull(),
+  leadId: text('lead_id').notNull(),
+  phase: text('phase').notNull(),
+  // `integer` na base que conhecemos, e nullable aqui porque o schema do cliente não
+  // é nosso: `Destinatario.idFase` da régua já chega como `number | null`.
+  phaseNumber: integer('phase_number'),
+  // O balde do dia em São Paulo — `${tenantId}:drip:${AAAAMMDD}`, a MESMA string que
+  // `blast_recipients.campaign_id` carrega. Produzida por `baldeDoDia` de
+  // lib/sdr/regua, nunca remontada à mão: divergir daqui não daria erro, daria uma
+  // cota que silenciosamente para de valer.
+  dayBucket: text('day_bucket').notNull(),
+  /* Quatro estados, e cada um responde a uma pergunta diferente da cota:
+   *   'reservada' — em voo: reservada na base do cliente, ainda sem desfecho. CONSOME;
+   *   'enviada'   — o n8n confirmou o envio (messageId conhecido). CONSOME;
+   *   'falhou'    — a tentativa aconteceu e falhou. NÃO consome (ver lib/sdr/reservas);
+   *   'devolvida' — a reserva voltou para a fila (`ativo = true`). NÃO consome.
+   * Uma coluna só, e não um booleano "em voo" mais um desfecho: dois campos podem se
+   * contradizer (em voo E enviada), e o índice da cota precisaria dos dois. */
+  status: text('status', { enum: ['reservada', 'enviada', 'falhou', 'devolvida'] })
+    .notNull().default('reservada'),
+  ycloudMessageId: text('ycloud_message_id'),
+  claimedAt: timestamp('claimed_at', { withTimezone: true, mode: 'date' }).notNull(),
+  // NULL enquanto em voo — é assim que a varredura de reserva parada acha as velhas.
+  settledAt: timestamp('settled_at', { withTimezone: true, mode: 'date' }),
+}, (t) => ({
+  // A consulta quente: "quanto da cota de hoje já foi gasto por este tenant". O
+  // `day_bucket` já embute o tenant, então a primeira coluna é redundante HOJE — fica
+  // porque é a forma exata do WHERE e porque sobrevive a uma mudança no formato do
+  // balde.
+  cotaIdx: index('dispatch_claims_tenant_bucket_status_idx').on(t.tenantId, t.dayBucket, t.status),
+  /* UMA reserva viva por `lead_actions`, garantido pelo banco — índice único PARCIAL.
+   *
+   * Único simples em `lead_action_id` seria errado: uma reserva devolvida volta para a
+   * fila e SERÁ reservada de novo amanhã, e o único simples recusaria a segunda. Único
+   * em (`lead_action_id`, `day_bucket`) seria pior ainda: permitiria duas reservas
+   * vivas em dias diferentes, que é exatamente a linha duplicada que se quer impedir.
+   * O parcial diz a invariante inteira e nada além dela — e é ele que torna
+   * `WHERE lead_action_id = $1 AND status = 'reservada'` uma linha só, sem desempate.
+   *
+   * ELE É GLOBAL, E NÃO POR TENANT, e isso é uma escolha com um preço declarado: dois
+   * clientes têm bancos separados, então nada IMPEDE que os dois tenham uma
+   * `lead_actions.id` com o mesmo texto. Sendo uuid — e é: `SQL_DEVOLVER` de
+   * lib/sdr/regua casta `p.id::uuid` —, a colisão é desprezível. Global é a restrição
+   * mais FORTE das duas: ela nunca deixa passar duas reservas vivas, e o pior que uma
+   * colisão faria é recusar uma reserva legítima, em voz alta (o lote cai e o chamador
+   * devolve), nunca em silêncio. Se um dia a app aceitar `lead_actions.id` que não seja
+   * uuid, o índice passa a ser (`tenant_id`, `lead_action_id`) e as funções de liquidar
+   * de lib/sdr/reservas passam a receber o tenant. */
+  vivaUnq: uniqueIndex('dispatch_claims_viva_unq')
+    .on(t.leadActionId)
+    .where(sql`${t.status} = 'reservada'`),
 }))
 
 // Immutable audit trail — one row per significant action. Never updated or deleted.

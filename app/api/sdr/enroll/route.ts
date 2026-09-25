@@ -18,6 +18,7 @@ import { logAudit } from '@/lib/audit'
 import { assertEntitlement } from '@/lib/entitlements'
 import { requireTenantUser } from '@/lib/auth-guard'
 import { conexaoDoTenant } from '@/lib/sdr/conexao-tenant'
+import { CODIGO_CREDENCIAL_SDR_ILEGIVEL } from '@/lib/sdr/mensagens'
 import { InscricaoInvalida, inscreverLeads } from '@/lib/sdr/enroll-write'
 import { mapSdrDbError } from '@/lib/sdr/pg'
 
@@ -67,7 +68,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'fonte_sdr_nao_configurada' }, { status: 400 })
   }
   if (fonte.estado === 'ilegivel') {
-    return NextResponse.json({ error: 'config_invalid' }, { status: 500 })
+    // Código próprio da fonte SDR, não o `config_invalid` genérico: a tela de leads
+    // usa o mesmo tradutor para a credencial da YCloud. Ver lib/sdr/mensagens.
+    return NextResponse.json({ error: CODIGO_CREDENCIAL_SDR_ILEGIVEL }, { status: 500 })
   }
 
   try {

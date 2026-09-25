@@ -14,6 +14,7 @@ import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { getSdrPool, mapSdrDbError } from '@/lib/sdr/pg'
+import { CODIGO_CREDENCIAL_SDR_ILEGIVEL } from '@/lib/sdr/mensagens'
 
 const PROVIDER_KEY = 'supabase-n8n'
 const MAX_LIMIT    = 50
@@ -66,8 +67,12 @@ export async function GET(request: Request) {
     if (!cfg.connectionString) throw new Error('connectionString ausente')
     connectionString = cfg.connectionString
   } catch (err) {
+    // Código próprio, e não `config_invalid`: a credencial que não abriu é a da FONTE
+    // DE DADOS SDR (PROVIDER_KEY acima). A tela de leads traduz no mesmo lugar a
+    // recusa desta rota e a de /api/sdr/templates, que é a credencial da YCloud — com
+    // o mesmo código, esta aqui saía com a frase que manda salvar a YCloud de novo.
     return NextResponse.json(
-      { error: 'config_invalid', message: (err as Error).message },
+      { error: CODIGO_CREDENCIAL_SDR_ILEGIVEL, message: (err as Error).message },
       { status: 500 },
     )
   }

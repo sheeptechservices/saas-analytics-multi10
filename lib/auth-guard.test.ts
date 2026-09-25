@@ -112,8 +112,10 @@ const PORTAS: [arquivo: string, metodo: string, porta: 'requireMaster' | 'requir
   ['app/api/sdr/enroll/route.ts',       'POST',   'requireTenantUser'],
   ['app/api/sdr/leads/blast/route.ts',  'POST',   'requireTenantUser'],
   // A importação escreve na base do cliente (INSERT/UPDATE de leads), então precisa
-  // da mesma porta das irmãs — não basta ter sessão.
+  // da mesma porta das irmãs — não basta ter sessão. O cadastro manual escreve pelo
+  // mesmo caminho, um lead por vez, e por isso entra na mesma lista.
   ['app/api/sdr/leads/import/route.ts', 'POST',   'requireTenantUser'],
+  ['app/api/sdr/leads/manual/route.ts', 'POST',   'requireTenantUser'],
 ]
 
 test('cada rota chama a porta certa — trocar uma pela outra derruba isto', () => {

@@ -26,10 +26,9 @@ interface Settings {
   remetente:        string   // E.164, ex: +5511999990000
   numToques:        number   // 1–20
   intervaloDias:    number   // 1–30, intervalo entre toques
-  n8nWebhookUrl?:   string
+  // As duas URLs de n8n que sobraram: o disparo da campanha e o disparo de lista.
+  // Quem as edita é Configurações → Credenciais; aqui elas só são preservadas.
   n8nDispatchUrl?:  string
-  n8nEnrollUrl?:    string
-  n8nImportUrl?:    string
   n8nBlastUrl?:     string
 }
 
@@ -252,17 +251,14 @@ export function CampaignConfig() {
     setLoadError(null)
     fetchJson<ApiData>('/api/sdr/settings')
       .then((d: ApiData) => {
-        const { n8nWebhookUrl: webhookUrl, n8nDispatchUrl: dispatchUrl, n8nEnrollUrl: enrollUrl, n8nImportUrl: importUrl, n8nBlastUrl: blastUrl, ...coreSettings } = d.settings
+        const { n8nDispatchUrl: dispatchUrl, n8nBlastUrl: blastUrl, ...coreSettings } = d.settings
         const coreWithDefaults = { ...DEFAULTS, ...coreSettings }
         setSettings(coreWithDefaults)
         setStatus(d.status)
         setBaseline({ settings: coreWithDefaults, status: d.status })
         setVersion(typeof d.version === 'number' ? d.version : null)
         const urls: Record<string, string> = {}
-        if (webhookUrl) urls.n8nWebhookUrl = webhookUrl
         if (dispatchUrl) urls.n8nDispatchUrl = dispatchUrl
-        if (enrollUrl) urls.n8nEnrollUrl = enrollUrl
-        if (importUrl) urls.n8nImportUrl = importUrl
         if (blastUrl) urls.n8nBlastUrl = blastUrl
         setPreservedN8nUrls(urls)
       })
@@ -378,7 +374,18 @@ export function CampaignConfig() {
     )
   }
 
-  const hasIntegration = !!(preservedN8nUrls.n8nWebhookUrl || preservedN8nUrls.n8nDispatchUrl)
+  /* O que isto liga: os dois avisos que dizem se a automação da campanha está de pé
+   * — a nota do topo e o cartão "Integração", em Avançado — e os dois mandam para
+   * Configurações → Credenciais.
+   *
+   * Eram dois operandos. O `n8nWebhookUrl` respondia por "as configurações são
+   * levadas para a automação a cada salvamento", e isso deixou de passar por n8n: o
+   * save escreve a `campaign_config` direto na base do cliente, com URL cadastrada
+   * ou sem nenhuma, e quem conta como foi é o `n8nDelivery` ali embaixo. Tirar
+   * aquele operando não é remover um pedaço da conta: é que só sobrou UMA credencial
+   * capaz de fazer a campanha disparar sozinha, e é a do disparo. (A do disparo de
+   * lista existe, mas é o envio manual da tela de Leads, não a campanha.) */
+  const hasIntegration = !!preservedN8nUrls.n8nDispatchUrl
   const isDirty = baseline !== null && (
     JSON.stringify(settings) !== JSON.stringify(baseline.settings) ||
     status !== baseline.status
@@ -410,7 +417,9 @@ export function CampaignConfig() {
           fontSize: 12, color: 'var(--gray)', fontWeight: 500,
         }}>
           <Info size={13} style={{ flexShrink: 0, color: 'var(--gray2)' }} />
-          Salva e sincroniza com a integração a cada salvamento.
+          Disparo automático configurado — a campanha dispara sozinha por esta URL. Os
+          parâmetros vão para a base do cliente com ou sem ela, a cada salvamento que
+          muda algum parâmetro de campanha.
         </div>
       ) : (
         <div style={{
@@ -420,11 +429,12 @@ export function CampaignConfig() {
         }}>
           <AlertTriangle size={14} style={{ color: 'var(--primary-text)', flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 13, color: 'var(--primary-text)', fontWeight: 500, lineHeight: 1.5 }}>
-            Configure as credenciais de integração em{' '}
+            Sem URL de disparo a campanha não dispara sozinha — cadastre em{' '}
             <Link href="/settings/integrations/credenciais" style={{ fontWeight: 700, color: 'var(--primary-text)', textDecoration: 'underline' }}>
               Configurações → Credenciais
-            </Link>{' '}
-            para ativar o envio automático à campanha.
+            </Link>
+            . Os parâmetros continuam sendo publicados na base do cliente a cada
+            salvamento que os altera; falta a automação que os executa.
           </div>
         </div>
       )}
@@ -642,8 +652,9 @@ export function CampaignConfig() {
 
         <SectionCard title="Fonte de dados">
           <div style={{ fontSize: 13, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 16 }}>
-            A conexão com a fonte de dados e a integração são configuradas separadamente.
-            As configurações de campanha acima serão aplicadas quando a fonte estiver conectada e a integração ativada.
+            A conexão com a fonte de dados e a integração de disparo são configuradas separadamente.
+            Os parâmetros acima são publicados na base do cliente assim que a fonte estiver conectada;
+            a integração é o que faz a campanha disparar sozinha.
           </div>
           <Link href="/settings/integrations/sdr-source" className="max-md:min-h-10" style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -687,10 +698,18 @@ export function CampaignConfig() {
           )}
         </div>
 
-        {/* n8n delivery feedback */}
+        {/* Resultado da SEGUNDA gravação: a `campaign_config` na base do cliente.
+            `n8nDelivery` é apelido do `configCampanha` que a rota devolve — ver a volta
+            do PUT em app/api/sdr/settings/route.ts.
+
+            `null` não é mais "falta a URL do n8n": é a FONTE DE DADOS SDR sem cadastro
+            (o `nao_configurada` de lib/sdr/conexao-tenant), e a tela que resolve isso
+            não é a de Credenciais. */}
         {n8nDelivery === null && (
           <div style={{ fontSize: 12, color: 'var(--gray2)', fontWeight: 500 }}>
-            Integração de envio não configurada — configurações salvas localmente.
+            Fonte de dados SDR não configurada — as configurações foram salvas aqui, mas
+            a campanha não foi publicada na base do cliente. Cadastre a fonte em
+            Configurações → Integrações → Fonte de dados.
           </div>
         )}
         {n8nDelivery !== null && n8nDelivery !== undefined && n8nDelivery.ok && (

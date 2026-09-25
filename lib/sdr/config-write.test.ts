@@ -289,8 +289,8 @@ test('replay das settings guardadas não gera linha nova — e não encosta no i
   await pg.exec("INSERT INTO campaign_config (remetente, limite_diario, ativo) VALUES ('+5511999990000', 40, true)")
 
   const r = await gravar(
-    // A URL do webhook mudou; a campanha, não.
-    { ...guardadas, n8nWebhookUrl: 'https://n8n.exemplo.com/webhook/novo' },
+    // A URL do disparo mudou; a campanha, não.
+    { ...guardadas, n8nDispatchUrl: 'https://n8n.exemplo.com/webhook/novo' },
     'draft',
     { anteriores: guardadas, statusAnterior: 'draft' },
   )

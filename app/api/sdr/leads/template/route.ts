@@ -15,6 +15,7 @@ import { and, eq } from 'drizzle-orm'
 import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { withSdrDb } from '@/lib/sdr/pg'
+import { CODIGO_CREDENCIAL_SDR_ILEGIVEL } from '@/lib/sdr/mensagens'
 import ExcelJS from 'exceljs'
 
 const PROVIDER_KEY = 'supabase-n8n'
@@ -72,8 +73,10 @@ export async function GET() {
     if (!cfg.connectionString) throw new Error('connectionString ausente')
     connectionString = cfg.connectionString
   } catch (err) {
+    // Código próprio, e não `config_invalid`: a credencial que não abriu é a da FONTE
+    // DE DADOS SDR (PROVIDER_KEY acima), não a da YCloud. Ver lib/sdr/mensagens.
     return new Response(
-      JSON.stringify({ error: 'config_invalid', message: (err as Error).message }),
+      JSON.stringify({ error: CODIGO_CREDENCIAL_SDR_ILEGIVEL, message: (err as Error).message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     )
   }

@@ -59,12 +59,13 @@ after(async () => { await banco.fechar() })
 
 // ─── Baseline ────────────────────────────────────────────────────────────────
 
-test('a migração de baseline é Postgres válido e cria as 30 tabelas do schema', async () => {
+test('a migração de baseline é Postgres válido e cria as 31 tabelas do schema', async () => {
   const rs = await pg.query<{ n: number | string }>(
     `SELECT count(*) AS n FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
   )
-  assert.equal(Number(rs.rows[0].n), 30)
+  // 31 desde `dispatch_claims` (drizzle/0001_dispatch_claims) — ver lib/sdr/reservas.
+  assert.equal(Number(rs.rows[0].n), 31)
 })
 
 test('nenhuma coluna de data ficou como número — todas viraram timestamptz', async () => {
@@ -328,8 +329,8 @@ test('as consultas do check-tables encontram todas as tabelas e colunas do schem
     }
     conferidas++
   }
-  assert.equal(conferidas, 30, 'o schema exporta 30 tabelas')
-  assert.equal(noBanco.size, 30, 'e o banco migrado não tem tabela órfã')
+  assert.equal(conferidas, 31, 'o schema exporta 31 tabelas')
+  assert.equal(noBanco.size, 31, 'e o banco migrado não tem tabela órfã')
 })
 
 // ─── Índices e restrições ────────────────────────────────────────────────────

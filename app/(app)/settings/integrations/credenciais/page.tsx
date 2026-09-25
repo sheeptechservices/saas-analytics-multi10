@@ -7,11 +7,29 @@ import { useCanDispatch } from '@/lib/hooks/useCanDispatch'
 import { ApiErrorState } from '@/components/ApiErrorState'
 import { fetchJson, textoDeLeituraPerdida } from '@/lib/api-error'
 
-// As cinco URLs de n8n que esta tela edita. A rota trata cada par URL/segredo
+// As URLs de n8n que esta tela edita. A rota trata cada par URL/segredo
 // separadamente: URL ausente no PUT mantém a guardada, URL diferente derruba o
 // segredo dela. Ver lib/sdr/settings-merge.
-const URL_KEYS = ['n8nWebhookUrl', 'n8nDispatchUrl', 'n8nEnrollUrl', 'n8nImportUrl', 'n8nBlastUrl'] as const
+//
+// Eram cinco. As do write-back da configuração, da importação de leads e da
+// inscrição na campanha saíram da tela quando a app passou a escrever direto na base
+// do cliente: nenhuma rota as lê mais, e um campo que não aciona nada só convida a
+// preencher. O que já está guardado NÃO foi apagado — ver CHAVES_APOSENTADAS em
+// lib/sdr/settings-merge.
+const URL_KEYS = ['n8nDispatchUrl', 'n8nBlastUrl'] as const
 type UrlKey = typeof URL_KEYS[number]
+
+/* O que o PUT conta da SEGUNDA gravação, a da `campaign_config` na base do cliente
+ * (o mesmo `configCampanha` que a tela de Parâmetros lê como `n8nDelivery`).
+ *
+ * Esta tela lia só o `version` e jogava o resto fora: um save cuja credencial da
+ * fonte não abriu saía com "✓ Salvo com sucesso" e nada mais — e é justamente aqui,
+ * em Integrações, que essa credencial é cadastrada. `null` é "não há fonte", que
+ * não é falha deste save; o que aparece é o `ok: false`. */
+type ConfigCampanha =
+  | { ok: true;  semMudanca?: true; ativo?: boolean | null }
+  | { ok: false; error: string; credencialIlegivel?: true }
+  | null
 
 // ─── SecretInput ──────────────────────────────────────────────────────────────
 
@@ -167,21 +185,9 @@ export default function CredenciaisPage() {
   const [fullSettings, setFullSettings]     = useState<Record<string, unknown>>({})
   const [fullStatus,   setFullStatus]       = useState<string>('draft')
 
-  const [n8nWebhookUrl,     setN8nWebhookUrl]     = useState('')
-  const [n8nWebhookSecret,  setN8nWebhookSecret]  = useState('')
-  const [showWebhook,       setShowWebhook]       = useState(false)
-
   const [n8nDispatchUrl,    setN8nDispatchUrl]    = useState('')
   const [n8nDispatchSecret, setN8nDispatchSecret] = useState('')
   const [showDispatch,      setShowDispatch]      = useState(false)
-
-  const [n8nEnrollUrl,      setN8nEnrollUrl]      = useState('')
-  const [n8nEnrollSecret,   setN8nEnrollSecret]   = useState('')
-  const [showEnroll,        setShowEnroll]        = useState(false)
-
-  const [n8nImportUrl,      setN8nImportUrl]      = useState('')
-  const [n8nImportSecret,   setN8nImportSecret]   = useState('')
-  const [showImport,        setShowImport]        = useState(false)
 
   const [n8nBlastUrl,       setN8nBlastUrl]       = useState('')
   const [n8nBlastSecret,    setN8nBlastSecret]    = useState('')
@@ -200,6 +206,7 @@ export default function CredenciaisPage() {
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
   const [saveError,    setSaveError]    = useState<string | null>(null)
+  const [configCampanha, setConfigCampanha] = useState<ConfigCampanha | undefined>(undefined)
 
   const [dispatching,   setDispatching]   = useState(false)
   const [dispatchResult, setDispatchResult] = useState<{ ok: boolean; status?: number; error?: string } | undefined>(undefined)
@@ -213,20 +220,15 @@ export default function CredenciaisPage() {
     setLoadError(null)
     fetchJson<{ configured: boolean; status: string; version?: number; settings: Record<string, unknown>; secretsSet?: Record<string, boolean> }>('/api/sdr/settings')
       .then(d => {
-        const {
-          n8nWebhookUrl: wh, n8nDispatchUrl: di, n8nEnrollUrl: en,
-          n8nImportUrl: im, n8nBlastUrl: bl,
-          ...rest
-        } = d.settings
+        // As URLs aposentadas seguem no `rest` e voltam intactas no PUT: a tela não
+        // as edita mais, e apagá-las daqui seria apagá-las do banco.
+        const { n8nDispatchUrl: di, n8nBlastUrl: bl, ...rest } = d.settings
         setFullSettings(rest)
         setFullStatus(d.status)
         setSecretsSet(d.secretsSet ?? {})
         setVersion(typeof d.version === 'number' ? d.version : null)
         setLoadedUrlKeys(URL_KEYS.filter(k => typeof d.settings[k] === 'string'))
-        setN8nWebhookUrl(typeof wh === 'string' ? wh : '')
         setN8nDispatchUrl(typeof di === 'string' ? di : '')
-        setN8nEnrollUrl(typeof en === 'string' ? en : '')
-        setN8nImportUrl(typeof im === 'string' ? im : '')
         setN8nBlastUrl(typeof bl === 'string' ? bl : '')
         setLoaded(true)
       })
@@ -249,10 +251,9 @@ export default function CredenciaisPage() {
     setSaving(true)
     setSaved(false)
     setSaveError(null)
+    setConfigCampanha(undefined)
     try {
-      const campos: Record<UrlKey, string> = {
-        n8nWebhookUrl, n8nDispatchUrl, n8nEnrollUrl, n8nImportUrl, n8nBlastUrl,
-      }
+      const campos: Record<UrlKey, string> = { n8nDispatchUrl, n8nBlastUrl }
       // Defesa em profundidade: URL que nunca veio do GET e segue vazia fica de
       // fora do PUT, e a rota mantém a guardada em vez de apagá-la (e o segredo
       // dela junto). Campo carregado vai sempre, inclusive vazio — é assim que
@@ -264,10 +265,7 @@ export default function CredenciaisPage() {
       const settingsPayload: Record<string, unknown> = {
         ...fullSettings,
         ...urls,
-        ...(n8nWebhookSecret  ? { n8nWebhookSecret }  : {}),
         ...(n8nDispatchSecret ? { n8nDispatchSecret } : {}),
-        ...(n8nEnrollSecret   ? { n8nEnrollSecret }   : {}),
-        ...(n8nImportSecret   ? { n8nImportSecret }   : {}),
         ...(n8nBlastSecret    ? { n8nBlastSecret }    : {}),
       }
       const res = await fetch('/api/sdr/settings', {
@@ -287,8 +285,12 @@ export default function CredenciaisPage() {
         if (res.status === 409) loadSettings()
         throw new Error(data.message ?? data.error ?? 'Falha ao salvar')
       }
-      const ok = await res.json().catch(() => ({})) as { version?: number }
+      // A resposta traz DUAS verdades: o save das settings (que chegou até aqui) e o
+      // da `campaign_config` na base do cliente. Ficar só com o `version` era perder
+      // a segunda — ver ConfigCampanha, no topo.
+      const ok = await res.json().catch(() => ({})) as { version?: number; configCampanha?: ConfigCampanha }
       if (typeof ok.version === 'number') setVersion(ok.version)
+      setConfigCampanha(ok.configCampanha)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (e) {
@@ -361,23 +363,8 @@ export default function CredenciaisPage() {
         />
       )}
 
-      {/* Card 1: URL de integração */}
+      {/* Card 1: URL de disparo */}
       <div className="animate-slide-up delay-2">
-        <Card title="URL de integração">
-          <UrlPair
-            urlLabel="URL de integração"
-            urlValue={n8nWebhookUrl}
-            onUrlChange={setN8nWebhookUrl}
-            secretValue={n8nWebhookSecret}
-            onSecretChange={setN8nWebhookSecret}
-            show={showWebhook}
-            onToggle={() => setShowWebhook(s => !s)}
-            isSecretSet={!!secretsSet.n8nWebhookSecret}
-            secretHint="Enviado como Authorization: Bearer no cabeçalho. Deixe em branco para manter o segredo já salvo."
-          />
-        </Card>
-
-        {/* Card 2: URL de disparo */}
         <Card title="URL de disparo">
           <UrlPair
             urlLabel="URL de disparo"
@@ -430,37 +417,7 @@ export default function CredenciaisPage() {
           </div>
         </Card>
 
-        {/* Card 3: URL de importação */}
-        <Card title="URL de importação">
-          <UrlPair
-            urlLabel="URL de importação"
-            urlValue={n8nImportUrl}
-            onUrlChange={setN8nImportUrl}
-            secretValue={n8nImportSecret}
-            onSecretChange={setN8nImportSecret}
-            show={showImport}
-            onToggle={() => setShowImport(s => !s)}
-            isSecretSet={!!secretsSet.n8nImportSecret}
-            secretHint="Acionado ao importar leads via Excel. Deixe em branco para manter o segredo já salvo."
-          />
-        </Card>
-
-        {/* Card 4: URL de enrollment */}
-        <Card title="URL de enrollment">
-          <UrlPair
-            urlLabel="URL de enrollment"
-            urlValue={n8nEnrollUrl}
-            onUrlChange={setN8nEnrollUrl}
-            secretValue={n8nEnrollSecret}
-            onSecretChange={setN8nEnrollSecret}
-            show={showEnroll}
-            onToggle={() => setShowEnroll(s => !s)}
-            isSecretSet={!!secretsSet.n8nEnrollSecret}
-            secretHint="Acionado ao adicionar leads à campanha. Deixe em branco para manter o segredo já salvo."
-          />
-        </Card>
-
-        {/* Card 5: URL de disparo de lista */}
+        {/* Card 2: URL de disparo de lista */}
         <Card title="URL de disparo de lista">
           <UrlPair
             urlLabel="URL de disparo de lista"
@@ -474,6 +431,20 @@ export default function CredenciaisPage() {
             secretHint="Recebe a lista de contatos para disparo direto de template. Deixe em branco para manter o segredo já salvo."
           />
         </Card>
+
+        {/* As credenciais foram salvas; a configuração da campanha não chegou à base
+            do cliente. Fica FORA da barra do Salvar de propósito: o "✓ Salvo" apaga
+            sozinho em 3 s e este aviso não pode ir junto com ele. Sem estilo em
+            linha — as classes são as mesmas que o ApiErrorState usa. */}
+        {configCampanha && !configCampanha.ok && (
+          <div
+            role="alert"
+            className="max-lg:wrap-anywhere mb-4 rounded-(--radius-md) border border-(--warn-mid) bg-(--warn-dim) p-4 text-13 font-medium text-(--warn-text)"
+          >
+            <span className="font-bold">Credenciais salvas, campanha não publicada.</span>{' '}
+            {configCampanha.error}
+          </div>
+        )}
 
         {/* Save bar — on phones the result message drops below the button */}
         <div className="max-md:flex-wrap" style={{ marginTop: 8, paddingBottom: 48, display: 'flex', alignItems: 'center', gap: 14 }}>

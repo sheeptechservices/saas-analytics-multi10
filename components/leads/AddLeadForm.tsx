@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { UserPlus, Check, AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { mensagemDeFonteSdr } from '@/lib/sdr/mensagens'
 
 interface ManualLeadResult {
   ok: boolean
@@ -9,6 +10,31 @@ interface ManualLeadResult {
   duplicate: boolean
   name: string
   error?: string
+  /** Só no 502: a frase de lib/sdr/pg, que já é em português e não cita host,
+   *  usuário nem senha. */
+  message?: string
+}
+
+/* Os códigos que /api/sdr/leads/manual devolve. Os dois de credencial saem de
+ * lib/sdr/mensagens — é a mesma frase que a lista de leads mostra, porque é a mesma
+ * causa e a mesma tela de saída. Quem não estiver aqui cai no código cru, que é o
+ * que já acontecia: melhor um token estranho do que uma frase que inventa a causa. */
+function textoDoErro(data: ManualLeadResult, status: number): string {
+  const code = data.error ?? ''
+  const credencial = mensagemDeFonteSdr(code)
+  if (credencial) return credencial
+  if (code === 'telefone_invalido')
+    return 'Telefone inválido — use o formato +55 11 99999-9999.'
+  if (code === 'nome_obrigatorio')
+    return 'Nome é obrigatório.'
+  // 409: a rota não gravou nada porque o telefone já está na base. Não é falha de
+  // digitação nem de configuração — o lead existe, só não foi esta chamada que o viu.
+  if (code === 'telefone_ja_cadastrado')
+    return 'Já existe um lead com este telefone na base — atualize a lista para encontrá-lo.'
+  // 502: a base do cliente recusou a gravação.
+  if (code === 'db_error')
+    return data.message ?? 'Não foi possível gravar na base do SDR. Tente de novo em alguns minutos.'
+  return code || `Erro HTTP ${status}`
 }
 
 export interface AddedInfo {
@@ -57,11 +83,7 @@ export function AddLeadForm({ onAdded }: AddLeadFormProps) {
       })
       const data = await res.json() as ManualLeadResult
       if (!res.ok || !data.ok) {
-        const msg = data.error === 'telefone_invalido'            ? 'Telefone inválido — use o formato +55 11 99999-9999.'
-                  : data.error === 'nome_obrigatorio'             ? 'Nome é obrigatório.'
-                  : data.error === 'import_url_nao_configurada'   ? 'URL de importação não configurada — acesse Configurações > Credenciais.'
-                  : (data.error ?? `Erro HTTP ${res.status}`)
-        setLast({ leadId: null, name: name.trim(), duplicate: false, error: msg })
+        setLast({ leadId: null, name: name.trim(), duplicate: false, error: textoDoErro(data, res.status) })
         return
       }
       const info: AddedInfo = { leadId: data.leadId, name: data.name, duplicate: data.duplicate }

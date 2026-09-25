@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm'
 import { assertEntitlement } from '@/lib/entitlements'
 import { isStaleVersion, mergeSdrSettings } from '@/lib/sdr/settings-merge'
 import { conexaoDoTenant, type FonteDoTenant } from '@/lib/sdr/conexao-tenant'
+import { CREDENCIAL_SDR_ILEGIVEL } from '@/lib/sdr/mensagens'
 import {
   ConfigCampanhaInvalida,
   gravarConfigCampanha,
@@ -53,22 +54,26 @@ type ResultadoConfigCampanha =
 
 // Anti-SSRF: rejeita localhost e ranges de IP privados (mesma lógica do supabase-n8n provider).
 // Apenas http/https são aceitos.
-function validateWebhookUrl(raw: unknown): string {
+//
+// `chave` entra só nas mensagens: elas diziam "n8nWebhookUrl" para qualquer URL
+// recusada, inclusive a de disparo. Com o par do write-back fora do ar, o texto
+// passaria a nomear uma configuração que a tela nem mostra mais.
+function validateWebhookUrl(raw: unknown, chave: string): string {
   if (typeof raw !== 'string' || !raw) {
-    throw new Error('n8nWebhookUrl deve ser uma string não vazia')
+    throw new Error(`${chave} deve ser uma string não vazia`)
   }
   let url: URL
   try {
     url = new URL(raw)
   } catch {
-    throw new Error('n8nWebhookUrl inválida: URL malformada')
+    throw new Error(`${chave} inválida: URL malformada`)
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('n8nWebhookUrl inválida: apenas http/https são aceitos')
+    throw new Error(`${chave} inválida: apenas http/https são aceitos`)
   }
   const hostname = url.hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '')
   if (hostname === 'localhost' || hostname === '::1') {
-    throw new Error('n8nWebhookUrl inválida: host privado/local bloqueado')
+    throw new Error(`${chave} inválida: host privado/local bloqueado`)
   }
   const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
   if (ipv4) {
@@ -81,7 +86,7 @@ function validateWebhookUrl(raw: unknown): string {
       (a === 192 && b === 168) ||
       (a === 169 && b === 254)
     ) {
-      throw new Error('n8nWebhookUrl inválida: IP privado bloqueado')
+      throw new Error(`${chave} inválida: IP privado bloqueado`)
     }
   }
   return raw
@@ -122,11 +127,9 @@ async function gravarNaBaseDaCampanha(
   // deixou de fazer. Vira falha nomeada — quem já logou que não deu para decifrar foi
   // lib/sdr/conexao-tenant; aqui só sobra contar ao usuário.
   if (fonte.estado === 'ilegivel') {
-    return {
-      ok: false,
-      credencialIlegivel: true,
-      error: 'A credencial da fonte de dados SDR está salva mas não pôde ser lida — salve-a de novo em Configurações > Integrações > Fonte de Dados SDR.',
-    }
+    // A frase sai de lib/sdr/mensagens: é a mesma que a tela de leads mostra quando
+    // a importação ou a inscrição esbarram nesta credencial.
+    return { ok: false, credencialIlegivel: true, error: CREDENCIAL_SDR_ILEGIVEL }
   }
 
   try {
@@ -189,7 +192,18 @@ export async function GET() {
   let parsed: Record<string, unknown> = {}
   try { parsed = JSON.parse(row.settings) } catch {}
 
-  // Omit secrets from GET response; URLs are returned for UI display
+  // Omit secrets from GET response; URLs are returned for UI display.
+  //
+  // Os CINCO continuam saindo daqui, e essa lista não encolhe: os três aposentados
+  // (`n8nWebhook*`, `n8nEnroll*`, `n8nImport*`) seguem GRAVADOS no JSON do tenant —
+  // ver CHAVES_APOSENTADAS em lib/sdr/settings-merge —, então tirá-los deste objeto é
+  // o que impede o VALOR de chegar ao cliente. Quem saiu foi só o booleano deles, no
+  // `secretsSet` abaixo.
+  //
+  // O `disable` cobre exatamente esses três. Eles perderam o booleano que os lia e
+  // viraram nomes sem uso — mas apagar o nome é apagar a chave do recorte, e aí o
+  // VALOR volta a sair no GET. O nome existe para o valor não sair.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { n8nWebhookSecret: _omitWS, n8nDispatchSecret: _omitDS, n8nEnrollSecret: _omitES, n8nImportSecret: _omitIS, n8nBlastSecret: _omitBS, ...settingsForClient } = parsed
 
   return NextResponse.json({
@@ -197,11 +211,11 @@ export async function GET() {
     status: row.status,
     version: row.version,
     settings: settingsForClient,
+    // Só os dois que alguma tela lê: os cartões de disparo e de disparo de lista em
+    // app/(app)/settings/integrations/credenciais usam estes dois no `isSecretSet`.
+    // Os três aposentados viravam booleano que nenhuma tela buscava.
     secretsSet: {
-      n8nWebhookSecret:  !!_omitWS,
       n8nDispatchSecret: !!_omitDS,
-      n8nEnrollSecret:   !!_omitES,
-      n8nImportSecret:   !!_omitIS,
       n8nBlastSecret:    !!_omitBS,
     },
   })
@@ -231,61 +245,21 @@ export async function PUT(request: Request) {
     : {}) as Record<string, unknown>
   const payloadKeys = Object.keys(rawSettings)
 
-  // Validate webhook URL if provided (empty string = not configured, skip)
-  if (rawSettings.n8nWebhookUrl !== undefined && rawSettings.n8nWebhookUrl !== '') {
+  // As DUAS URLs que ainda saem desta app: a do disparo e a do disparo de lista.
+  // As outras três (write-back da configuração, importação e inscrição) saíram
+  // junto com os webhooks que alimentavam — a app escreve direto na base do cliente.
+  // Validar o que ninguém mais lê só recusaria um save por causa de um valor que
+  // outra tela guardou em outro dia. O que está no banco continua lá: ver
+  // CHAVES_APOSENTADAS em lib/sdr/settings-merge.
+  // (empty string = not configured, skip)
+  for (const chave of ['n8nDispatchUrl', 'n8nBlastUrl'] as const) {
+    const valor = rawSettings[chave]
+    if (valor === undefined || valor === '') continue
     try {
-      validateWebhookUrl(rawSettings.n8nWebhookUrl)
+      validateWebhookUrl(valor, chave)
     } catch (err) {
       return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'n8nWebhookUrl inválida' },
-        { status: 400 },
-      )
-    }
-  }
-
-  // Validate dispatch URL if provided (same anti-SSRF rules)
-  if (rawSettings.n8nDispatchUrl !== undefined && rawSettings.n8nDispatchUrl !== '') {
-    try {
-      validateWebhookUrl(rawSettings.n8nDispatchUrl)
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'n8nDispatchUrl inválida' },
-        { status: 400 },
-      )
-    }
-  }
-
-  // Validate enrollment URL if provided (same anti-SSRF rules)
-  if (rawSettings.n8nEnrollUrl !== undefined && rawSettings.n8nEnrollUrl !== '') {
-    try {
-      validateWebhookUrl(rawSettings.n8nEnrollUrl)
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'n8nEnrollUrl inválida' },
-        { status: 400 },
-      )
-    }
-  }
-
-  // Validate import URL if provided (same anti-SSRF rules)
-  if (rawSettings.n8nImportUrl !== undefined && rawSettings.n8nImportUrl !== '') {
-    try {
-      validateWebhookUrl(rawSettings.n8nImportUrl)
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'n8nImportUrl inválida' },
-        { status: 400 },
-      )
-    }
-  }
-
-  // Validate blast URL if provided (same anti-SSRF rules)
-  if (rawSettings.n8nBlastUrl !== undefined && rawSettings.n8nBlastUrl !== '') {
-    try {
-      validateWebhookUrl(rawSettings.n8nBlastUrl)
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'n8nBlastUrl inválida' },
+        { error: err instanceof Error ? err.message : `${chave} inválida` },
         { status: 400 },
       )
     }
