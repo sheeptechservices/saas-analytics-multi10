@@ -222,6 +222,7 @@ export default function SettingsPage() {
   const [localName, setLocalName] = useState(brandName)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [erroMarca, setErroMarca] = useState('')
   const [manageEquipe, setManageEquipe] = useState(false)
   const [equipeSearch, setEquipeSearch] = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -231,6 +232,7 @@ export default function SettingsPage() {
   const [profilePhoto, setProfilePhoto] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [savedProfile, setSavedProfile] = useState(false)
+  const [erroPerfil, setErroPerfil] = useState('')
 
   // Integration statuses — fetched once when the integracoes tab is first opened
   const [integStatuses, setIntegStatuses] = useState<Record<string, IntegStatus>>({})
@@ -364,37 +366,59 @@ export default function SettingsPage() {
     setPrimaryColor(color)
   }
 
+  /* A tela dizia "salvo com sucesso" sem olhar a resposta, e — pior — aplicava os
+   * valores novos na interface. Com a conta única, gravar a marca virou exclusivo do
+   * master: um admin de cliente clicava, levava 403, via a cor nova e a mensagem
+   * verde, e só descobria a verdade no próximo carregamento. Agora o estado local só
+   * muda quando o servidor confirmou. */
   async function save() {
     setSaving(true)
-    await fetch('/api/settings', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ primaryColor: localColor, logoUrl: localLogo || null, name: localName }),
-    })
-    setPrimaryColor(localColor)
-    // Salvou: o rascunho virou a cor do tenant, e é para cá que a saída volta.
-    corSalvaRef.current = localColor
-    setLogoUrl(localLogo || null)
-    setBrandName(localName)
-    qc.invalidateQueries({ queryKey: ['settings'] })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    setErroMarca('')
+    try {
+      await fetchJson('/api/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primaryColor: localColor, logoUrl: localLogo || null, name: localName }),
+      })
+      setPrimaryColor(localColor)
+      // Salvou: o rascunho virou a cor do tenant, e é para cá que a saída volta.
+      corSalvaRef.current = localColor
+      setLogoUrl(localLogo || null)
+      setBrandName(localName)
+      qc.invalidateQueries({ queryKey: ['settings'] })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      const t = textoDaFalha(err, 'as configurações')
+      setErroMarca(`${t.titulo}. ${t.detalhe}`)
+      // A pré-visualização ao vivo já repintou o documento; sem isto a tela ficaria
+      // com a cor que o servidor recusou.
+      setPrimaryColor(corSalvaRef.current)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function saveProfile() {
     if (!profileName.trim()) return
     setSavingProfile(true)
-    await fetch('/api/me', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: profileName, photoUrl: profilePhoto || null }),
-    })
-    setUserName(profileName)
-    setUserPhoto(profilePhoto || null)
-    qc.invalidateQueries({ queryKey: ['me'] })
-    qc.invalidateQueries({ queryKey: ['settings'] })
-    setSavingProfile(false)
-    setSavedProfile(true)
-    setTimeout(() => setSavedProfile(false), 3000)
+    setErroPerfil('')
+    try {
+      await fetchJson('/api/me', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: profileName, photoUrl: profilePhoto || null }),
+      })
+      setUserName(profileName)
+      setUserPhoto(profilePhoto || null)
+      qc.invalidateQueries({ queryKey: ['me'] })
+      qc.invalidateQueries({ queryKey: ['settings'] })
+      setSavedProfile(true)
+      setTimeout(() => setSavedProfile(false), 3000)
+    } catch (err) {
+      const t = textoDaFalha(err, 'o perfil')
+      setErroPerfil(`${t.titulo}. ${t.detalhe}`)
+    } finally {
+      setSavingProfile(false)
+    }
   }
 
   const users = data?.users ?? []
@@ -508,6 +532,8 @@ export default function SettingsPage() {
               />
             </div>
 
+            {erroPerfil && <ErrorBanner msg={erroPerfil} />}
+
             {savedProfile && (
               <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--success-dim)', border: '1px solid rgba(30,138,62,0.25)', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, color: 'var(--success-text)' }}>
                 ✓ Perfil atualizado com sucesso
@@ -610,6 +636,8 @@ export default function SettingsPage() {
                 onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
               />
             </div>
+
+            {erroMarca && <ErrorBanner msg={erroMarca} />}
 
             {saved && (
               <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--success-dim)', border: '1px solid rgba(30,138,62,0.25)', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, color: 'var(--success-text)' }}>
@@ -935,7 +963,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 function ErrorBanner({ msg }: { msg: string }) {
   return (
-    <div style={{ padding: '10px 14px', background: 'var(--danger-dim)', border: '1px solid rgba(217,48,37,0.2)', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
+    <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--danger-dim)', border: '1px solid rgba(217,48,37,0.2)', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
       {msg}
     </div>
   )
@@ -963,6 +991,7 @@ function UsersSection({ meId, canDelete, search, inviteOpen, onInviteOpenChange 
   const [editName, setEditName] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
 
   const [deleteUser, setDeleteUser] = useState<UserRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
@@ -1020,13 +1049,24 @@ function UsersSection({ meId, canDelete, search, inviteOpen, onInviteOpenChange 
     else setEditError(body.error || 'Erro ao salvar.')
   }
 
+  /* Fechava o diálogo e atualizava a lista sem olhar a resposta. Remover usuário é
+   * exclusivo do master: um admin de cliente confirmava, levava 403, via o diálogo
+   * fechar — e a pessoa continuava lá. O `finally` importa tanto quanto a checagem:
+   * sem ele, uma queda de rede deixava o botão preso em "Removendo…" para sempre. */
   async function handleDelete() {
     if (!deleteUser) return
     setDeleteLoading(true)
-    await fetch(`/api/users/${deleteUser.id}`, { method: 'DELETE' })
-    setDeleteLoading(false)
-    setDeleteUser(null)
-    qc.invalidateQueries({ queryKey: ['admin-users'] })
+    setDeleteError('')
+    try {
+      await fetchJson(`/api/users/${deleteUser.id}`, { method: 'DELETE' })
+      qc.invalidateQueries({ queryKey: ['admin-users'] })
+      setDeleteUser(null)
+    } catch (err) {
+      const t = textoDaFalha(err, 'a remoção')
+      setDeleteError(`${t.titulo}. ${t.detalhe}`)
+    } finally {
+      setDeleteLoading(false)
+    }
   }
 
   return (
@@ -1128,11 +1168,12 @@ function UsersSection({ meId, canDelete, search, inviteOpen, onInviteOpenChange 
       )}
 
       {deleteUser && (
-        <Overlay onClose={() => setDeleteUser(null)}>
+        <Overlay onClose={() => { setDeleteUser(null); setDeleteError('') }}>
           <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--black)', marginBottom: 12 }}>Remover usuário</div>
           <p className="max-lg:wrap-anywhere" style={{ fontSize: 14, color: 'var(--gray)', lineHeight: 1.6, marginBottom: 24 }}>
             Tem certeza que deseja remover <strong style={{ color: 'var(--black)' }}>{deleteUser.name}</strong>? Esta ação não pode ser desfeita.
           </p>
+          {deleteError && <ErrorBanner msg={deleteError} />}
           <div className="max-md:sticky max-md:bottom-0 max-md:bg-(--white) max-md:pt-3 max-md:pb-6" style={{ display: 'flex', gap: 10 }}>
             <CancelBtn onClick={() => setDeleteUser(null)} />
             <button
