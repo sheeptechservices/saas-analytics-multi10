@@ -15,6 +15,7 @@ import { ApiErrorState } from '@/components/ApiErrorState'
 import { fetchJson, textoDaFalha } from '@/lib/api-error'
 import { CampaignConfig } from '@/app/(app)/sdr-ia/parametros/CampaignConfig'
 import { BrandColorField } from '@/components/settings/BrandColorField'
+import { TrocarSenha } from '@/components/settings/TrocarSenha'
 import { DEFAULT_PRIMARY, DEFAULT_BRAND_NAME } from '@/lib/brand'
 import { isMasterRole, roleLabel } from '@/lib/roles'
 
@@ -538,6 +539,11 @@ export default function SettingsPage() {
             </div>
             <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'var(--primary-dim)', border: '1px solid var(--primary-mid)', color: 'var(--primary-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{roleLabel(me?.role)}</span>
           </div>
+
+          {/* Senha — a própria conta, então mora junto do Perfil. Entra como
+              terceiro item da mesma linha flex e cai para a linha de baixo
+              sozinho (basis-full no cartão), sem mexer nas duas colunas acima. */}
+          <TrocarSenha />
         </div>
       )}
 

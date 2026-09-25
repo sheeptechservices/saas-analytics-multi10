@@ -12,6 +12,7 @@
     "type-check": "tsc --noEmit",
     "create-master": "npx tsx lib/db/create-master.ts",
     "seed-300": "npx tsx lib/db/seed-300.ts",
+    "create-users-300": "npx tsx lib/db/create-users-300.ts",
     "lint": "eslint .",
     "test": "node --import tsx --test \"lib/**/*.test.ts\"",
     "debt": "node scripts/legacy-debt.mjs"

@@ -103,6 +103,10 @@ const PORTAS: [arquivo: string, metodo: string, porta: 'requireMaster' | 'requir
   ['app/api/users/[userId]/route.ts',   'PUT',    'requireTenantUser'],
   ['app/api/users/route.ts',            'GET',    'requireTenantUser'],
   ['app/api/users/route.ts',            'POST',   'requireTenantUser'],
+  // Trocar a PRÓPRIA senha é de quem tem conta, master incluído — a porta do
+  // tenant deixa o master passar. Fechar aqui com requireMaster deixaria o
+  // cliente sem nenhum caminho para trocar a senha estando logado.
+  ['app/api/me/password/route.ts',      'PUT',    'requireTenantUser'],
   ['app/api/audit-logs/route.ts',       'GET',    'requireTenantUser'],
   ['app/api/sdr/dispatch/route.ts',     'POST',   'requireTenantUser'],
   ['app/api/sdr/enroll/route.ts',       'POST',   'requireTenantUser'],

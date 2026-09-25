@@ -7,6 +7,8 @@ export const ACTION_LABELS: Record<string, string> = {
   'user.create':       'Criou usuário',
   'user.update':       'Editou usuário',
   'user.delete':       'Removeu usuário',
+  // Só a própria senha: não existe caminho para trocar a de outra pessoa.
+  'user.password.change': 'Alterou a própria senha',
   'whitelabel.update': 'Alterou marca',
 }
 
