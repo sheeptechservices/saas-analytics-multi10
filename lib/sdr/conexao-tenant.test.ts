@@ -23,7 +23,12 @@ const original    = process.env.ENCRYPTION_SECRET
 
 const TENANT = 'tenant-de-teste'
 const SENHA  = 'S3nh4-do-cliente'
-const CONN   = `postgresql://postgres.abcdefghijkl:${SENHA}@aws-0-sa-east-1.pooler.supabase.com:6543/postgres`
+// Usuário próprio de propósito: `getSdrPool` guarda os pools num mapa da módulo
+// indexado pelo hash da string de conexão, então dois arquivos de teste com a
+// MESMA string compartilhariam o pool — e o banco — de quem rodasse primeiro.
+// Hoje `node --test` dá um processo a cada arquivo e isso não acontece, mas basta
+// alguém juntar as suítes num processo só para virar um bug difícil de enxergar.
+const CONN   = `postgresql://postgres.conexaotenant:${SENHA}@aws-0-sa-east-1.pooler.supabase.com:6543/postgres`
 
 // O log é parte do contrato do estado `ilegivel`: sem ele uma rotação de chave é
 // invisível. Guardamos as linhas para conferir o que vai — e o que não vai — nelas.
