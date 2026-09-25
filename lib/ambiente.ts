@@ -352,6 +352,19 @@ export const CATALOGO: readonly Variavel[] = [
     },
   },
   {
+    nome: 'SDR_CA_CERT',
+    nivel: 'opcional',
+    onde: 'servidor',
+    documentar: true,
+    para:
+      'PEM de uma CA extra para a base do SDR do cliente. A raiz da Supabase já vem ' +
+      'embutida (lib/sdr/supabase-ca.ts); isto é para quem usa outro provedor com CA própria.',
+    validar: valor =>
+      valor.includes('-----BEGIN CERTIFICATE-----')
+        ? null
+        : 'não parece um PEM: falta a linha -----BEGIN CERTIFICATE-----',
+  },
+  {
     nome: 'DATABASE_CA_CERT',
     nivel: 'opcional',
     onde: 'servidor',
