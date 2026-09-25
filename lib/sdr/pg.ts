@@ -30,7 +30,9 @@
 // nem vai para log.
 
 import { createHash } from 'crypto'
+import { rootCertificates } from 'tls'
 import { Pool, type PoolConfig, type QueryResult, type QueryResultRow } from 'pg'
+import { CA_SUPABASE, ehHostSupabase } from './supabase-ca'
 
 // ─── Tetos do pool ────────────────────────────────────────────────────────────
 //
@@ -257,6 +259,26 @@ function semParametrosSsl(connectionString: string): string {
   return resto ? `${base}?${resto}` : base
 }
 
+/* Autoridades a confiar para este host.
+ *
+ * Passar `ca` ao Node SUBSTITUI a loja padrão, não acrescenta — por isso a lista sai
+ * daqui montada, com as raízes públicas mais a extra. E por isso a raiz da Supabase
+ * não entra para todo mundo: ela vale só nos hosts deles. Confiá-la em qualquer host
+ * significaria aceitar um certificado emitido pela Supabase para um domínio alheio.
+ *
+ * `SDR_CA_CERT` existe para o cliente que usa outro provedor com CA própria. É
+ * variável de ambiente, do operador — nunca vem da string de conexão, que é dado do
+ * cliente (ler arquivo ou CA a partir dali é o que `sdr_tls_nao_suportado` recusa). */
+function autoridadesPara(host: string): string[] | undefined {
+  const extras: string[] = []
+  if (ehHostSupabase(host)) extras.push(CA_SUPABASE)
+
+  const doOperador = process.env.SDR_CA_CERT?.trim()
+  if (doOperador) extras.push(doOperador)
+
+  return extras.length ? [...rootCertificates, ...extras] : undefined
+}
+
 /**
  * Valida a string guardada e monta a config do pool.
  *
@@ -301,9 +323,17 @@ export function buildSdrPoolConfig(
     throw new SdrDbError('sdr_tls_desabilitado')
   }
 
-  const ssl = sslmode === 'no-verify'
+  /* `no-verify` continua sendo a saída explícita do operador, e continua sendo a
+   * única forma de a verificação ficar desligada. O caminho normal agora VERIFICA
+   * mesmo contra CA privada: a Supabase opera raiz própria, e antes disto toda
+   * consulta ao SDR morria com SELF_SIGNED_CERT_IN_CHAIN — o que empurrava para o
+   * `no-verify`, que cifra sem autenticar. Fixando a raiz, a cadeia é conferida. */
+  const autoridades = autoridadesPara(url.hostname)
+  const ssl: PoolConfig['ssl'] = sslmode === 'no-verify'
     ? { rejectUnauthorized: false }
-    : { rejectUnauthorized: true }
+    : autoridades
+      ? { rejectUnauthorized: true, ca: autoridades }
+      : { rejectUnauthorized: true }
 
   return {
     connectionString: semParametrosSsl(bruta),

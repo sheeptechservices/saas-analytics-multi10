@@ -14,6 +14,7 @@ import type { PoolConfig } from 'pg'
 // Módulo que o próprio `pg` usa para ler a string de conexão — é o comportamento
 // dele que estamos afirmando aqui, não uma imitação.
 import { parse } from 'pg-connection-string'
+import { CA_SUPABASE, CA_SUPABASE_VENCE_EM, ehHostSupabase } from '@/lib/sdr/supabase-ca'
 import {
   SDR_POOL_LIMITS,
   SDR_POOL_LIMITS_LARGO,
@@ -105,19 +106,85 @@ test('sdrPoolKey: credencial diferente, chave diferente', () => {
 
 // ─── TLS ──────────────────────────────────────────────────────────────────────
 
+/* `CONN` aponta para o pooler da Supabase, que é CA privada — então a config sai com
+ * a lista de autoridades. Estas duas funções dizem o que checar sem repetir o
+ * raciocínio em cada teste. */
+function conferirVerificacaoLigada(ssl: unknown, { comCaSupabase }: { comCaSupabase: boolean }) {
+  const s = ssl as { rejectUnauthorized?: boolean; ca?: string[] }
+  assert.equal(s.rejectUnauthorized, true, 'a verificação tem de continuar ligada')
+  if (!comCaSupabase) {
+    assert.equal(s.ca, undefined, 'host de CA pública não recebe lista de autoridades')
+    return
+  }
+  assert.ok(Array.isArray(s.ca), 'host da Supabase precisa da lista de autoridades')
+  assert.ok(s.ca.includes(CA_SUPABASE), 'a raiz da Supabase tem de estar na lista')
+  // Passar `ca` SUBSTITUI a loja padrão do Node: sem as raízes públicas junto,
+  // qualquer outro host deixaria de validar.
+  assert.ok(s.ca.length > 10, 'as raízes públicas têm de continuar na lista')
+}
+
 test('sem parâmetro de ssl: conecta com verificação de certificado ligada', () => {
-  const cfg = buildSdrPoolConfig(CONN)
-  assert.deepEqual(cfg.ssl, { rejectUnauthorized: true })
+  conferirVerificacaoLigada(buildSdrPoolConfig(CONN).ssl, { comCaSupabase: true })
 })
 
 test('sslmode=require é aceito e sai com verificação ligada', () => {
-  const cfg = buildSdrPoolConfig(`${CONN}?sslmode=require`)
-  assert.deepEqual(cfg.ssl, { rejectUnauthorized: true })
+  conferirVerificacaoLigada(buildSdrPoolConfig(`${CONN}?sslmode=require`).ssl, { comCaSupabase: true })
 })
 
 test('sslmode=verify-full é aceito', () => {
-  const cfg = buildSdrPoolConfig(`${CONN}?sslmode=verify-full`)
-  assert.deepEqual(cfg.ssl, { rejectUnauthorized: true })
+  conferirVerificacaoLigada(buildSdrPoolConfig(`${CONN}?sslmode=verify-full`).ssl, { comCaSupabase: true })
+})
+
+/* A Supabase opera CA própria, e a raiz dela é autoassinada — não está na loja do
+ * Node. Sem fixá-la, TODA consulta ao SDR morria com SELF_SIGNED_CERT_IN_CHAIN, e a
+ * saída seria `no-verify`, que cifra sem autenticar. Estes testes existem para que
+ * ninguém volte a esse caminho sem perceber. */
+test('host da Supabase recebe a raiz deles, e a verificação CONTINUA ligada', () => {
+  const ssl = buildSdrPoolConfig(CONN).ssl as { rejectUnauthorized: boolean; ca: string[] }
+  assert.equal(ssl.rejectUnauthorized, true, 'fixar a CA não pode virar desligar a verificação')
+  assert.ok(ssl.ca.includes(CA_SUPABASE))
+})
+
+test('host de CA pública NÃO recebe a raiz da Supabase', () => {
+  // Confiar a raiz da Supabase em qualquer host significaria aceitar um certificado
+  // emitido por eles para um domínio alheio.
+  const ssl = buildSdrPoolConfig('postgresql://u:s@db.fornecedor-qualquer.com:5432/x').ssl
+  assert.deepEqual(ssl, { rejectUnauthorized: true })
+})
+
+test('o sufixo tem de ser o domínio inteiro, não o fim do texto', () => {
+  assert.equal(ehHostSupabase('aws-0-sa-east-1.pooler.supabase.com'), true)
+  assert.equal(ehHostSupabase('db.abcdefghijkl.supabase.co'), true)
+  assert.equal(ehHostSupabase('supabase.com'), true)
+  // Nenhum destes é a Supabase, por mais que o texto termine parecido.
+  assert.equal(ehHostSupabase('evil-supabase.com'), false)
+  assert.equal(ehHostSupabase('supabase.com.invasor.net'), false)
+  assert.equal(ehHostSupabase('naosupabase.co'), false)
+  assert.equal(ehHostSupabase('supabase.company'), false)
+})
+
+test('no-verify continua sendo a ÚNICA forma de a verificação ficar desligada', () => {
+  // A varredura do arquivo inteiro: nenhuma outra combinação pode produzir false.
+  const casos = [
+    CONN, `${CONN}?sslmode=require`, `${CONN}?sslmode=verify-full`,
+    'postgresql://u:s@db.fornecedor-qualquer.com:5432/x',
+    'postgresql://u:s@db.abcdefghijkl.supabase.co:5432/postgres',
+  ]
+  for (const url of casos) {
+    const ssl = buildSdrPoolConfig(url).ssl as { rejectUnauthorized: boolean }
+    assert.equal(ssl.rejectUnauthorized, true, `${url} não podia relaxar a verificação`)
+  }
+  const solto = buildSdrPoolConfig(`${CONN}?sslmode=no-verify`).ssl as { rejectUnauthorized: boolean }
+  assert.equal(solto.rejectUnauthorized, false, 'e no-verify tem de continuar funcionando')
+})
+
+test('a raiz fixada ainda não venceu — e avisa um ano antes', () => {
+  /* Quando a Supabase rodar a raiz, a cadeia deixa de fechar e o SDR cai com o mesmo
+   * SELF_SIGNED_CERT_IN_CHAIN de antes. Este teste reprova um ano antes disso, para
+   * a troca ser uma tarefa e não um incidente. */
+  const umAno = 365 * 24 * 60 * 60 * 1000
+  assert.ok(Date.now() < CA_SUPABASE_VENCE_EM - umAno,
+    'a raiz da Supabase vence em menos de um ano: baixe a nova no painel e substitua CA_SUPABASE')
 })
 
 test('sslmode=disable é RECUSADO com mensagem em português', () => {
@@ -299,7 +366,7 @@ test('o perfil largo troca o teto de tempo, e só ele', () => {
   assert.equal(cfg.max, 2)
   // O resto não muda — TLS e teto de conexão são os mesmos.
   assert.equal(cfg.connectionTimeoutMillis, 5_000)
-  assert.deepEqual(cfg.ssl, { rejectUnauthorized: true })
+  conferirVerificacaoLigada(cfg.ssl, { comCaSupabase: true })
   assert.equal(cfg.application_name, 'multi10-sdr')
 })
 
