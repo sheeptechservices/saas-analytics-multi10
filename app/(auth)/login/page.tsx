@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { greeting } from '@/lib/utils'
+import { CampoSenha } from '@/components/CampoSenha'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -109,22 +110,7 @@ export default function LoginPage() {
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em' }}>
                 SENHA <span style={{ color: 'var(--red)', marginLeft: 2 }}>*</span>
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                style={{
-                  width: '100%', padding: '11px 14px',
-                  fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
-                  color: 'var(--black)', background: 'var(--white)',
-                  border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
-                  transition: 'border-color .2s, box-shadow .2s',
-                }}
-                onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
-                onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
-              />
+              <CampoSenha value={password} onChange={setPassword} required autoComplete="current-password" />
             </div>
 
             {error && (

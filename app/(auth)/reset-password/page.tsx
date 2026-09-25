@@ -1,6 +1,7 @@
 'use client'
 import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { CampoSenha } from '@/components/CampoSenha'
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
@@ -134,45 +135,14 @@ function ResetPasswordForm() {
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em' }}>
                     NOVA SENHA <span style={{ color: 'var(--red)', marginLeft: 2 }}>*</span>
                   </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                    style={{
-                      width: '100%', padding: '11px 14px',
-                      fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
-                      color: 'var(--black)', background: 'var(--white)',
-                      border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
-                      transition: 'border-color .2s, box-shadow .2s',
-                    }}
-                    onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
-                    onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
-                  />
+                  <CampoSenha value={password} onChange={setPassword} required minLength={8} autoComplete="new-password" />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.04em' }}>
                     CONFIRMAR SENHA <span style={{ color: 'var(--red)', marginLeft: 2 }}>*</span>
                   </label>
-                  <input
-                    type="password"
-                    value={confirm}
-                    onChange={e => setConfirm(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    style={{
-                      width: '100%', padding: '11px 14px',
-                      fontFamily: 'inherit', fontSize: 14, fontWeight: 500,
-                      color: 'var(--black)', background: 'var(--white)',
-                      border: '1px solid var(--gray3)', borderRadius: 8, outline: 'none',
-                      transition: 'border-color .2s, box-shadow .2s',
-                    }}
-                    onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-dim)' }}
-                    onBlur={e => { e.target.style.borderColor = 'var(--gray3)'; e.target.style.boxShadow = 'none' }}
-                  />
+                  <CampoSenha value={confirm} onChange={setConfirm} required autoComplete="new-password" />
                 </div>
 
                 {error && (
