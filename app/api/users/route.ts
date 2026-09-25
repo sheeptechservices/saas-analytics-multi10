@@ -9,6 +9,7 @@ import { getTenantBranding } from '@/lib/tenant'
 import { trustedOrigin } from '@/lib/origin'
 import { requireTenantUser } from '@/lib/auth-guard'
 import { isMasterRole, TENANT_ROLE } from '@/lib/roles'
+import { configuracaoDeEmail, type ConfigDeEmail } from '@/lib/ambiente'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -66,6 +67,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'E-mail inválido.' }, { status: 400 })
   }
 
+  /* Antes de gravar qualquer coisa.
+   *
+   * Criar o usuário e só então descobrir que o convite não sai deixa no banco
+   * uma conta que ninguém consegue ativar: a senha é um UUID aleatório que nem
+   * nós sabemos, e o único caminho para dentro era o link que não foi enviado.
+   * O admin veria "usuário criado", a pessoa nunca receberia nada, e o e-mail
+   * ficaria ocupado para uma segunda tentativa (o 409 acima). Melhor recusar o
+   * pedido inteiro e não deixar rastro.
+   *
+   * A mensagem vai no campo `error` porque é ele que a tela de Configurações
+   * mostra ao admin, cru, quando a resposta não é 2xx. */
+  const configDeEmail = configuracaoDeEmail(process.env)
+  if (configDeEmail.estado === 'quebrado') {
+    console.error('[invite] envio de e-mail mal configurado:', configDeEmail.motivo)
+    return NextResponse.json(
+      { error: 'O convite não foi enviado porque o envio de e-mails não está configurado no servidor, então o usuário não foi criado. Avise o suporte técnico.' },
+      { status: 500 },
+    )
+  }
+
   let tenantId: string
   if (isMasterRole(session.user.role)) {
     if (!bodyTenantId) return NextResponse.json({ error: 'tenantId obrigatório para master.' }, { status: 400 })
@@ -115,29 +136,32 @@ export async function POST(req: NextRequest) {
   const inviteLink = `${baseUrl}/reset-password?token=${token}`
   const { brandName } = await getTenantBranding(session.user.tenantId)
 
-  await sendInviteEmail({ to: email, userName: name, brandName, inviteLink })
+  await sendInviteEmail({ config: configDeEmail, to: email, userName: name, brandName, inviteLink })
 
   await logAudit({ req, session, action: 'user.create', entityType: 'user', entityId: id, metadata: { email: email.toLowerCase().trim(), role }, tenantId })
   return NextResponse.json({ id, name: name.trim(), email: email.toLowerCase().trim(), role, createdAt: now }, { status: 201 })
 }
 
-async function sendInviteEmail({ to, userName, brandName, inviteLink }: {
-  to: string; userName: string; brandName: string; inviteLink: string
+/* `config` já chegou conferido do handler: o `|| 'noreply@yourdomain.com'` que
+ * morava aqui não tem mais como voltar, porque o remetente não é mais lido neste
+ * arquivo. Ou ele é um endereço nosso, ou o convite foi recusado antes de existir. */
+async function sendInviteEmail({ config, to, userName, brandName, inviteLink }: {
+  config: ConfigDeEmail; to: string; userName: string; brandName: string; inviteLink: string
 }) {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    console.warn('[invite] RESEND_API_KEY not set — email skipped')
+  if (config.estado !== 'pronto') {
+    /* Só 'desligado' chega aqui, e só fora de produção — em produção a falta da
+     * chave já virou 'quebrado' e o handler recusou. O link no console é o que
+     * permite testar convite na máquina do dev sem conta na Resend. */
+    console.warn('[invite] envio desligado:', config.motivo)
     console.info('[invite] link:', inviteLink)
     return
   }
 
-  const from = process.env.RESEND_FROM_EMAIL || 'noreply@yourdomain.com'
-
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from,
+      from: config.remetente,
       to,
       subject: `Você foi convidado para o ${brandName}`,
       html: `

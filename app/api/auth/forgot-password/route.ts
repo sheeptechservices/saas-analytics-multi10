@@ -3,11 +3,28 @@ import { db } from '@/lib/db'
 import { users, passwordResetTokens } from '@/lib/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { trustedOrigin } from '@/lib/origin'
+import { AVISO_DE_EMAIL_INDISPONIVEL, configuracaoDeEmail, type ConfigDeEmail } from '@/lib/ambiente'
 
 const GENERIC = { message: 'Se este e-mail estiver cadastrado, você receberá as instruções em breve.' }
 
 export async function POST(req: Request) {
   try {
+    /* ANTES de qualquer coisa, e essa ordem é de segurança, não de estilo.
+     *
+     * A rota devolve sempre a mesma frase para não dizer a estranho se um
+     * e-mail está cadastrado. Se a recusa por configuração viesse DEPOIS da
+     * consulta ao banco, ela mesma viraria o oráculo que a frase genérica
+     * evita: e-mail que existe recebendo 500 e e-mail que não existe recebendo
+     * 200 responde exatamente a pergunta que não queremos responder.
+     *
+     * Aqui a resposta depende só do ambiente do servidor, igual para todo
+     * mundo, e nenhuma linha do banco foi lida ainda. */
+    const configDeEmail = configuracaoDeEmail(process.env)
+    if (configDeEmail.estado === 'quebrado') {
+      console.error('[forgot-password] envio de e-mail mal configurado:', configDeEmail.motivo)
+      return NextResponse.json({ error: AVISO_DE_EMAIL_INDISPONIVEL }, { status: 500 })
+    }
+
     const body = await req.json().catch(() => null)
     const email = typeof body?.email === 'string' ? body.email.toLowerCase().trim() : null
     if (!email) return NextResponse.json(GENERIC)
@@ -38,7 +55,7 @@ export async function POST(req: Request) {
     // quem pediu, não o de outro. Host desconhecido cai na origem configurada, para
     // que cabeçalho forjado não vire link de phishing com token de verdade.
     const baseUrl = trustedOrigin(req)
-    await sendResetEmail(user.email, `${baseUrl}/reset-password?token=${token}`)
+    await sendResetEmail(configDeEmail, user.email, `${baseUrl}/reset-password?token=${token}`)
 
     return NextResponse.json(GENERIC)
   } catch (err) {
@@ -47,21 +64,25 @@ export async function POST(req: Request) {
   }
 }
 
-async function sendResetEmail(to: string, resetLink: string) {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) {
-    console.warn('[forgot-password] RESEND_API_KEY not set — email skipped')
+/* `config` já chegou conferido do começo do handler, e é por isso que não existe
+ * mais um `|| 'noreply@yourdomain.com'` aqui: o remetente ou é um endereço nosso
+ * ou o pedido nem chegou até esta função. Mandar de um domínio que não é nosso
+ * era pior do que não mandar — a Resend recusa, o erro ia só para o console, e a
+ * pessoa ficava esperando um e-mail que nunca existiu. */
+async function sendResetEmail(config: ConfigDeEmail, to: string, resetLink: string) {
+  if (config.estado !== 'pronto') {
+    /* Só 'desligado' chega aqui, e só fora de produção: sem conta na Resend, o
+     * link no console mantém o fluxo de redefinição testável na máquina do dev. */
+    console.warn('[forgot-password] envio desligado:', config.motivo)
     console.info('[forgot-password] reset link:', resetLink)
     return
   }
 
-  const from = process.env.RESEND_FROM_EMAIL || 'noreply@yourdomain.com'
-
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from,
+      from: config.remetente,
       to,
       subject: 'Redefinição de senha',
       html: `
