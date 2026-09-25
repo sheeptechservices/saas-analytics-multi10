@@ -15,6 +15,7 @@ import type { PoolConfig } from 'pg'
 // dele que estamos afirmando aqui, não uma imitação.
 import { parse } from 'pg-connection-string'
 import { CA_SUPABASE, CA_SUPABASE_VENCE_EM, ehHostSupabase } from '@/lib/sdr/supabase-ca'
+import { paramsDescartados } from '@/lib/sdr/pg'
 import {
   SDR_POOL_LIMITS,
   SDR_POOL_LIMITS_LARGO,
@@ -238,17 +239,67 @@ test('depois da limpeza, a string guardada não sobrescreve mais o ssl do config
   // e o resto da string chega ao pg igualzinho
   assert.equal(visto.host, HOST)
   assert.equal(visto.port, '6543')
-  assert.equal(visto.pgbouncer, 'true')
+  // E o resto da query string também não chega: veja o teste da lista de permissão.
+  assert.equal(visto.pgbouncer, undefined)
 })
 
-test('a string entregue ao pg perde os parâmetros de ssl e guarda o resto', () => {
-  const cfg = buildSdrPoolConfig(`${CONN}?sslmode=require&pgbouncer=true&connect_timeout=10`)
+/* A query string da credencial é dado do CLIENTE, e o `pg` faz
+ * `Object.assign({}, config, parse(connectionString))` — o que vem dali VENCE o que
+ * o código passa. Antes só os parâmetros de TLS eram retirados; o resto passava, e
+ * com ele a capacidade de um admin de cliente desligar os nossos tetos. */
+test('a string entregue ao pg perde TODA a query string, não só a de ssl', () => {
+  const cfg = buildSdrPoolConfig(
+    `${CONN}?sslmode=require&pgbouncer=true&connect_timeout=10&application_name=outro`,
+  )
+  const entregue = String(cfg.connectionString)
 
-  assert.ok(!String(cfg.connectionString).includes('sslmode'))
-  assert.match(String(cfg.connectionString), /pgbouncer=true/)
-  assert.match(String(cfg.connectionString), /connect_timeout=10/)
   // usuário, senha, host e porta seguem intactos — a parte antes do '?' não é remontada
-  assert.ok(String(cfg.connectionString).startsWith(CONN))
+  assert.equal(entregue, CONN, 'nada da query string pode chegar ao driver')
+  for (const sobra of ['sslmode', 'pgbouncer', 'connect_timeout', 'application_name']) {
+    assert.ok(!entregue.includes(sobra), `${sobra} não podia sobreviver`)
+  }
+})
+
+test('o teto do servidor não é desligável pela credencial', () => {
+  /* `?statement_timeout=0` desligava o cancelamento do lado do servidor: a app
+   * desistia em 10 s pelo teto do cliente, e o Postgres do cliente seguia moendo
+   * uma consulta que ninguém mais esperava. */
+  const cfg = buildSdrPoolConfig(`${CONN}?statement_timeout=0&query_timeout=0`)
+
+  assert.equal(cfg.statement_timeout, SDR_POOL_LIMITS.statement_timeout)
+  assert.equal(cfg.query_timeout, SDR_POOL_LIMITS.query_timeout)
+  assert.ok(!String(cfg.connectionString).includes('statement_timeout'))
+})
+
+test('a etiqueta no pg_stat_activity não é sobrescrevível pela credencial', () => {
+  // Sem isto, não dá para separar no banco do cliente o que é a app do que é o n8n.
+  const cfg = buildSdrPoolConfig(`${CONN}?application_name=n8n`)
+  assert.equal(cfg.application_name, 'multi10-sdr')
+})
+
+test('a chave do parâmetro é lida sem depender da caixa', () => {
+  /* `params.get('sslmode')` é sensível a maiúsculas, então `?SSLMODE=disable`
+   * escapava da recusa. Só não virava conexão em texto puro porque a RETIRADA era
+   * insensível — segurança por acidente. Agora a recusa é explícita. */
+  for (const chave of ['SSLMODE', 'SslMode', 'sslmode']) {
+    const erro = erroDe(() => buildSdrPoolConfig(`${CONN}?${chave}=disable`))
+    assert.equal(erro.code, 'sdr_tls_desabilitado', `${chave}=disable tinha de ser recusado`)
+  }
+  for (const chave of ['SSLROOTCERT', 'sslrootcert']) {
+    const erro = erroDe(() => buildSdrPoolConfig(`${CONN}?${chave}=/etc/ca.pem`))
+    assert.equal(erro.code, 'sdr_tls_nao_suportado', `${chave} tinha de ser recusado`)
+  }
+})
+
+test('paramsDescartados nomeia o que foi ignorado, e nunca o valor', () => {
+  // Nome de parâmetro não é segredo; valor pode ser. O log precisa do primeiro.
+  const nomes = paramsDescartados(`${CONN}?pgbouncer=true&application_name=x&sslmode=require`)
+
+  assert.ok(nomes.includes('pgbouncer'))
+  assert.ok(nomes.includes('application_name'))
+  // sslmode não entra: ele não é "ignorado", é lido e usado para decidir o TLS.
+  assert.ok(!nomes.includes('sslmode'))
+  assert.deepEqual(paramsDescartados(CONN), [], 'sem query string, nada a relatar')
 })
 
 test('sem query string, a string de conexão passa inteira', () => {

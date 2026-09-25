@@ -8,7 +8,7 @@ import { randomUUID } from 'crypto'
 import { assertEntitlement } from '@/lib/entitlements'
 import { getProvider } from '@/lib/providers/registry'
 import { runBackfill } from '@/lib/sync/runner'
-import { closeSdrPool } from '@/lib/sdr/pg'
+import { buildSdrPoolConfig, closeSdrPool, paramsDescartados } from '@/lib/sdr/pg'
 import { after } from 'next/server'
 
 const PROVIDER_KEY = 'supabase-n8n'
@@ -78,12 +78,25 @@ export async function POST(req: NextRequest) {
 
   try {
     provider.parseConfig({ connectionString })
+    /* E a política de TLS também, aqui e não só na primeira leitura.
+     *
+     * O parseConfig do provider não conhece TLS: dava para salvar uma fonte com
+     * sslmode=disable, ver "conectado" na tela, e só descobrir que ela é inutilizável
+     * quando alguém abrisse Leads. Recusar na hora é a diferença entre um erro no
+     * formulário, com a pessoa ainda olhando o campo, e um 502 dias depois. */
+    buildSdrPoolConfig(connectionString)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 
   try {
+    /* Só os NOMES: parâmetro de conexão pode carregar valor sensível, nome não. */
+    const ignorados = paramsDescartados(connectionString)
+    if (ignorados.length) {
+      console.warn('[sdr source] parâmetros da string de conexão ignorados:', ignorados.join(', '))
+    }
+
     const configEnc = encrypt(JSON.stringify({ connectionString }))
     const now = new Date()
     const tenantId = session.user.tenantId
