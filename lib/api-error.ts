@@ -27,15 +27,38 @@ export class ApiError extends Error {
   readonly kind: FalhaKind
   /** `error` do corpo da resposta, quando a rota mandou um. */
   readonly codigo?: string
+  /** `code` do corpo — mais específico que `error`. Ex.: `sdr_db_tls`. */
+  readonly codigoDetalhado?: string
+  /** `message` do corpo, SÓ quando ela foi escrita para o usuário ler. */
+  readonly detalheDoServidor?: string
 
-  constructor(status: number, kind: FalhaKind, codigo?: string) {
+  constructor(
+    status: number,
+    kind: FalhaKind,
+    codigo?: string,
+    codigoDetalhado?: string,
+    detalheDoServidor?: string,
+  ) {
     super(`ApiError ${status}${codigo ? ` (${codigo})` : ''}`)
     this.name = 'ApiError'
     this.status = status
     this.kind = kind
     this.codigo = codigo
+    this.codigoDetalhado = codigoDetalhado
+    this.detalheDoServidor = detalheDoServidor
   }
 }
+
+/* Códigos de lib/sdr/pg.ts. O arquivo documenta essas mensagens como as que PODEM
+ * chegar ao usuário: nenhuma cita host, usuário, senha, porta ou texto do driver.
+ * Só por isso elas passam adiante — a regra geral continua sendo que corpo de erro
+ * não vira texto de tela (outras rotas ainda devolvem `err.message` cru). */
+const PREFIXO_SEGURO = /^sdr_(db|tls|conn)_/
+
+/* Destes, repetir adianta: a base pode voltar, a consulta pode caber no tempo. Nos
+ * outros — certificado, credencial, permissão, schema — o botão "Tentar novamente"
+ * seria uma promessa falsa, e ainda tira a pessoa da tela que resolveria. */
+const CODIGOS_TRANSITORIOS = new Set(['sdr_db_indisponivel', 'sdr_db_timeout', 'sdr_db_erro'])
 
 export function classificarStatus(status: number): FalhaKind {
   if (status === 403) return 'sem-modulo'
@@ -61,6 +84,21 @@ export interface TextoDaFalha {
 /** `assunto` entra na frase: "Não foi possível carregar os contatos." */
 export function textoDaFalha(erro: unknown, assunto?: string): TextoDaFalha {
   const alvo = assunto ? ` ${assunto}` : ' os dados'
+
+  /* Quando o servidor já explicou a causa em português, é isso que a pessoa
+   * precisa ler — "a falha foi do servidor" não diz o que fazer, e a frase dele
+   * diz. Foi o que aconteceu com um certificado autoassinado na base do SDR: o
+   * servidor mandava "confira o certificado do servidor da fonte" e a tela
+   * mostrava o texto genérico de 500, com um botão de repetir que nunca ia
+   * funcionar. */
+  if (erro instanceof ApiError && erro.detalheDoServidor) {
+    return {
+      titulo:  `Não foi possível carregar${alvo}`,
+      detalhe: erro.detalheDoServidor,
+      podeTentarDeNovo: CODIGOS_TRANSITORIOS.has(erro.codigoDetalhado ?? ''),
+    }
+  }
+
   switch (classificarFalha(erro)) {
     case 'sem-modulo':
       return {
@@ -120,11 +158,19 @@ export async function fetchJson<T>(input: string, init?: RequestInit): Promise<T
   }
   if (!res.ok) {
     let codigo: string | undefined
+    let codigoDetalhado: string | undefined
+    let detalhe: string | undefined
     try {
-      const corpo = await res.json() as { error?: unknown }
+      const corpo = await res.json() as { error?: unknown; code?: unknown; message?: unknown }
       if (typeof corpo?.error === 'string') codigo = corpo.error
+      if (typeof corpo?.code === 'string') codigoDetalhado = corpo.code
+      // A frase do servidor só passa adiante se vier com um código reconhecido:
+      // é o código que diz que aquela mensagem foi escrita para ser lida.
+      if (codigoDetalhado && PREFIXO_SEGURO.test(codigoDetalhado) && typeof corpo?.message === 'string') {
+        detalhe = corpo.message
+      }
     } catch { /* corpo vazio ou não-JSON: o status já basta */ }
-    throw new ApiError(res.status, classificarStatus(res.status), codigo)
+    throw new ApiError(res.status, classificarStatus(res.status), codigo, codigoDetalhado, detalhe)
   }
   try {
     return await res.json() as T
