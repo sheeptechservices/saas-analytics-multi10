@@ -4,12 +4,17 @@ export const ACTION_LABELS: Record<string, string> = {
   'enroll':            'Adição à campanha',
   'settings.update':   'Alterou configurações',
   'leads.import':      'Importou leads',
+  // O outro caminho que insere lead (/api/sdr/leads/manual), um de cada vez.
+  'leads.manual':      'Cadastrou lead',
   'user.create':       'Criou usuário',
   'user.update':       'Editou usuário',
   'user.delete':       'Removeu usuário',
   // Só a própria senha: não existe caminho para trocar a de outra pessoa.
   'user.password.change': 'Alterou a própria senha',
   'whitelabel.update': 'Alterou marca',
+  // Só o master cria cliente: aparece na auditoria do master, não na do tenant —
+  // mas o filtro e o rótulo são os mesmos nas duas telas, então mora aqui.
+  'tenant.create':     'Criou cliente',
 }
 
 export function fmtDateTime(iso: string): string {
@@ -42,6 +47,18 @@ export function fmtDetail(action: string, entityType: string | null, entityId: s
       if (meta.inserted !== undefined) parts.push(`${meta.inserted} novos`)
       if (meta.updated !== undefined) parts.push(`${meta.updated} atualizados`)
       if (meta.skipped !== undefined) parts.push(`${meta.skipped} pulados`)
+      break
+    // A rota grava o mesmo `metadata` de leads.import, mas aqui é sempre um lead: o
+    // caminho que não escreveu sai antes dela (409), então `inserted` é 1 em toda
+    // linha e repeti-lo não informa nada — quem identifica o registro é o id, já no
+    // prefixo. Os outros dois só saem se algum dia vierem diferentes de zero.
+    case 'leads.manual':
+      if (meta.updated) parts.push(`${meta.updated} atualizados`)
+      if (meta.skipped) parts.push(`${meta.skipped} pulados`)
+      break
+    case 'tenant.create':
+      if (meta.name) parts.push(String(meta.name))
+      if (meta.slug) parts.push(String(meta.slug))
       break
     case 'user.create':
       if (meta.email) parts.push(String(meta.email))

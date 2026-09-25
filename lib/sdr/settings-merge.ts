@@ -12,22 +12,46 @@ import { decrypt, encrypt } from '@/lib/crypto'
 //    conseguir forjar os acks (/api/sdr/blast/ack, /api/sdr/dispatch/ack).
 //    Aqui o segredo só sobrevive enquanto a URL dele não muda.
 //
-// 2. Os cinco segredos ficavam em texto puro no JSON. Agora vão cifrados
+// 2. Os segredos ficavam em texto puro no JSON. Agora vão cifrados
 //    (`encrypt()` de lib/crypto). Não há migração: `decrypt()` devolve a
 //    entrada intacta quando ela não está no formato `iv:tag:ciphertext`, então
 //    o valor legado continua funcionando — e o primeiro save o reescreve
-//    cifrado.
+//    cifrado. Os aposentados são a exceção: ninguém os lê, então eles ficam
+//    exatamente como estão (ver CHAVES_APOSENTADAS).
 
+// Os pares que ainda saem desta app: o disparo da campanha (/api/sdr/dispatch e o
+// ack dele) e o disparo de lista (/api/sdr/leads/blast e o ack dele). Eram cinco;
+// os outros três alimentavam webhooks que não existem mais — ver CHAVES_APOSENTADAS.
 export const N8N_CREDENTIAL_PAIRS = [
-  { urlKey: 'n8nWebhookUrl',  secretKey: 'n8nWebhookSecret'  },
   { urlKey: 'n8nDispatchUrl', secretKey: 'n8nDispatchSecret' },
-  { urlKey: 'n8nEnrollUrl',   secretKey: 'n8nEnrollSecret'   },
-  { urlKey: 'n8nImportUrl',   secretKey: 'n8nImportSecret'   },
   { urlKey: 'n8nBlastUrl',    secretKey: 'n8nBlastSecret'    },
 ] as const
 
 export type N8nUrlKey    = typeof N8N_CREDENTIAL_PAIRS[number]['urlKey']
 export type N8nSecretKey = typeof N8N_CREDENTIAL_PAIRS[number]['secretKey']
+
+/**
+ * O que saiu do ar quando a app passou a escrever direto na base do cliente: o
+ * write-back da configuração (`n8nWebhook*`), a importação de leads (`n8nImport*`)
+ * e a inscrição na campanha (`n8nEnroll*`). Nenhuma rota lê, nenhuma tela mostra,
+ * nenhuma validação olha — e é por isso mesmo que eles precisam estar listados.
+ *
+ * O merge parte de `incoming`: chave guardada que ninguém reenvia SOME do JSON. Sem
+ * esta lista, o primeiro save de qualquer tela apagaria do banco do tenant as três
+ * URLs e os três segredos. A URL dá para redigitar; o segredo não — o GET nunca o
+ * devolve, e o que está gravado é a única cópia que a app tem. Desligar um webhook
+ * não pode custar uma rotação de credencial no n8n de cada cliente, nem tornar a
+ * volta atrás no código impossível sem ela.
+ *
+ * Passam intactos: nada é lido, nada é recifrado, nada cai por troca de URL. Uma
+ * limpeza posterior pode apagá-los do banco de propósito — enquanto ela não vem,
+ * ficam onde estão.
+ */
+export const CHAVES_APOSENTADAS = [
+  'n8nWebhookUrl', 'n8nWebhookSecret',
+  'n8nEnrollUrl',  'n8nEnrollSecret',
+  'n8nImportUrl',  'n8nImportSecret',
+] as const
 
 // Formato exato produzido por encrypt(): IV de 12 bytes, tag de 16, tudo em hex.
 // Checar a forma completa (e não só "tem dois dois-pontos") evita tratar um
@@ -110,6 +134,24 @@ export function mergeSdrSettings(
       merged[secretKey] = paraRepouso(segredoGuardado)
     } else {
       delete merged[secretKey]
+    }
+  }
+
+  // O que já está guardado dos pares aposentados atravessa o save — ver
+  // CHAVES_APOSENTADAS. Só entra o que o PUT não trouxe: se a tela reenviou a URL
+  // (ela ainda volta no GET, dentro das settings), o valor dela é que vale.
+  //
+  // ARESTA LATENTE, registrada de propósito e SEM correção: a guarda é
+  // `=== undefined`, então um cliente que mandasse `n8nWebhookUrl: ''` apagaria a URL
+  // guardada e deixaria o `n8nWebhookSecret` no JSON sem URL nenhuma — o par a que
+  // este bloco existe para proteger, pela metade. Hoje é inalcançável: as duas telas
+  // que salvam settings (Parâmetros e Credenciais) devolvem no PUT o que o GET
+  // entregou, e o GET entrega a URL guardada. Trocar a guarda por "string vazia
+  // também carrega" tornaria impossível apagar uma URL de propósito, que é o que uma
+  // tela futura pode querer; a decisão fica para quem precisar dela.
+  for (const chave of CHAVES_APOSENTADAS) {
+    if (merged[chave] === undefined && stored?.[chave] !== undefined) {
+      merged[chave] = stored[chave]
     }
   }
 

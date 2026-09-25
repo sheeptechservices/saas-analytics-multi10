@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  CHAVES_APOSENTADAS,
   N8N_CREDENTIAL_PAIRS,
   isStaleVersion,
   mergeSdrSettings,
@@ -67,7 +68,7 @@ for (const { urlKey, secretKey } of N8N_CREDENTIAL_PAIRS) {
   })
 }
 
-test('os cinco pares são independentes num único PUT', () => {
+test('os pares são independentes num único PUT', () => {
   const guardado = mergeSdrSettings(null, Object.fromEntries(
     N8N_CREDENTIAL_PAIRS.flatMap(({ urlKey, secretKey }) => [
       [urlKey, `${URL_ANTIGA}/${urlKey}`],
@@ -200,33 +201,30 @@ test('version diferente da guardada é conflito', () => {
 // ─── O cenário completo do incidente ──────────────────────────────────────────
 
 test('trocar a URL sem mandar segredo: a entrega ao destino novo vai SEM Authorization', () => {
-  const guardado = mergeSdrSettings(null, { n8nWebhookUrl: URL_ANTIGA, n8nWebhookSecret: 'token-do-n8n-real' })
-  assert.equal(readN8nSecret(guardado, 'n8nWebhookSecret'), 'token-do-n8n-real')
+  const guardado = mergeSdrSettings(null, { n8nDispatchUrl: URL_ANTIGA, n8nDispatchSecret: 'token-do-n8n-real' })
+  assert.equal(readN8nSecret(guardado, 'n8nDispatchSecret'), 'token-do-n8n-real')
 
   // O PUT do atacante: só a URL.
-  const merged = mergeSdrSettings(guardado, { n8nWebhookUrl: URL_NOVA })
+  const merged = mergeSdrSettings(guardado, { n8nDispatchUrl: URL_NOVA })
 
-  const segredo = readN8nSecret(merged, 'n8nWebhookSecret') ?? undefined
+  const segredo = readN8nSecret(merged, 'n8nDispatchSecret') ?? undefined
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (segredo) headers['Authorization'] = `Bearer ${segredo}`
 
-  assert.equal(merged.n8nWebhookUrl, URL_NOVA)
+  assert.equal(merged.n8nDispatchUrl, URL_NOVA)
   assert.equal(segredo, undefined)
   assert.equal(headers.Authorization, undefined)
   // E o que ficou no banco não tem mais o segredo antigo em lugar nenhum.
   assert.equal(JSON.stringify(merged).includes('token-do-n8n-real'), false)
 })
 
-// O que a tela de Credenciais fazia quando o GET falhava: mandava as cinco URLs
-// como '' e levava os segredos junto. Os dois lados do contrato ficam fixados
-// aqui — a tela agora omite a URL que nunca carregou (ver credenciais/page.tsx).
-test('PUT que omite as URLs preserva tudo; PUT que manda as cinco vazias apaga tudo', () => {
+// O que a tela de Credenciais fazia quando o GET falhava: mandava as URLs como ''
+// e levava os segredos junto. Os dois lados do contrato ficam fixados aqui — a tela
+// agora omite a URL que nunca carregou (ver credenciais/page.tsx).
+test('PUT que omite as URLs preserva tudo; PUT que manda todas vazias apaga tudo', () => {
   const guardado = mergeSdrSettings(null, {
     tom: 'consultivo',
-    n8nWebhookUrl: `${URL_ANTIGA}/wh`,
     n8nDispatchUrl: `${URL_ANTIGA}/di`,
-    n8nEnrollUrl: `${URL_ANTIGA}/en`,
-    n8nImportUrl: `${URL_ANTIGA}/im`,
     n8nBlastUrl: `${URL_ANTIGA}/bl`,
     n8nDispatchSecret: 'segredo-dispatch',
     n8nBlastSecret: 'segredo-blast',
@@ -257,10 +255,54 @@ test('helpers não mutam o objeto guardado nem o de entrada', () => {
   assert.equal(Object.keys(entrada).length, 2)
 })
 
-// Garantia de tipo: a lista de pares cobre exatamente os cinco segredos do lote.
-test('os cinco pares estão na lista', () => {
-  const esperados: N8nSecretKey[] = [
-    'n8nWebhookSecret', 'n8nDispatchSecret', 'n8nEnrollSecret', 'n8nImportSecret', 'n8nBlastSecret',
-  ]
+// Garantia de tipo: a lista de pares cobre exatamente os segredos que ainda saem
+// desta app. Acrescentar um par aqui sem rota que o leia é o defeito que esta
+// asserção pega.
+test('só os pares vivos estão na lista', () => {
+  const esperados: N8nSecretKey[] = ['n8nDispatchSecret', 'n8nBlastSecret']
   assert.deepEqual(N8N_CREDENTIAL_PAIRS.map(p => p.secretKey), esperados)
+})
+
+// ─── Regra 5: o que saiu do ar continua guardado ──────────────────────────────
+//
+// As três URLs e os três segredos dos webhooks desligados não são mais coletados,
+// validados nem exibidos — mas o merge parte de `incoming`, então sem a lista de
+// aposentados o primeiro save de qualquer tela os apagaria do banco. A URL dá para
+// redigitar; o segredo, não: o GET nunca o devolve.
+
+test('save que não menciona as chaves aposentadas não as apaga', () => {
+  const guardado = {
+    tom: 'consultivo',
+    n8nWebhookUrl: `${URL_ANTIGA}/wh`, n8nWebhookSecret: 'segredo-webhook',
+    n8nEnrollUrl:  `${URL_ANTIGA}/en`, n8nEnrollSecret:  'segredo-enroll',
+    n8nImportUrl:  `${URL_ANTIGA}/im`, n8nImportSecret:  'segredo-import',
+  }
+
+  // O PUT de hoje: a tela não conhece mais nenhuma dessas chaves.
+  const merged = mergeSdrSettings(guardado, { tom: 'direto', n8nDispatchUrl: URL_NOVA })
+
+  for (const chave of CHAVES_APOSENTADAS) {
+    assert.equal(merged[chave], guardado[chave], `${chave} não podia ter sumido`)
+  }
+  assert.equal(merged.tom, 'direto')
+})
+
+test('chave aposentada não é recifrada nem derrubada por troca de URL', () => {
+  const guardado = { n8nImportUrl: URL_ANTIGA, n8nImportSecret: 'legado-em-texto-puro' }
+
+  // Mesmo mandando a URL de volta trocada — o que a tela antiga fazia —, o segredo
+  // continua o que estava lá: ninguém o lê, então não há destino novo para proteger.
+  const merged = mergeSdrSettings(guardado, { n8nImportUrl: URL_NOVA })
+
+  assert.equal(merged.n8nImportUrl, URL_NOVA)
+  assert.equal(merged.n8nImportSecret, 'legado-em-texto-puro')
+  assert.equal(cifrado(merged.n8nImportSecret), false)
+})
+
+test('chave aposentada ausente no guardado não vira undefined no JSON', () => {
+  const merged = mergeSdrSettings({ tom: 'consultivo' }, { tom: 'direto' })
+
+  for (const chave of CHAVES_APOSENTADAS) {
+    assert.equal(chave in merged, false, `${chave} não podia ter sido criada`)
+  }
 })

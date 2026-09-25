@@ -66,6 +66,9 @@ export async function GET() {
   try {
     cfg = yCloudProvider.parseConfig(JSON.parse(decrypt(row.configEnc)))
   } catch (err) {
+    // `config_invalid` aqui é a credencial da YCLOUD (PROVIDER_KEY acima). A da fonte
+    // de dados SDR tem código próprio — CODIGO_CREDENCIAL_SDR_ILEGIVEL, em
+    // lib/sdr/mensagens — justamente para as duas não caírem na mesma frase.
     return NextResponse.json(
       { error: 'config_invalid', message: (err as Error).message },
       { status: 500 },

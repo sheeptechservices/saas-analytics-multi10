@@ -1,34 +1,45 @@
 // POST /api/sdr/leads/manual
 //
-// Accepts a single lead as JSON, validates/deduplicates, and inserts via n8n
-// (same webhook as /api/sdr/leads/import). Never writes to Supabase directly.
+// Recebe UM lead em JSON, deduplica contra a base do cliente e grava lá mesmo.
+//
+// A gravação era um salto HTTP para o `n8nImportUrl` — o mesmo webhook da
+// importação por planilha, que foi o último a sair. Hoje a app escreve direto
+// (lib/sdr/leads-write), pelo mesmo caminho e com as mesmas decisões de
+// /api/sdr/leads/import. O que muda para quem cadastra um lead: o `leadId` que
+// volta é o que o INSERT devolveu. Antes era o que o n8n tivesse dito — e, quando
+// ele respondia sem `ids`, a resposta saía `ok: true` com `leadId: null` e a tela
+// seguia com um lead que não dava para inscrever nem disparar.
 //
 // Request body: { name: string, phone: string, company?: string }
 //
 // Responses:
-//   200  { ok: true, leadId: string, duplicate: true,  name: string }  — already exists
-//   200  { ok: true, leadId: string, duplicate: false, name: string }  — inserted via n8n
-//   400  { error: string }                                              — validation / config
-//   502  { ok: false, error: string }                                  — n8n unreachable
-//   500  { ok: false, error: string }                                  — unexpected
+//   200  { ok: true, leadId, duplicate: true,  name }    — já existia na base
+//   200  { ok: true, leadId, duplicate: false, name }    — gravado agora
+//   400  { error }                                       — validação, ou fonte sem cadastro
+//   409  { ok: false, error: 'telefone_ja_cadastrado' }  — o INSERT pulou a linha
+//   500  { error: 'credencial_sdr_ilegivel' }            — credencial cadastrada que não abre
+//   502  { ok: false, error: 'db_error', code, message } — a base do cliente recusou
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { db } from '@/lib/db'
-import { dataSources, campaignSettings } from '@/lib/db/schema'
-import { and, eq } from 'drizzle-orm'
-import { decrypt } from '@/lib/crypto'
+import { logAudit } from '@/lib/audit'
 import { assertEntitlement } from '@/lib/entitlements'
-import { withSdrDb } from '@/lib/sdr/pg'
+import { requireTenantUser } from '@/lib/auth-guard'
+import { conexaoDoTenant } from '@/lib/sdr/conexao-tenant'
+import { CODIGO_CREDENCIAL_SDR_ILEGIVEL } from '@/lib/sdr/mensagens'
+import { gravarLeads, limparParaPostgres } from '@/lib/sdr/leads-write'
+import { mapSdrDbError, withSdrDb } from '@/lib/sdr/pg'
 import { normalizePhone, phoneKey } from '@/lib/sdr/leads-etl'
-import { readN8nSecret } from '@/lib/sdr/settings-merge'
-
-const PROVIDER_KEY = 'supabase-n8n'
-const SOURCE       = 'sdr-n8n'
 
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Esta rota escreve na base do cliente (INSERT de lead), então precisa da mesma
+  // porta das irmãs que escrevem — /api/sdr/leads/import e /api/sdr/enroll: ter
+  // sessão não basta. lib/auth-guard.test.ts prende qual rota chama qual porta.
+  const roleCheck = requireTenantUser(session)
+  if (roleCheck) return roleCheck
 
   const { tenantId } = session.user
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
@@ -42,9 +53,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Body JSON inválido' }, { status: 400 })
   }
 
-  const name    = typeof body.name    === 'string' ? body.name.trim()    : ''
-  const rawPhone = typeof body.phone  === 'string' ? body.phone.trim()   : ''
-  const company = typeof body.company === 'string' ? body.company.trim() : ''
+  // `limparParaPostgres` tira o byte NUL e o surrogate solto, como na importação:
+  // a gravação limpa de novo, mas o `name` que volta daqui é o que a tela usa como
+  // nome do destinatário no disparo seguinte — e ele tem de ser o mesmo que a base
+  // guardou.
+  const texto = (valor: unknown) =>
+    typeof valor === 'string' ? limparParaPostgres(valor).trim() : ''
+
+  const name     = texto(body.name)
+  const rawPhone = texto(body.phone)
+  const company  = texto(body.company)
 
   if (!name) {
     return NextResponse.json({ error: 'nome_obrigatorio' }, { status: 400 })
@@ -60,72 +78,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'telefone_invalido' }, { status: 400 })
   }
 
-  // ── Load n8nImportUrl + secret ────────────────────────────────────────────
-  const [csRow] = await db
-    .select()
-    .from(campaignSettings)
-    .where(and(eq(campaignSettings.tenantId, tenantId), eq(campaignSettings.source, SOURCE)))
-    .limit(1)
-
-  let csSettings: Record<string, unknown> = {}
-  if (csRow) {
-    try { csSettings = JSON.parse(csRow.settings) } catch {}
+  // ── Conexão do cliente: resolvida UMA vez, usada na dedup e na gravação ───────
+  // Sem base não há onde gravar, e dizer "lead adicionado" sem ter escrito seria
+  // mentir. As duas recusas continuam separadas — 400 para quem ainda não cadastrou
+  // a fonte, 500 para a credencial que existe e não abre —, como em
+  // /api/sdr/leads/import e /api/sdr/enroll. Ver lib/sdr/conexao-tenant.
+  const fonte = await conexaoDoTenant(tenantId)
+  if (fonte.estado === 'nao_configurada') {
+    return NextResponse.json({ error: 'fonte_sdr_nao_configurada' }, { status: 400 })
   }
-
-  const importUrl =
-    typeof csSettings.n8nImportUrl === 'string' && csSettings.n8nImportUrl
-      ? csSettings.n8nImportUrl
-      : null
-
-  if (!importUrl) {
-    return NextResponse.json({ error: 'import_url_nao_configurada' }, { status: 400 })
+  if (fonte.estado === 'ilegivel') {
+    // Código próprio da fonte SDR, não o `config_invalid` genérico: a tela de leads
+    // usa o mesmo tradutor para a credencial da YCloud. Ver lib/sdr/mensagens.
+    return NextResponse.json({ error: CODIGO_CREDENCIAL_SDR_ILEGIVEL }, { status: 500 })
   }
-
-  // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
-  const importSecret = readN8nSecret(csSettings, 'n8nImportSecret') ?? undefined
+  const connectionString = fonte.connectionString
 
   // ── Dedup against Supabase (SELECT only — never writes) ───────────────────
   let existingId:   string | null = null
   let existingName: string | null = null
 
   try {
-    const dsRow = await db
-      .select()
-      .from(dataSources)
-      .where(and(
-        eq(dataSources.tenantId, tenantId),
-        eq(dataSources.providerKey, PROVIDER_KEY),
-      ))
-      .then(r => r[0])
-
-    if (dsRow?.configEnc) {
-      const cfg = JSON.parse(decrypt(dsRow.configEnc)) as { connectionString?: string }
-      if (cfg.connectionString) {
-        // Perfil 'largo' pelo mesmo motivo do import: é a tabela inteira de leads, e
-        // o catch abaixo segue sem dedup em vez de reprovar o cadastro.
-        await withSdrDb(cfg.connectionString, async sdr => {
-          const res = await sdr.query<{
-            id: string; name: string | null; phone: string | null; phone_adjusted: string | null
-          }>(
-            `SELECT id, name, phone, phone_adjusted
-               FROM leads
-              WHERE phone IS NOT NULL OR phone_adjusted IS NOT NULL`,
-          )
-          for (const r of res.rows) {
-            const k1 = phoneKey(r.phone ?? '')
-            const k2 = phoneKey(r.phone_adjusted ?? '')
-            if ((k1 && k1 === key) || (k2 && k2 === key)) {
-              existingId   = r.id
-              existingName = r.name
-              break
-            }
-          }
-        }, 'largo')
+    // Perfil 'largo' pelo mesmo motivo do import: é a tabela inteira de leads, e
+    // o catch abaixo segue sem dedup em vez de reprovar o cadastro.
+    await withSdrDb(connectionString, async sdr => {
+      const res = await sdr.query<{
+        id: string; name: string | null; phone: string | null; phone_adjusted: string | null
+      }>(
+        `SELECT id, name, phone, phone_adjusted
+           FROM leads
+          WHERE phone IS NOT NULL OR phone_adjusted IS NOT NULL`,
+      )
+      for (const r of res.rows) {
+        const k1 = phoneKey(r.phone ?? '')
+        const k2 = phoneKey(r.phone_adjusted ?? '')
+        if ((k1 && k1 === key) || (k2 && k2 === key)) {
+          existingId   = r.id
+          existingName = r.name
+          break
+        }
       }
-    }
+    }, 'largo')
   } catch (err) {
     // Non-fatal: if Supabase is unavailable, skip dedup and proceed to insert.
-    // n8n will enforce its own constraints.
+    // A GRAVAÇÃO logo abaixo não tem essa licença — lá a falha vira resposta de erro.
+    //
+    // O QUE SE PERDE AQUI NÃO VOLTA NO INSERT. A guarda de corrida do INSERT compara
+    // os dígitos EXATOS de `phone_adjusted` (lib/sdr/leads-write), enquanto o `key`
+    // desta rota vem de `phoneKey`, que ainda tira o 55 e o nono dígito. Então um
+    // lead guardado como `11988887777` ou `551188887777` não impede o INSERT de
+    // `+5511988887777`: sem a dedup, o tenant cujas linhas antigas não estão em
+    // DDI + 9 dígitos ganha uma linha duplicada, e o fluxo de disparo aborda a mesma
+    // pessoa duas vezes. É o preço de não recusar o cadastro por causa de uma leitura
+    // que falhou — e é sobre este risco que o log abaixo é a única pista.
     console.error('[sdr manual dedup]', err)
   }
 
@@ -141,44 +146,40 @@ export async function POST(request: Request) {
     })
   }
 
-  // ── POST new lead to n8n ──────────────────────────────────────────────────
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (importSecret) headers['Authorization'] = `Bearer ${importSecret}`
-
-  let leadId: string | null = null
+  // ── Gravação na base do cliente ───────────────────────────────────────────
+  // Diferente da dedup acima, aqui falha NÃO é engolida: sem isto a tela diria
+  // "lead adicionado" com a base intacta.
+  let leadId: string | undefined
   try {
-    const res = await fetch(importUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        tenantId,
-        leads: [{ name, phone, company: company || null, source: 'manual', status: 'novo' }],
-      }),
-      signal: AbortSignal.timeout(15_000),
-    })
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      console.error('[sdr manual → n8n] status', res.status, text)
-      return NextResponse.json(
-        { ok: false, error: `n8n retornou ${res.status}` },
-        { status: 502 },
-      )
-    }
-
-    try {
-      const body2 = await res.json() as Record<string, unknown>
-      const ids   = Array.isArray(body2.ids) ? body2.ids as unknown[] : []
-      const first = ids[0]
-      if (typeof first === 'string') leadId = first
-    } catch { /* non-JSON body — leadId stays null */ }
+    const escrita = await gravarLeads(
+      connectionString,
+      [{ name, phone, company, source: 'manual', status: 'novo' }],
+      [],
+    )
+    leadId = escrita.idsInseridos[0]
   } catch (err) {
-    console.error('[sdr manual → n8n]', err)
+    // Texto do driver fica no log; o cliente recebe só código estável + português.
+    console.error('[sdr manual write]', err)
+    const erro = mapSdrDbError(err)
     return NextResponse.json(
-      { ok: false, error: 'Falha ao enviar para importação: ' + (err instanceof Error ? err.message : String(err)) },
+      { ok: false, error: 'db_error', code: erro.code, message: erro.message },
       { status: 502 },
     )
   }
 
+  // Sem id não houve linha: o `NOT EXISTS` do INSERT pulou o lead porque alguém com
+  // o mesmo `phone_adjusted` já estava lá — a dedup acima não viu (ela engole a
+  // própria falha) ou o lead entrou entre a leitura e a escrita. Não dá para
+  // responder `duplicate: true` sem inventar um id, e `ok: true` com id nulo é
+  // exatamente o que esta rota deixou de fazer.
+  if (!leadId) {
+    return NextResponse.json({ ok: false, error: 'telefone_ja_cadastrado' }, { status: 409 })
+  }
+
+  // Trilha da escrita na base do cliente, no mesmo formato de /api/sdr/leads/import
+  // (que registra `leads.import`): este é o outro caminho que insere lead, e sem isto
+  // ele não deixava rastro de quem inseriu. Só o caminho que ESCREVEU passa por aqui —
+  // o `duplicate: true` lá acima sai antes, e não tocou na base. `logAudit` nunca lança.
+  await logAudit({ req: request, session, action: 'leads.manual', entityType: 'lead', entityId: leadId, metadata: { inserted: 1, updated: 0, skipped: 0, total: 1 } })
   return NextResponse.json({ ok: true, leadId, duplicate: false, name })
 }

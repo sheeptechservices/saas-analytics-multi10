@@ -11,6 +11,12 @@ import { ApiErrorState } from '@/components/ApiErrorState'
 import { ApiError, fetchJson, textoDaFalha, textoDeModuloDesligado } from '@/lib/api-error'
 import type { TextoDaFalha } from '@/lib/api-error'
 import { AddLeadForm } from '@/components/leads/AddLeadForm'
+import {
+  CODIGO_CREDENCIAL_SDR_ILEGIVEL,
+  CREDENCIAL_SDR_ILEGIVEL,
+  FONTE_SDR_NAO_CONFIGURADA,
+  mensagemDeFonteSdr,
+} from '@/lib/sdr/mensagens'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,24 +77,11 @@ const ENROLL_BATCH = 100
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/* A mesma frase nos dois tradutores abaixo, e igual à que /api/sdr/settings devolve
- * na tela de Parâmetros: é a mesma causa (credencial cadastrada que não abre — chave
- * de criptografia trocada ou valor corrompido) e a mesma tela que resolve. Vale dizer
- * onde a credencial é salva, porque "acesse Configurações > Integrações" sozinho
- * levaria o operador a cadastrar uma fonte que já existe. */
-const CREDENCIAL_SDR_ILEGIVEL =
-  'A credencial da fonte de dados SDR está salva mas não pôde ser lida — salve-a de novo em Configurações > Integrações > Fonte de Dados SDR.'
-
+/* As duas frases de credencial vêm de lib/sdr/mensagens: são as mesmas que o
+ * cadastro manual (components/leads/AddLeadForm) e o save de Parâmetros mostram,
+ * porque é a mesma causa e a mesma tela que resolve. */
 function friendlyImportError(code: string): string {
-  if (code === 'import_url_nao_configurada')
-    return 'URL de importação não configurada — acesse Configurações > Credenciais.'
-  if (code === 'fonte_sdr_nao_configurada')
-    return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
-  // 500: a fonte ESTÁ cadastrada e não pôde ser lida. Mandar cadastrar de novo aqui
-  // seria beco sem saída — o que resolve é salvar a credencial outra vez.
-  if (code === 'config_invalid')
-    return CREDENCIAL_SDR_ILEGIVEL
-  return code
+  return mensagemDeFonteSdr(code) ?? code
 }
 
 // Mesmo recorte que a API do disparo faz no nome do lead: só a primeira palavra.
@@ -100,21 +93,34 @@ function primeiroNome(nome: string | null): string {
  * aqui cai no texto genérico por status — e o genérico de 400 diz "revise os
  * filtros", que para uma recusa de configuração é conselho errado, ainda por cima
  * com um botão de tentar de novo que nunca vai funcionar. Ao acrescentar um
- * `error` novo em app/api/sdr/templates ou em /api/sdr/leads, acrescente aqui. */
+ * `error` novo em /api/sdr/leads, /api/sdr/leads/blast ou /api/sdr/templates — as
+ * três rotas cujas recusas passam por aqui —, acrescente aqui.
+ *
+ * ATENÇÃO: são DUAS credenciais diferentes chegando na mesma função. A fonte de
+ * dados SDR (/api/sdr/leads e /api/sdr/leads/blast) e a YCloud (/api/sdr/templates)
+ * quebram por motivos iguais e se resolvem em telas diferentes, então cada uma tem
+ * o seu código e a sua frase — ver lib/sdr/mensagens. */
 function friendlyBlastError(code: string): string {
   if (code === 'blast_url_nao_configurada')
     return 'URL de disparo de lista não configurada — acesse Configurações > Credenciais.'
   if (code === 'remetente_nao_configurado')
     return 'Remetente não configurado na campanha — defina em Parâmetros.'
   if (code === 'fonte_sdr_nao_configurada')
-    return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
+    return FONTE_SDR_NAO_CONFIGURADA
+  // 500 de /api/sdr/leads e /api/sdr/leads/blast: a credencial da FONTE DE DADOS SDR
+  // está salva e não abre. Mesma frase do import e da inscrição, que é a mesma
+  // credencial e a mesma tela de saída.
+  if (code === CODIGO_CREDENCIAL_SDR_ILEGIVEL)
+    return CREDENCIAL_SDR_ILEGIVEL
   // 400 de app/api/sdr/templates: o estado normal de quem ainda não terminou o
   // cadastro da YCloud. Sem esta linha, o cliente novo levava "o pedido foi
   // recusado, revise os filtros" bem no meio da configuração inicial.
   if (code === 'ycloud_nao_configurado')
     return 'WhatsApp (YCloud) ainda não configurado — acesse Configurações > Integrações > YCloud.'
-  // 500: a credencial existe mas não pôde ser lida (chave de criptografia trocada
-  // ou JSON corrompido). Quem resolve isso é quem salva a credencial de novo.
+  // 500 de app/api/sdr/templates: a credencial DA YCLOUD existe mas não pôde ser
+  // lida (chave de criptografia trocada ou JSON corrompido). Das três rotas que
+  // alimentam esta função, só ela devolve `config_invalid` — as outras duas usam o
+  // código da fonte SDR, logo acima. Quem resolve é quem salva a credencial de novo.
   if (code === 'config_invalid')
     return 'A credencial da YCloud está salva mas não pôde ser lida — salve-a de novo em Configurações > Integrações > YCloud.'
   // 502: a YCloud respondeu com erro. Não é nada que o operador configure.
@@ -128,12 +134,10 @@ function friendlyBlastError(code: string): string {
  * nem o que houve nem o que fazer. A frase de `fonte_sdr_nao_configurada` é a mesma
  * dos outros dois tradutores de propósito: é a mesma causa e a mesma tela de saída. */
 function friendlyEnrollError(code: string): string {
-  if (code === 'fonte_sdr_nao_configurada')
-    return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
-  // 500: a fonte está cadastrada e não pôde ser decifrada — mesma frase do import,
-  // porque é a mesma credencial e a mesma tela de saída.
-  if (code === 'config_invalid')
-    return CREDENCIAL_SDR_ILEGIVEL
+  // As duas de credencial saem de lib/sdr/mensagens — mesma frase do import, porque
+  // é a mesma credencial e a mesma tela de saída.
+  const credencial = mensagemDeFonteSdr(code)
+  if (credencial) return credencial
   // 502: a base do cliente recusou a gravação. Quando a rota manda junto um `code`
   // reconhecido, quem chega aqui já é a frase dela (ver runSend) — este texto é a
   // rede de segurança para o resto.

@@ -30,6 +30,7 @@ import { requireTenantUser } from '@/lib/auth-guard'
 import { readN8nSecret } from '@/lib/sdr/settings-merge'
 import { randomUUID } from 'crypto'
 import { getSdrPool, mapSdrDbError } from '@/lib/sdr/pg'
+import { CODIGO_CREDENCIAL_SDR_ILEGIVEL } from '@/lib/sdr/mensagens'
 
 const PROVIDER_KEY  = 'supabase-n8n'
 const SOURCE        = 'sdr-n8n'
@@ -162,8 +163,10 @@ export async function POST(request: Request) {
     if (!cfg.connectionString) throw new Error('connectionString ausente')
     connectionString = cfg.connectionString
   } catch (err) {
+    // Mesma credencial de /api/sdr/leads — a fonte de dados SDR (PROVIDER_KEY acima),
+    // não a da YCloud —, logo o mesmo código. Ver lib/sdr/mensagens.
     return NextResponse.json(
-      { error: 'config_invalid', message: (err as Error).message },
+      { error: CODIGO_CREDENCIAL_SDR_ILEGIVEL, message: (err as Error).message },
       { status: 500 },
     )
   }
