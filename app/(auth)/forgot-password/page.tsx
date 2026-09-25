@@ -1,22 +1,46 @@
 'use client'
 import { useState } from 'react'
 
+/* Frase escrita à mão, e não a que o servidor mandou no corpo.
+ *
+ * Esta tela é aberta a qualquer um, e a regra da casa (lib/api-error.ts) é que
+ * corpo de erro não vira texto de tela sem um código que diga "isto foi escrito
+ * para ser lido". Importar a constante de lib/ambiente.ts também não serve:
+ * arrastaria o catálogo inteiro de variáveis de ambiente para o pacote do
+ * navegador. Uma frase repetida é o menor dos três males. */
+const FALHA_DE_ENVIO =
+  'Não foi possível enviar o e-mail agora. O problema é do servidor, não do seu endereço. Tente de novo em instantes ou avise o suporte.'
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [falhou, setFalhou] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    /* A tela dizia "você receberá as instruções em breve" acontecesse o que
+     * acontecesse: a resposta era jogada fora. Quando o servidor recusa por
+     * falta de configuração de e-mail, prometer o envio é mentira — a pessoa
+     * espera por algo que nunca foi tentado.
+     *
+     * Ler o status aqui não denuncia se o e-mail existe: a rota decide a recusa
+     * olhando só o ambiente, antes de tocar no banco, então ela é a mesma para
+     * endereço cadastrado e não cadastrado. */
+    let deuCerto = true
     try {
-      await fetch('/api/auth/forgot-password', {
+      const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       })
-    } catch {}
+      deuCerto = res.ok
+    } catch {
+      deuCerto = false
+    }
     setLoading(false)
+    setFalhou(!deuCerto)
     setSubmitted(true)
   }
 
@@ -67,12 +91,17 @@ export default function ForgotPasswordPage() {
 
           {submitted ? (
             <div>
+              {/* Mesma caixa, duas caras. Um segundo elemento só para o erro
+                  custaria mais um `style` em linha, e estilo em linha é dívida
+                  que o lint conta uma a uma (eslint.config.mjs, MSG_STYLE). */}
               <div style={{
-                padding: '16px', background: 'rgba(34,197,94,0.06)',
-                border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10,
-                fontSize: 14, color: '#166534', lineHeight: 1.6, marginBottom: 24,
+                padding: '16px',
+                background: falhou ? 'rgba(217,48,37,0.06)' : 'rgba(34,197,94,0.06)',
+                border: falhou ? '1px solid rgba(217,48,37,0.2)' : '1px solid rgba(34,197,94,0.2)',
+                borderRadius: 10,
+                fontSize: 14, color: falhou ? 'var(--red)' : '#166534', lineHeight: 1.6, marginBottom: 24,
               }}>
-                Se este e-mail estiver cadastrado, você receberá as instruções em breve.
+                {falhou ? FALHA_DE_ENVIO : 'Se este e-mail estiver cadastrado, você receberá as instruções em breve.'}
               </div>
               <a
                 href="/login"

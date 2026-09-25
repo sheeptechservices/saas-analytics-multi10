@@ -14,9 +14,18 @@
 
 const LOCAIS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
-/** Origem configurada — usada como reserva e como parte da lista de conhecidos. */
+/** Origem configurada — usada como reserva e como parte da lista de conhecidos.
+ *
+ *  Só APP_URL. Havia aqui uma reserva em `process.env.NEXTAUTH_URL`, e ela
+ *  contradizia o próprio `.env.example`, que manda em letras garrafais NUNCA
+ *  definir essa variável: o next-auth reescreve a origem de toda requisição com
+ *  ela (next-auth/lib/env.js, reqWithEnvURL), o que é justamente o defeito que a
+ *  documentação avisa para não reintroduzir. Enquanto a reserva existisse,
+ *  definir NEXTAUTH_URL "só para a origem funcionar" parecia uma saída — e
+ *  quebrava tudo em volta. Hoje definir essa variável faz o servidor recusar o
+ *  arranque (lib/ambiente.ts, nível "proibida"). */
 export function configuredOrigin(): string {
-  const url = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  const url = process.env.APP_URL || 'http://localhost:3000'
   try {
     return new URL(url).origin
   } catch {
