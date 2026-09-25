@@ -14,9 +14,12 @@ import { configuredOrigin } from '@/lib/origin'
 const PROVIDER_KEY = 'ycloud-whatsapp'
 const MODULE_KEY   = 'integration.ycloud-whatsapp'
 
-// Único lugar que fica na origem configurada, de propósito: esta URL é registrada na
-// YCloud e precisa ser estável e igual para todos. Origem tirada da requisição daria
-// um webhook diferente a cada subdomínio de acesso.
+// Fica na origem configurada de propósito: esta URL é registrada na YCloud e precisa ser
+// estável e igual para todos. Origem tirada da requisição daria um webhook diferente a
+// cada subdomínio de acesso. O outro caso da mesma família é o `ackUrl` que
+// lib/sdr/rodada.ts manda ao disparador — pela mesma razão, e porque uma URL escrita à
+// mão dentro de um fluxo do n8n já envelheceu numa troca de host e quebrou o histórico
+// de disparo em silêncio.
 function getBaseUrl(): string {
   return configuredOrigin()
 }

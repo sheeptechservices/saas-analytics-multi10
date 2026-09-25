@@ -31,57 +31,22 @@ import { readN8nSecret } from '@/lib/sdr/settings-merge'
 import { randomUUID } from 'crypto'
 import { getSdrPool, mapSdrDbError } from '@/lib/sdr/pg'
 import { CODIGO_CREDENCIAL_SDR_ILEGIVEL } from '@/lib/sdr/mensagens'
+// A regra do telefone mora num lugar só: estas funções nasceram aqui, foram copiadas
+// para a régua, e agora as duas pontas importam o mesmo módulo. Duas versões de "como
+// um telefone brasileiro vira E.164" é como o mesmo lead recebe por um número num
+// caminho e por outro no outro.
+import { toE164, ensureBr9, renderMessage, unresolvedPlaceholders, POSICIONAL_RE } from '@/lib/sdr/telefone'
 
 const PROVIDER_KEY  = 'supabase-n8n'
 const SOURCE        = 'sdr-n8n'
 const MAX_LEADS     = 1000
 const UUID_RE       = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const E164_RE       = /^\+[1-9]\d{6,14}$/
-const POSICIONAL_RE = /\{\{\s*\d+\s*\}\}/
 
 interface LeadRow {
   id:             string
   name:           string | null
   phone:          string | null
   phone_adjusted: string | null
-}
-
-// Normalize a lead's stored phone to E.164. Returns null when not usable.
-function toE164(phone: string | null, phoneAdjusted: string | null): string | null {
-  const raw = (phone ?? '').trim()
-  if (raw.startsWith('+') && E164_RE.test(raw)) return raw
-  const digits = (phoneAdjusted ?? phone ?? '').replace(/\D/g, '')
-  if (!digits) return null
-  const e164 = '+' + digits
-  return E164_RE.test(e164) ? e164 : null
-}
-
-// Render template body substituting POSITIONAL placeholders: {{1}} takes the first
-// variable, {{2}} the second — a WhatsApp template has no named variables. Anything the
-// list does not cover ({{nome}}, or {{2}} when only one variable was given) is left
-// untouched on purpose, so the guard below catches it before the message goes out.
-function renderMessage(templateBody: string, vars: string[]): string {
-  return String(templateBody ?? '').replace(/\{\{\s*(\d+)\s*\}\}/g, (raw, pos: string) => {
-    const value = vars[Number(pos) - 1]
-    return value === undefined ? raw : value
-  })
-}
-
-// Placeholders still standing after the render — the lead would receive literal {{...}}.
-function unresolvedPlaceholders(message: string): string[] {
-  return message.match(/\{\{\s*[\w.]+\s*\}\}/g) ?? []
-}
-
-// Ensure BR mobile numbers have the 9th digit (DDD(2) + 9 + 8 digits = 11 national digits).
-// Old leads may be stored without it (10 national digits). Landlines (1st digit 2-5) are
-// left untouched. Non-BR numbers are returned as-is.
-function ensureBr9(e164: string): string {
-  if (!e164.startsWith('+55')) return e164
-  const national = e164.slice(3) // remove '+55'
-  if (national.length !== 10) return e164
-  const firstDigit = national[2] // 1st digit after DDD
-  if (firstDigit < '6') return e164 // landline (2-5) or already impossible — skip
-  return '+55' + national.slice(0, 2) + '9' + national.slice(2)
 }
 
 export async function POST(request: Request) {

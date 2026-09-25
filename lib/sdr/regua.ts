@@ -19,22 +19,23 @@
 // repositório para ser revisada e testada ANTES de mudar a mensagem que alguém recebe
 // no WhatsApp. Ligar numa rota é outro lote.
 //
-// O QUE FICA DE FORA — e o que AINDA NÃO EXISTE EM LUGAR NENHUM
+// O QUE FICA DE FORA — quem faz o resto
 // O passo 5 do fluxo antigo — avançar a fase, agendar a próxima e marcar o
 // `leads.status` — é trabalho do ack, DEPOIS da confirmação de envio, e não deste
-// módulo. Só que esse ack AINDA NÃO FAZ NADA DISSO: app/api/sdr/dispatch/ack/route.ts
-// hoje grava o `messageId` em `blast_recipients` e para aí — não abre `lead_actions`,
-// não avança fase, não agenda a próxima mensagem, não escreve `leads.status`. Um grep
-// por `lead_actions` no repositório acha app/api/sdr/enroll/route.ts,
-// app/api/ycloud/test-send/route.ts, lib/sdr/enroll-write.ts e este arquivo; o ack não
-// está na lista.
+// módulo. Esse ack existe: lib/sdr/regua-ack.ts, chamado por
+// app/api/sdr/dispatch/ack/route.ts. Ele cria a próxima `lead_actions` com a guarda
+// `NOT EXISTS (ação ativa)` do enroll-write, agenda para as 09:00 de São Paulo somando
+// o `delay_dias` da configuração, escreve o `leads.status` e liquida a reserva no
+// livro-caixa. Este módulo é o que torna isso possível: cada destinatário sai com o
+// `acaoId` e a `fase` que foram reservados.
 //
-// A consequência, escrita em voz alta para ninguém ligar isto acreditando o contrário:
-// um lead reservado e enviado por este caminho ficaria com `ativo = false` na MESMA
-// fase, para sempre — fora da campanha, sem erro em lugar nenhum. O que este módulo
-// faz é deixar o ack POSSÍVEL: cada destinatário sai com o `acaoId` e a `fase` que
-// foram reservados. Enquanto o outro lado não existir, o único uso honesto daqui é ler
-// o lote e devolver as reservas com `devolverReservas`.
+// A ORDEM DO OUTRO LADO, que tem consequência aqui: o ack avança a fase ANTES de
+// liquidar a reserva. Os dois passos são idempotentes, então uma repetição é segura de
+// qualquer lado; se o processo morrer entre eles, sobra uma reserva EM VOO cuja mensagem
+// JÁ SAIU. Isso não é resíduo inofensivo: quem for devolver essa reserva tem de conferir
+// antes se o lead já tem ação ativa, senão reativa a linha velha ao lado da nova e o
+// lead recebe de novo a fase que acabou de receber. lib/sdr/varredura.ts faz essa
+// conferência; qualquer outra recuperação que venha a existir também tem de fazer.
 //
 // A RESERVA (e por que ela é uma instrução só)
 // Enquanto este caminho for usado à mão, o cron antigo continua rodando. Se os dois
@@ -57,9 +58,12 @@
 // dez, manda zero e volta `todos_descartados`. Repor as vagas descartadas exigiria
 // reservar mais linhas no lugar, e aí a rodada deixaria de ter teto — é para não fazer
 // isso que o número de reservas é o número de vagas. O chamador recebe `reservadas`,
-// `enviar` e `descartados` para poder dizer exatamente isso na tela; e a cota do DIA
-// não foi consumida (nada foi registrado no balde), então rodar de novo depois de
-// arrumar o cadastro é legítimo.
+// `enviar` e `descartados` para poder dizer exatamente isso na tela; e rodar de novo
+// depois de arrumar o cadastro é legítimo — desde que o descarte tenha DESFECHO no
+// livro-caixa (lib/sdr/reservas). Ali uma reserva fica 'reservada' até alguém dizer o
+// que houve com ela, e 'reservada' GASTA cota; um descarte registrado e esquecido come
+// uma vaga do dia inteiro sem nunca ter virado mensagem. Devolver no cliente
+// (`devolverReservas`) e marcar lá (`marcarDevolvidas`) é o par que fecha a conta.
 //
 // O QUE A RESERVA NÃO RESOLVE, e não tem como resolver daqui: o fluxo antigo SELECIONA
 // e só desativa a linha DEPOIS de mandar. Uma linha que ele já pegou continua com
@@ -70,43 +74,61 @@
 // conselho operacional é não rodar os dois no mesmo horário.
 //
 // O QUE NÃO ESTÁ GARANTIDO HOJE — leia antes de ligar isto em qualquer rota
-// Duas coisas NÃO são resolvidas aqui, não são resolvíveis dentro deste arquivo, e
-// nenhum parágrafo acima deve ser lido como se estivessem resolvidas:
+// Dois buracos foram escritos aqui como abertos. Um deles fechou, o outro NÃO, e a
+// diferença entre os dois é onde cada um fecha:
 //
-//   1. RESERVA ÓRFÃ. Uma linha reservada fica `ativo = false` — byte por byte o mesmo
-//      estado de uma linha que já terminou a campanha. Não há marca de quem reservou,
-//      nem quando, nem prazo de validade: olhando a tabela, reserva em voo e linha
-//      encerrada são indistinguíveis. Se o processo morrer DEPOIS de o `UPDATE`
-//      confirmar e ANTES de o chamador guardar os `acaoId`, esses ids não existem em
-//      lugar nenhum — ninguém envia, ninguém devolve, e aqueles leads saem da campanha
-//      para sempre, em silêncio. Não existe varredura de reserva velha, não existe
-//      retomada, não existe timeout.
+//   1. RESERVA ÓRFÃ — CONTINUA ABERTA. Uma linha reservada fica `ativo = false`, byte
+//      por byte o mesmo estado de uma linha que já terminou a campanha, e o schema do
+//      cliente não é nosso: não dá para acrescentar lá uma marca de quem reservou.
+//      lib/sdr/reservas dá essa marca do NOSSO lado, e `listarReservasParadas` acha a
+//      reserva velha — mas só a que FOI registrada. São dois bancos e duas gravações
+//      que não confirmam juntas: morto o processo DEPOIS de o `UPDATE` na base do
+//      cliente confirmar e ANTES de o chamador registrar o lote, não existe linha em
+//      lugar nenhum. Ninguém envia, ninguém devolve, aqueles leads saem da campanha em
+//      silêncio e para sempre. Fechar esse resto é uma varredura por INVARIANTE —
+//      procurar `lead_actions` inativa que não tem linha correspondente no livro-caixa
+//      —, e ELA NÃO EXISTE. Não há timeout, não há retomada automática. Nenhum
+//      parágrafo acima deve ser lido como se houvesse.
 //
-//   2. COTA FURADA. `enviadosHoje` conta só o que o ack JÁ escreveu (ver CONTAGEM
-//      INCOMPLETA). Reserva em voo é invisível para essa conta: duas chamadas em
-//      sequência rápida, antes de o primeiro ack chegar, recebem CADA UMA a cota
-//      restante inteira. Ou seja, a instrução única garante que a mesma LINHA não sai
-//      duas vezes — e isso está testado; ela não garante teto para o TOTAL do dia
-//      quando há mais de uma rodada em voo.
+//   2. COTA FURADA — fechada POR CONSTRUÇÃO NO CHAMADOR, e não por este módulo. O furo
+//      era a reserva EM VOO ser invisível para a conta do dia: duas chamadas em
+//      sequência rápida, antes de o primeiro ack chegar, recebiam CADA UMA a cota
+//      restante inteira. Quem enxerga o em voo é `contarConsumidasHoje` de
+//      lib/sdr/reservas, e ela entra por `contarEnviadosHoje` — a porta que este módulo
+//      tornou OBRIGATÓRIA exatamente por causa disto. Não dá para ligar por dentro:
+//      lib/sdr/reservas importa `baldeDoDia` daqui, e o import de volta seria ciclo. E
+//      não há default para cair, porque o default que existia era o errado. Então o
+//      furo fecha NO CHAMADOR, quando ele passa o contador do livro-caixa; passar
+//      qualquer outra coisa reabre, e SOMAR os dois contadores é pior que não fechar —
+//      toda reserva liquidada como 'enviada' também vira uma linha de
+//      `blast_recipients` pelo ack, então a soma conta duas vezes cada mensagem
+//      entregue e corta a cota real pela metade.
 //
-// As duas se resolvem do mesmo jeito, e é um lote à parte: registrar a reserva no banco
-// DA APP — quem reservou, quando, com que prazo —, o que torna a reserva em voo
-// contável e a órfã recuperável. Até esse lote existir, o único modo de operação
-// defensável é UMA rodada por vez, com o chamador guardando os `acaoId` antes de
-// qualquer outra coisa.
+// Enquanto o lote que liga a régua numa rota não existir, o modo de operação defensável
+// continua sendo UMA rodada por vez, com o chamador guardando os `acaoId` antes de
+// qualquer outra coisa — por causa do buraco 1, que nenhuma porta fecha.
 //
 // CONTAGEM INCOMPLETA — a honestidade que o limite diário exige
-// O desconto do limite usa `blast_recipients` no balde do dia (o mesmo id
-// determinístico que app/api/sdr/dispatch/ack/route.ts cria). Só que o fluxo ANTIGO
-// do n8n não registra nada lá. Enquanto os dois caminhos coexistirem, essa contagem é
-// um PISO, não o total: pode sobrar folga que na prática já foi gasta. O resultado
-// carrega `limite.incompleta` para o chamador poder dizer isso na tela em vez de
-// apresentar um número que parece exato. Quando o cron antigo for desligado, é essa
-// bandeira (e o teste que a prende) que se apaga.
+// O desconto do limite não é mais calculado aqui: ele chega inteiro pela porta
+// `contarEnviadosHoje`, e o que a conta enxerga é o que o chamador escolheu. Com o
+// contador de lib/sdr/reservas, que é para isso que ele existe, o quadro é este:
 //
-// E o cron antigo não é o único furo dessa conta: reserva em voo também não está nela
-// (ver COTA FURADA, acima). Apagar a bandeira quando o cron morrer conserta o furo do
-// n8n, não o da reserva — esse é o outro lote.
+//   · PASSA A SER VISÍVEL a reserva EM VOO — a linha que a régua acabou de marcar
+//     `ativo = false` e sobre a qual nenhum ack chegou ainda. Era essa cegueira que
+//     fazia o limite DIÁRIO desabar em limite POR RODADA, que é o mesmo defeito que a
+//     régua veio matar no n8n, voltando pela nossa porta.
+//
+//   · CONTINUA INVISÍVEL tudo o que o cron ANTIGO do n8n manda. Aquele fluxo não passa
+//     por reserva nenhuma (não escreve `dispatch_claims`) e não manda ack (não escreve
+//     `blast_recipients`): ele não aparece em NENHUM dos dois lugares, e não há
+//     contagem nossa que o alcance.
+//
+// Por isso a contagem continua sendo um PISO, e não o total: pode sobrar folga que na
+// prática já foi gasta. O resultado carrega `limite.incompleta` para o chamador poder
+// dizer isso na tela em vez de apresentar um número que parece exato. E daí a conclusão
+// que importa: o limite diário só é HONESTO depois que o fluxo antigo for DESLIGADO —
+// ligar o livro-caixa conserta o furo da reserva em voo e não conserta este. É o
+// desligamento do cron, e nada mais, que apaga a bandeira (e o teste que a prende).
 //
 // DESVIO CONHECIDO, ESPERANDO DECISÃO DO PRODUTO — `fase_final`
 // O filtro é `fase <> fase_final`, igual ao do n8n: a campanha PARA NA fase final em
@@ -137,22 +159,29 @@
 // órfã). O preço está documentado em SQL_RESERVAR: quando nada é reservado, a consulta
 // devolve uma linha-resumo, com `acao_id` NULL.
 //
-// CÓPIA DECLARADA — os ajudantes de app/api/sdr/leads/blast/route.ts
-// `toE164`, `ensureBr9`, `renderMessage`, `POSICIONAL_RE` e as regras de pular lead
-// sem telefone / sem nome nasceram na rota de blast e continuam lá, sem `export`.
-// Estão repetidos abaixo porque este lote não pode tocar naquele arquivo. A dívida é
-// explícita: o lote que ligar a régua numa rota tem de extrair os cinco para um módulo
-// comum e apagar esta cópia. Duas versões de "como um telefone brasileiro vira E.164"
-// é como um lead passa a receber mensagem num número e o histórico ir para outro.
+// REGRA DO TELEFONE — mora em lib/sdr/telefone.ts, num lugar só
+// `toE164`, `ensureBr9`, `renderMessage` e `unresolvedPlaceholders` nasceram privados
+// na rota de blast e por um tempo existiram repetidos aqui. Não existem mais: os dois
+// chamadores importam o mesmo módulo. Duas versões de "como um telefone brasileiro
+// vira E.164" é como um lead passa a receber mensagem num número e o histórico ir
+// para outro — e o módulo documenta, numerados, os nove defeitos que essa regra tem
+// hoje e que foram preservados de propósito. As regras de pular lead sem telefone e
+// sem nome continuam aqui, porque a régua descarta um destinatário onde o blast
+// recusa o pedido inteiro.
 //
 // REGRA DO PROJETO: este é um dos poucos arquivos que ESCREVE na base do cliente — e
 // escreve só `lead_actions.ativo`. A string de conexão chega pronta de quem chamou
 // (lib/sdr/conexao-tenant) e nunca entra em log nem em mensagem de erro.
+//
+// E O BANCO DA APP NÃO É MAIS FALADO DAQUI. Com a contagem virando porta obrigatória, o
+// único `select` que este módulo fazia no nosso Postgres (`blast_recipients` no balde do
+// dia) saiu, e com ele os imports de lib/db e do schema. Sobrou UM banco só, o do
+// cliente, e um caminho só até ele, lib/sdr/pg. Quem for ressuscitar uma consulta ao
+// nosso banco aqui está trazendo de volta o ciclo com lib/sdr/reservas e o default
+// errado junto com ele — é para isso que este parágrafo existe.
 
-import { count, eq } from 'drizzle-orm'
-import { db } from '@/lib/db'
-import { blastRecipients } from '@/lib/db/schema'
 import { withSdrDb } from './pg'
+import { toE164, ensureBr9, renderMessage, unresolvedPlaceholders, POSICIONAL_RE } from './telefone'
 
 // ─── Fuso ─────────────────────────────────────────────────────────────────────
 //
@@ -219,11 +248,15 @@ export function horaLocalSp(agora: Date): HoraLocal {
 }
 
 /**
- * Id do balde do dia em `blast_campaigns`/`blast_recipients`.
+ * Id do balde do dia: o recorte diário que `blast_campaigns`/`blast_recipients` (do ack)
+ * e `dispatch_claims` (do livro-caixa de lib/sdr/reservas) usam — os três com o MESMO
+ * id, porque os três falam da mesma cota.
  *
- * Tem de ser byte a byte o mesmo que `dayBucketId` de app/api/sdr/dispatch/ack: é o
- * ack que ESCREVE as linhas e é este módulo que as CONTA. Divergir aqui não daria
- * erro nenhum — daria uma contagem eternamente zero, ou seja, limite diário nenhum.
+ * Tem de ser byte a byte o mesmo que `dayBucketId` de app/api/sdr/dispatch/ack: é o ack
+ * que ESCREVE as linhas do blast, e é por este id que a cota do dia é recortada em
+ * qualquer contagem. Divergir aqui não daria erro nenhum — daria uma contagem
+ * eternamente zero, ou seja, limite diário nenhum. É por isso que lib/sdr/reservas chama
+ * esta função em vez de remontar a fórmula do seu lado.
  */
 export function baldeDoDia(tenantId: string, agora: Date): string {
   return `${tenantId}:drip:${horaLocalSp(agora).aaaammdd}`
@@ -475,66 +508,23 @@ export type ContagemDoDia = {
    * Só existe quando o motivo é `contagem_indisponivel`: o erro CRU que a porta de
    * contagem levantou, para o chamador LOGAR.
    *
-   * Não é um `SdrDbError` e não pode virar um: quem falhou foi o banco DA APP, e a
-   * mensagem de `SdrDbError` diz "não foi possível falar com a base de dados do SDR" —
-   * acusaria a base do cliente pela nossa indisponibilidade. Também não vai para a
-   * tela: pode carregar texto de driver.
+   * Não é um `SdrDbError` e não pode virar um: quem falhou foi a porta, que fala com o
+   * banco DA APP, e a mensagem de `SdrDbError` diz "não foi possível falar com a base de
+   * dados do SDR" — acusaria a base do cliente pela nossa indisponibilidade. Também não
+   * vai para a tela: pode carregar texto de driver.
    */
   falha?: unknown
 }
 
 /**
- * Enquanto o fluxo antigo existir, a contagem da app é sempre parcial. É constante de
- * propósito e não um palpite por tenant: não há como a app saber o que o n8n mandou.
+ * Enquanto o fluxo antigo existir, a contagem da app é sempre parcial — qualquer que
+ * seja a porta que o chamador passe. É constante de propósito e não um palpite por
+ * tenant: não há como a app saber o que o n8n mandou, porque o cron antigo não escreve
+ * nem em `dispatch_claims` (não reserva) nem em `blast_recipients` (não manda ack).
  * Apagar o cron antigo é o commit que troca isto por `false` — e o teste que prende
  * esta bandeira é o lembrete de que a troca existe.
  */
 export const CONTAGEM_INCOMPLETA = true
-
-// ─── Ajudantes copiados da rota de blast ──────────────────────────────────────
-//
-// Ver CÓPIA DECLARADA no cabeçalho. Nada aqui é "melhorado": qualquer diferença de
-// comportamento em relação a app/api/sdr/leads/blast/route.ts seria um bug silencioso
-// em que o mesmo lead recebe mensagem por um número no blast e por outro na régua.
-
-const E164_RE = /^\+[1-9]\d{6,14}$/
-const POSICIONAL_RE = /\{\{\s*\d+\s*\}\}/
-
-/** Normaliza o telefone guardado para E.164. `null` quando não dá para usar. */
-function toE164(phone: string | null, phoneAdjusted: string | null): string | null {
-  const raw = (phone ?? '').trim()
-  if (raw.startsWith('+') && E164_RE.test(raw)) return raw
-  const digits = (phoneAdjusted ?? phone ?? '').replace(/\D/g, '')
-  if (!digits) return null
-  const e164 = '+' + digits
-  return E164_RE.test(e164) ? e164 : null
-}
-
-/** Garante o nono dígito do celular brasileiro (DDD + 9 + 8 dígitos). Fixo (primeiro
- *  dígito 2-5) e número de fora do Brasil passam intactos. */
-function ensureBr9(e164: string): string {
-  if (!e164.startsWith('+55')) return e164
-  const national = e164.slice(3)
-  if (national.length !== 10) return e164
-  const firstDigit = national[2]
-  if (firstDigit < '6') return e164
-  return '+55' + national.slice(0, 2) + '9' + national.slice(2)
-}
-
-/** Substitui as variáveis POSICIONAIS do template: {{1}} é a primeira, {{2}} a
- *  segunda. O que a lista não cobre fica intacto — de propósito, para a guarda
- *  abaixo pegar antes de a mensagem sair. */
-function renderMessage(templateBody: string, vars: string[]): string {
-  return String(templateBody ?? '').replace(/\{\{\s*(\d+)\s*\}\}/g, (raw, pos: string) => {
-    const value = vars[Number(pos) - 1]
-    return value === undefined ? raw : value
-  })
-}
-
-/** Placeholders que sobreviveram ao render — o lead receberia `{{...}}` literal. */
-function placeholdersPendentes(message: string): string[] {
-  return message.match(/\{\{\s*[\w.]+\s*\}\}/g) ?? []
-}
 
 // ─── Contrato ─────────────────────────────────────────────────────────────────
 
@@ -567,16 +557,32 @@ export type PedidoDaRegua = {
    *  porque é o que deixa a janela e o fuso testáveis sem relógio falso. */
   agora: Date
   /**
-   * Porta de substituição para a contagem do dia. O padrão conta `blast_recipients`
-   * no balde do dia, no banco DA APP — e é por isso que ela é injetável: o resto do
-   * módulo fala só com a base do cliente, e um teste da régua não deveria precisar
-   * subir o schema inteiro da app para provar uma subtração.
+   * De onde sai o quanto da cota de hoje JÁ foi comprometido. OBRIGATÓRIA — e o fato de
+   * não haver default é a decisão de desenho deste campo, não um esquecimento.
+   *
+   * HAVIA um default: contar `blast_recipients` no balde do dia, no banco da app. Ele
+   * era errado de um jeito que não dava erro em lugar nenhum — aquelas linhas são
+   * escritas pelo ack, DEPOIS de o n8n enviar, então a reserva em voo não entrava na
+   * conta e o limite do DIA virava limite POR RODADA. Quem enxerga o em voo é
+   * `contarConsumidasHoje` de lib/sdr/reservas, e ela tem de ENTRAR NO LUGAR da contagem
+   * antiga, nunca ao lado dela: somar as duas conta duas vezes toda mensagem entregue
+   * (a reserva liquidada como 'enviada' também vira `blast_recipients` pelo ack) e corta
+   * a cota real pela metade.
+   *
+   * Três coisas impediam consertar isso por dentro, e juntas dão a resposta. Este módulo
+   * não pode importar aquela função — lib/sdr/reservas importa `baldeDoDia` daqui, e o
+   * import de volta é ciclo. Não pode manter o default antigo — default errado é pior
+   * que default nenhum, porque funciona. E não pode confiar num comentário de aviso —
+   * quem esquece de trocar o default não estava lendo o comentário. Então o campo é
+   * obrigatório e quem chama escolhe em voz alta: não existe jeito de errar por omissão.
    *
    * O que ela devolve é CONFERIDO antes de virar subtração (`contagemUtilizavel`), e o
    * que ela levanta vira `contagem_indisponivel` em vez de escapar: porta pública que
-   * decide quantas mensagens saem não entra na conta sem passar pela portaria.
+   * decide quantas mensagens saem não entra na conta sem passar pela portaria. Não
+   * passá-la é erro de compilação e, quando o compilador não estiver no caminho, o
+   * motivo `contagem_nao_fornecida`.
    */
-  contarEnviadosHoje?: (tenantId: string, agora: Date) => Promise<number>
+  contarEnviadosHoje: (tenantId: string, agora: Date) => Promise<number>
 }
 
 /** Por que este lote saiu do tamanho que saiu. `'ok'` é o único com destinatários. */
@@ -606,9 +612,16 @@ export type MotivoDoLote =
   /** A cota de hoje acabou de verdade: o limite é maior que zero e já foi gasto. Os
    *  números estão em `limite`. */
   | 'limite_diario_atingido'
-  /** A porta de contagem falhou. FECHADO: nada foi reservado — mas a culpa é NOSSA (o
-   *  balde do dia mora no banco da APP), e por isso não é `SdrDbError`. O erro cru vem
-   *  em `limite.falha`, para o chamador logar. */
+  /** A porta de contagem NÃO FOI PASSADA. Não é estado da campanha nenhum: é defeito de
+   *  quem chamou, e o compilador já o recusa. Este motivo existe para quando o
+   *  compilador não está no caminho — pedido montado a partir de JSON, um `any` no meio,
+   *  chamada vinda de JavaScript — e os chamadores deste módulo são rotas, que neste
+   *  repositório não têm teste. Sem saber quanto da cota já foi gasto, nada é reservado;
+   *  ver `contarEnviadosHoje` em `PedidoDaRegua` para por que não há default. */
+  | 'contagem_nao_fornecida'
+  /** A porta de contagem falhou. FECHADO: nada foi reservado — mas a culpa é NOSSA (a
+   *  porta fala com o banco da APP, não com o do cliente), e por isso não é
+   *  `SdrDbError`. O erro cru vem em `limite.falha`, para o chamador logar. */
   | 'contagem_indisponivel'
   /** A porta de contagem respondeu o que não dá para subtrair (`NaN`, `null`, `-1`,
    *  `1.5`). Também fechado, e também nosso: `contarEnviadosHoje` é API pública, e o
@@ -797,45 +810,27 @@ type LinhaDoLote = {
  *  `lead_ausente`, com dívida declarada. */
 type LinhaReservada = LinhaDoLote & { acao_id: string }
 
-// ─── Contagem do dia ──────────────────────────────────────────────────────────
-
-/**
- * Quantas mensagens a APP registrou hoje para este tenant. É a única consulta deste
- * módulo que fala com o banco da app; tudo o mais é base do cliente.
- *
- * O balde é o do ack, e o `count` vem de `blast_recipients` — não de
- * `blast_campaigns.started`, que é um contador incrementado à parte e portanto pode
- * divergir. Uma linha por mensagem é o dado; o contador é resumo.
- */
-async function contarNoBancoDaApp(tenantId: string, agora: Date): Promise<number> {
-  const [linha] = await db
-    .select({ total: count() })
-    .from(blastRecipients)
-    .where(eq(blastRecipients.campaignId, baldeDoDia(tenantId, agora)))
-
-  return linha?.total ?? 0
-}
-
 // ─── Régua ────────────────────────────────────────────────────────────────────
 
 /**
  * Escolhe e RESERVA o lote devido agora.
  *
- * A ordem das recusas é escolhida, não acidental: primeiro o que é configuração
- * (interruptor, remetente, fase final), depois o relógio, depois a cota, e só então o
- * banco do cliente. Nenhuma linha é reservada antes de todas essas respostas serem
- * "pode" — reservar para depois descobrir que não podia é exatamente o buraco em que
- * um lead some da campanha.
+ * A ordem das recusas é escolhida, não acidental: primeiro o defeito de quem chamou (a
+ * porta de contagem), depois o que é configuração (interruptor, remetente, fase final),
+ * depois o relógio, depois a cota, e só então o banco do cliente. Nenhuma linha é
+ * reservada antes de todas essas respostas serem "pode" — reservar para depois descobrir
+ * que não podia é exatamente o buraco em que um lead some da campanha.
  *
  * Erro da base do CLIENTE sobe como `SdrDbError` pelo `withSdrDb`; nada é engolido.
  * "Nada a enviar" NUNCA é erro: é um lote vazio com motivo.
  *
- * A única exceção — e ela é deliberada — é a contagem do dia, que fala com o banco DA
- * APP: falhar ali vira o motivo `contagem_indisponivel`, com o erro original em
- * `limite.falha`. Deixar subir cru faria o chamador que traduz `SdrDbError` em "a base
- * do SDR está fora" acusar a base do cliente por uma queda nossa; e deixar sem motivo
- * seria o único caminho de "nada a enviar" sem código próprio, que é justamente o que
- * este módulo veio abolir.
+ * A única exceção — e ela é deliberada — é a porta de contagem, que não é deste módulo e
+ * fala com o banco DA APP: falhar ali vira o motivo `contagem_indisponivel`, com o erro
+ * original em `limite.falha`. Deixar subir cru faria o chamador que traduz `SdrDbError`
+ * em "a base do SDR está fora" acusar a base do cliente por uma queda nossa; e deixar sem
+ * motivo seria o único caminho de "nada a enviar" sem código próprio, que é justamente o
+ * que este módulo veio abolir. Pela mesma régua, a porta AUSENTE sai com motivo próprio
+ * (`contagem_nao_fornecida`) em vez de um `TypeError` sem nome.
  */
 export async function selecionarDevidos(
   connectionString: string,
@@ -878,6 +873,24 @@ export async function selecionarDevidos(
   const resultadoJanela = janelaDeEnvio(config, agora)
   const janela = resultadoJanela.janela
 
+  /* A porta de contagem é conferida ANTES de qualquer pergunta sobre a campanha, e a
+   * ordem é escolhida. Todas as outras recusas descrevem um ESTADO da campanha —
+   * desligada, fora do horário, sem cota —; esta descreve um DEFEITO DE QUEM CHAMOU, e
+   * defeito não espera a sua vez. Posta depois das outras, ela só apareceria na primeira
+   * rodada que chegasse até a contagem, ou seja, na primeira rodada em que mensagens
+   * sairiam de verdade — o pior instante possível para descobrir que a cota não seria
+   * conferida.
+   *
+   * O tipo já recusa quem esquecer, e este `if` parece redundante por causa disso. Não é:
+   * os chamadores deste módulo são rotas, e rota neste repositório não tem teste; o
+   * pedido delas pode ser montado a partir de JSON, atravessar um `any` ou vir de
+   * JavaScript, e aí o compilador não está no caminho. Sem o `if`, o que acontece é um
+   * `TypeError` cru subindo do meio da função — o zero sem nome que este módulo inteiro
+   * existe para abolir. Com ele, é um motivo. */
+  if (typeof pedido.contarEnviadosHoje !== 'function') {
+    return vazio('contagem_nao_fornecida', janela)
+  }
+
   if (config.ativo !== true) return vazio('campanha_inativa', janela)
 
   // Mesma recusa da rota de blast: sem remetente não há de quem a mensagem sai, e
@@ -903,16 +916,15 @@ export async function selecionarDevidos(
     return vazio('limite_diario_zero', janela, { enviadosHoje: null, disponivel: 0 })
   }
 
-  const contar = pedido.contarEnviadosHoje ?? contarNoBancoDaApp
-
   let contagemBruta: unknown
   try {
-    contagemBruta = await contar(tenantId, agora)
+    contagemBruta = await pedido.contarEnviadosHoje(tenantId, agora)
   } catch (erro) {
     /* FECHADO: sem saber o que já saiu hoje, não se reserva nada — a alternativa seria
      * mandar em cima de um limite que ninguém conferiu. Mas isto NÃO sobe como erro
-     * cru nem vira `SdrDbError`: quem caiu foi o banco da APP, e `SdrDbError` diria ao
-     * operador que a base do CLIENTE está fora — culpando o cliente pela nossa queda.
+     * cru nem vira `SdrDbError`: quem caiu foi a porta, que fala com o banco da APP, e
+     * `SdrDbError` diria ao operador que a base do CLIENTE está fora — culpando o
+     * cliente pela nossa queda.
      * Motivo próprio, e o erro original viaja em `limite.falha` para o log. */
     return vazio('contagem_indisponivel', janela, {
       enviadosHoje: null, disponivel: null, falha: erro,
@@ -993,7 +1005,7 @@ export async function selecionarDevidos(
      * todo mundo recebe o mesmo template. Aqui cada fase tem o seu, então a recusa é
      * por destinatário: um template mal cadastrado não pode calar os outros. O que
      * não muda é que a mensagem com `{{...}}` literal não sai. */
-    if (placeholdersPendentes(message).length > 0) { descartar('variavel_sem_valor'); continue }
+    if (unresolvedPlaceholders(message).length > 0) { descartar('variavel_sem_valor'); continue }
 
     const rawSession = (linha.phone_adjusted ?? linha.phone ?? '').replace(/\D/g, '')
     enviar.push({

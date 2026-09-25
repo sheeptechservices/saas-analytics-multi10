@@ -12,14 +12,21 @@
 // Por isso o PGlite (o Postgres compilado para WASM) entra pela fábrica de pools de
 // lib/sdr/pg: o SQL de produção roda inteiro, sem o teste reescrever nada.
 //
-// SÃO DOIS BANCOS, e a distinção importa:
-//   · o do CLIENTE (`leads`, `lead_actions`, `meta_templates_whatsapp`) sobe cru
-//     (`comSchema: false`), porque essas tabelas não são do schema da app — o DDL
-//     mínimo delas mora aqui, copiado do que o n8n escrevia;
-//   · o da APP (`blast_recipients`) sobe COM as migrações, via `usarComoBancoDoApp`,
-//     porque é lá que a régua conta o que já saiu hoje. Sem esse segundo banco, o
-//     desconto do limite diário seria testado contra uma imitação — e é justamente o
-//     número que decide quantas mensagens saem.
+// É UM BANCO SÓ, e isso MUDOU: o do CLIENTE (`leads`, `lead_actions`,
+// `meta_templates_whatsapp`), que sobe cru (`comSchema: false`) porque essas tabelas não
+// são do schema da app — o DDL mínimo delas mora aqui, copiado do que o n8n escrevia.
+//
+// Havia um segundo banco aqui, o DA APP, com as migrações reais, porque a régua contava
+// `blast_recipients` para descontar o limite do dia. Essa contagem SAIU do módulo: ela é
+// porta obrigatória agora (`contarEnviadosHoje`), e quem a preenche em produção é
+// `contarConsumidasHoje` de lib/sdr/reservas — que tem o teste dela, contra o banco da
+// app de verdade, em lib/sdr/reservas.test.ts. Testar aqui de novo seria testar o banco
+// dos outros.
+//
+// A porta entra aqui como um livro-caixa de mentira: um contador por BALDE DO DIA (ver
+// `consumidas`, lá embaixo). A FORMA é o que importa nele — um fake que devolvesse um
+// número fixo faria o teste "mensagem de outro dia não consome a cota de hoje" passar
+// sem testar balde nenhum.
 //
 // SOBRE A CONCORRÊNCIA QUE O PGLITE CONSEGUE E A QUE ELE NÃO CONSEGUE
 // O PGlite tem UM backend: duas consultas nunca executam ao mesmo tempo. Então o
@@ -35,7 +42,7 @@ import { test, before, beforeEach, after } from 'node:test'
 import assert from 'node:assert/strict'
 import type { PGlite } from '@electric-sql/pglite'
 import type { QueryResult, QueryResultRow } from 'pg'
-import { bancoDeTeste, usarComoBancoDoApp, soltarBancoDoApp, type BancoDeTeste } from '@/test-support/pglite'
+import { bancoDeTeste } from '@/test-support/pglite'
 import { closeAllSdrPools, setSdrPoolFactory, type SdrPool } from '@/lib/sdr/pg'
 import {
   CONTAGEM_INCOMPLETA,
@@ -51,8 +58,8 @@ import {
   selecionarDevidos,
   vagasDoDia,
   type ConfigDaRegua,
+  type PedidoDaRegua,
 } from '@/lib/sdr/regua'
-import { blastCampaigns, blastRecipients, tenants } from '@/lib/db/schema'
 
 /* String de conexão EXCLUSIVA deste arquivo. Os pools de lib/sdr/pg ficam num mapa
  * de módulo indexado pelo hash da string: dois arquivos de teste com a mesma string
@@ -113,11 +120,28 @@ const DDL_CLIENTE = `
 
 let cliente: PGlite
 let fecharCliente: () => Promise<void>
-let app: BancoDeTeste
 
 /** Todo SQL que chegou à base do cliente — é como se prova que uma chamada NÃO
  *  consultou, e que a reserva é uma instrução só. */
 let consultas: string[] = []
+
+/**
+ * O livro-caixa das reservas, de mentira: quanto da cota já foi comprometido, POR BALDE
+ * DO DIA. É o formato de `contarConsumidasHoje` de lib/sdr/reservas — a função que, em
+ * produção, entra na porta `contarEnviadosHoje` da régua.
+ *
+ * Ser indexado pelo balde, e não um número solto, é o ponto: é isso que deixa o teste do
+ * "registrado em OUTRO dia" continuar testando alguma coisa depois que a consulta ao
+ * banco da app saiu do módulo.
+ */
+const consumidas = new Map<string, number>()
+
+/** A porta de contagem, como todo teste daqui a passa. Lê o mesmo `baldeDoDia` que a
+ *  régua usa — de propósito: uma fórmula de balde remontada aqui provaria que os dois
+ *  concordam com uma cópia, e não entre si. */
+async function contarPeloLivroCaixa(tenantId: string, agora: Date): Promise<number> {
+  return consumidas.get(baldeDoDia(tenantId, agora)) ?? 0
+}
 
 /** Quando ligado, toda consulta à base do cliente espera aqui. Ver SOBRE A
  *  CONCORRÊNCIA no cabeçalho. */
@@ -145,13 +169,6 @@ before(async () => {
   fecharCliente = cru.fechar
   await cliente.exec(DDL_CLIENTE)
 
-  // O banco DA APP, com as migrações reais — é dele que sai `blast_recipients`.
-  app = await bancoDeTeste()
-  usarComoBancoDoApp(app.db)
-  await app.db.insert(tenants).values({
-    id: TENANT, name: 'Régua', slug: 'regua', createdAt: new Date(),
-  })
-
   // A fábrica de pools de produção trocada por uma que fala com o PGlite do cliente.
   // O resto do caminho (buildSdrPoolConfig, cache, withSdrDb, tradução de erro) é real.
   setSdrPoolFactory(() => {
@@ -178,14 +195,12 @@ before(async () => {
 after(async () => {
   await closeAllSdrPools()
   setSdrPoolFactory(null)
-  soltarBancoDoApp()
   await fecharCliente()
-  await app.fechar()
 })
 
 beforeEach(async () => {
   await cliente.exec('TRUNCATE lead_actions; TRUNCATE leads; TRUNCATE meta_templates_whatsapp;')
-  await app.pg.exec('TRUNCATE blast_recipients; TRUNCATE blast_campaigns CASCADE;')
+  consumidas.clear()
   consultas = []
   portao = null
 })
@@ -243,20 +258,12 @@ async function acao(id: string): Promise<{ ativo: boolean | null; fase: string |
   return rs.rows[0]
 }
 
-/** Grava no banco DA APP `quantas` mensagens no balde de hoje — é o que o ack faria. */
-async function semearEnviadosHoje(quantas: number, agora: Date): Promise<void> {
-  const id = baldeDoDia(TENANT, agora)
-  await app.db.insert(blastCampaigns).values({
-    id, tenantId: TENANT, kind: 'campanha', template: 'Campanha SDR',
-    totalSolicitado: quantas, skipped: 0, started: quantas, status: 'enviando',
-    createdAt: agora,
-  })
-  for (let i = 0; i < quantas; i++) {
-    await app.db.insert(blastRecipients).values({
-      id: `${id}:${i}`, campaignId: id, leadId: LEAD_A, phone: '+5511999990000',
-      firstName: 'Ana', messageBody: 'oi', status: 'enviado', createdAt: agora,
-    })
-  }
+/** Põe `quantas` vagas já comprometidas no balde daquele instante — reserva em voo ou
+ *  mensagem já enviada, que para a cota é a mesma coisa (ver STATUS_QUE_CONSOMEM em
+ *  lib/sdr/reservas). */
+function semearConsumidas(quantas: number, agora: Date): void {
+  const balde = baldeDoDia(TENANT, agora)
+  consumidas.set(balde, (consumidas.get(balde) ?? 0) + quantas)
 }
 
 /** O caminho feliz inteiro: um lead com nome e telefone, ação vencida, template da fase. */
@@ -453,7 +460,13 @@ test('o dia da semana vem da data LOCAL: domingo 22h em SP é segunda em UTC', (
 test('o balde do dia é o MESMO que o ack de dispatch monta', () => {
   /* Se este id divergir do de app/api/sdr/dispatch/ack, não dá erro nenhum: dá uma
    * contagem eternamente zero, ou seja, limite diário nenhum. Por isso a fórmula do
-   * ack é recalculada aqui, à parte, em vez de a função ser comparada consigo mesma. */
+   * ack é recalculada aqui, à parte, em vez de a função ser comparada consigo mesma.
+   *
+   * Este teste NÃO depende de banco nenhum, e é por isso que ele sobrevive à saída da
+   * consulta ao banco da app. Ele ficou mais importante, não menos: `baldeDoDia` é agora
+   * o ponto em que TRÊS coisas têm de concordar — as linhas de `blast_recipients` que o
+   * ack escreve, as de `dispatch_claims` que lib/sdr/reservas escreve (chamando esta
+   * função, justamente para não ter cópia da fórmula) e a cota que a régua desconta. */
   const comoNoAck = (agora: Date) =>
     `${TENANT}:drip:${agora.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).replace(/-/g, '')}`
 
@@ -511,8 +524,15 @@ test('quando o dia E a hora recusam, o motivo é o do DIA', () => {
 
 // ─── As recusas, com o banco do cliente intacto ───────────────────────────────
 
+/* A porta de contagem vai em TODA chamada porque ela é obrigatória — não há default para
+ * cair, e o módulo não tem mais como contar sozinho. Ela mora aqui, num ajudante só, para
+ * que passá-la não vire ruído repetido em trinta testes; o que cada teste escolhe é o
+ * CONTEÚDO do livro-caixa (`semearConsumidas`), não se a porta existe. Os testes que
+ * falam da porta em si a passam na mão, logo abaixo. */
 async function motivoDe(config: ConfigDaRegua, agora = QUARTA_MEIO_DIA) {
-  return selecionarDevidos(CONN, { tenantId: TENANT, config, agora })
+  return selecionarDevidos(CONN, {
+    tenantId: TENANT, config, agora, contarEnviadosHoje: contarPeloLivroCaixa,
+  })
 }
 
 test('campanha desligada devolve lote vazio com motivo — e NÃO toca no banco', async () => {
@@ -636,10 +656,10 @@ test('sem nada enviado hoje, a cota inteira está disponível', async () => {
   assert.equal(lote.limite.balde, baldeDoDia(TENANT, QUARTA_MEIO_DIA))
 })
 
-test('o que a app já registrou HOJE é descontado da cota — não do lote da execução', async () => {
+test('o que já foi comprometido HOJE é descontado da cota — não do lote da execução', async () => {
   /* O defeito que este teste prende: no n8n o `limite_diario` vale POR EXECUÇÃO, e o
    * cron roda três vezes por dia — limite 10 manda 30. Aqui o limite é do DIA. */
-  await semearEnviadosHoje(8, QUARTA_MEIO_DIA)
+  semearConsumidas(8, QUARTA_MEIO_DIA)
   await semearLead(LEAD_A, 'Ana', '+5511999990000')
   await semearLead(LEAD_B, 'Bruno', '+5511988880000')
   await semearLead(LEAD_C, 'Carla', '+5511977770000')
@@ -650,7 +670,7 @@ test('o que a app já registrou HOJE é descontado da cota — não do lote da e
 
   const lote = await motivoDe(com({ limite_diario: 10 }))
 
-  assert.equal(lote.limite.enviadosHoje, 8, 'contado em blast_recipients, no balde de hoje')
+  assert.equal(lote.limite.enviadosHoje, 8, 'o que a porta achou no balde de hoje')
   assert.equal(lote.limite.disponivel, 2)
   assert.equal(lote.enviar.length, 2, 'só as duas vagas que sobraram')
   // Quem esperava há mais tempo passa na frente.
@@ -659,8 +679,11 @@ test('o que a app já registrou HOJE é descontado da cota — não do lote da e
   assert.equal(lote.reservadas, 2)
 })
 
-test('mensagem registrada em OUTRO dia não consome a cota de hoje', async () => {
-  await semearEnviadosHoje(5, new Date('2026-09-22T15:00:00Z'))
+test('vaga comprometida em OUTRO dia não consome a cota de hoje', async () => {
+  /* O recorte é o balde, e o balde é do fuso de São Paulo. Este teste continua valendo
+   * depois de a consulta ao banco da app sair do módulo porque o livro-caixa de mentira
+   * é indexado POR BALDE, como o de verdade. */
+  semearConsumidas(5, new Date('2026-09-22T15:00:00Z'))
   await cenarioCompleto()
 
   const lote = await motivoDe(com({ limite_diario: 10 }))
@@ -670,7 +693,7 @@ test('mensagem registrada em OUTRO dia não consome a cota de hoje', async () =>
 })
 
 test('cota esgotada: motivo próprio, e NENHUMA linha reservada', async () => {
-  await semearEnviadosHoje(10, QUARTA_MEIO_DIA)
+  semearConsumidas(10, QUARTA_MEIO_DIA)
   const acaoId = await cenarioCompleto()
 
   const lote = await motivoDe(com({ limite_diario: 10 }))
@@ -784,15 +807,20 @@ test('contagem que responde bobagem é recusada — nas duas direções', async 
 })
 
 test('a contagem se declara INCOMPLETA enquanto o cron antigo do n8n existir', async () => {
-  /* O fluxo antigo não grava em `blast_recipients`: o que a app conta é um PISO, não
-   * o total. Apagar o cron antigo é o commit que troca esta bandeira por false — este
-   * teste é o lembrete de que a troca existe. */
+  /* O fluxo antigo não passa por reserva (não escreve `dispatch_claims`) nem manda ack
+   * (não escreve `blast_recipients`): ele não aparece em NENHUM dos dois lugares, então
+   * nenhuma porta que o chamador passe consegue vê-lo. O que a app conta é um PISO, não o
+   * total. Desligar o cron antigo é o commit que troca esta bandeira por false — este
+   * teste é o lembrete de que a troca existe, e de que ligar o livro-caixa NÃO é ela. */
   assert.equal(CONTAGEM_INCOMPLETA, true)
   await cenarioCompleto()
   assert.equal((await motivoDe(CONFIG)).limite.incompleta, true)
 })
 
-test('a porta de contagem injetada substitui a consulta ao banco da app', async () => {
+test('a cota sai da porta, e de lugar nenhum além dela', async () => {
+  /* A porta não é mais "substituição" de nada: é a ÚNICA fonte da contagem. O módulo não
+   * fala com o banco da app — não importa lib/db —, então um número que não venha daqui
+   * não vem de parte alguma. */
   await cenarioCompleto()
 
   const lote = await selecionarDevidos(CONN, {
@@ -804,6 +832,82 @@ test('a porta de contagem injetada substitui a consulta ao banco da app', async 
 
   assert.equal(lote.limite.enviadosHoje, 3)
   assert.equal(lote.limite.disponivel, 1)
+  assert.equal(lote.enviar.length, 1, 'e é esse número que decide o tamanho do lote')
+})
+
+test('a porta recebe o tenant e o instante DA RODADA, para achar o balde certo', async () => {
+  /* Em produção é `contarConsumidasHoje` que está do outro lado, e ela recorta por
+   * `baldeDoDia(tenantId, agora)`. Se a régua passasse `new Date()` em vez do `agora` do
+   * pedido, a cota conferida seria a de um dia e a reserva cairia na de outro — às 21h de
+   * Brasília, todo dia. */
+  await cenarioCompleto()
+  const vistos: Array<{ tenantId: string; agora: number }> = []
+
+  await selecionarDevidos(CONN, {
+    tenantId: TENANT,
+    config: CONFIG,
+    agora: QUARTA_MEIO_DIA,
+    contarEnviadosHoje: async (tenantId, agora) => {
+      vistos.push({ tenantId, agora: agora.getTime() })
+      return 0
+    },
+  })
+
+  assert.deepEqual(vistos, [{ tenantId: TENANT, agora: QUARTA_MEIO_DIA.getTime() }])
+})
+
+test('porta de contagem AUSENTE é motivo próprio — e vem antes de todas as recusas', async () => {
+  /* O tipo já recusa isto: `contarEnviadosHoje` é obrigatória em `PedidoDaRegua`, e é
+   * assim que a CONTA DUPLA de lib/sdr/reservas fica impossível de cometer por omissão —
+   * não existe default errado para esquecer de trocar.
+   *
+   * O `as` encena o chamador que o compilador não alcança: rota montando o pedido a partir
+   * de JSON, um `any` no meio, chamada vinda de JavaScript. E os chamadores deste módulo
+   * SÃO rotas, que neste repositório não têm teste — este é o teste delas. Sem a guarda o
+   * que sai daqui é um `TypeError` cru do meio da função, ou seja, o zero sem nome que o
+   * módulo inteiro existe para abolir. */
+  const acaoId = await cenarioCompleto()
+
+  const semPorta = {
+    tenantId: TENANT, config: CONFIG, agora: QUARTA_MEIO_DIA,
+  } as unknown as PedidoDaRegua
+
+  const lote = await selecionarDevidos(CONN, semPorta)
+
+  assert.equal(lote.motivo, 'contagem_nao_fornecida')
+  assert.deepEqual(lote.enviar, [])
+  assert.equal(lote.reservadas, 0)
+  assert.deepEqual(consultas, [], 'sem saber a cota, a base do cliente nem é aberta')
+  assert.equal((await acao(acaoId)).ativo, true, 'e nada foi reservado')
+  // A janela vai no resultado como em qualquer outra recusa: o operador continua sabendo
+  // que horas a régua achou que eram.
+  assert.equal(lote.janela.horaLocal, '12:00')
+  assert.equal(lote.limite.enviadosHoje, null, 'ninguém contou')
+  assert.equal(lote.limite.disponivel, null)
+
+  // Valor que não é função cai no mesmo lugar: `null` de um JSON, número trocado de campo.
+  for (const naoEhPorta of [undefined, null, 42, 'contar', {}]) {
+    const torto = await selecionarDevidos(CONN, {
+      ...semPorta, contarEnviadosHoje: naoEhPorta,
+    } as unknown as PedidoDaRegua)
+    assert.equal(torto.motivo, 'contagem_nao_fornecida', `porta ${String(naoEhPorta)}`)
+  }
+
+  /* E o motivo é ESTE mesmo com a campanha desligada, que é a recusa mais antiga do
+   * módulo. A ordem é escolhida: "campanha inativa" é estado da campanha e pode ser
+   * verdade de novo amanhã; porta faltando é defeito de código. Posta depois das outras,
+   * ela só apareceria na primeira rodada que chegasse à contagem — a primeira rodada em
+   * que mensagens sairiam de verdade, que é o pior instante para descobrir. */
+  const desligada = await selecionarDevidos(CONN, {
+    ...semPorta, config: com({ ativo: false }),
+  } as unknown as PedidoDaRegua)
+  assert.equal(desligada.motivo, 'contagem_nao_fornecida')
+
+  // Inclusive quando o limite é zero, que é o outro caminho que dispensa contar.
+  const zero = await selecionarDevidos(CONN, {
+    ...semPorta, config: com({ limite_diario: 0 }),
+  } as unknown as PedidoDaRegua)
+  assert.equal(zero.motivo, 'contagem_nao_fornecida')
 })
 
 // ─── Seleção e forma do destinatário ──────────────────────────────────────────
