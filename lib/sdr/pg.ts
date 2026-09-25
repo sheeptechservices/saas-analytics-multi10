@@ -245,14 +245,42 @@ export function sdrPoolKey(connectionString: string, perfil: SdrPoolPerfil = 'pa
  * O corte é textual no primeiro `?`: a parte com usuário, senha e host não é tocada
  * nem reserializada.
  */
-function semParametrosSsl(connectionString: string): string {
+/* Parâmetros que podem sobreviver na string entregue ao driver.
+ *
+ * Está vazia, e é de propósito. A credencial é dado do CLIENTE, e o `pg` monta a
+ * config com `Object.assign({}, config, parse(connectionString))` — o que vem da
+ * string VENCE o que o código passa. Antes só os de TLS eram retirados, e o resto
+ * passava: `?statement_timeout=0` desligava o cancelamento do lado do servidor,
+ * deixando o Postgres do cliente moendo uma consulta que a app já abandonou; e
+ * `?application_name=x` apagava a nossa etiqueta no `pg_stat_activity`, que é como
+ * se separa o que é a app do que é o n8n.
+ *
+ * Nenhum parâmetro é necessário hoje: o que a app precisa decidir (TLS e tetos) ela
+ * decide aqui. Se um cliente um dia precisar de um de verdade — `options` com um
+ * `search_path`, por exemplo — o nome entra nesta lista com o motivo escrito ao
+ * lado, e aí é uma decisão, não um descuido. */
+const PARAMS_PERMITIDOS = new Set<string>([])
+
+/** Os nomes descartados, para o log dizer o que foi ignorado. Nome não é segredo. */
+export function paramsDescartados(connectionString: string): string[] {
+  const corte = connectionString.indexOf('?')
+  if (corte < 0) return []
+  const params = new URLSearchParams(connectionString.slice(corte + 1))
+  return Array.from(params.keys()).filter(
+    nome => !PARAMS_PERMITIDOS.has(nome.toLowerCase()) && !PARAMS_SSL.has(nome.toLowerCase()),
+  )
+}
+
+/* O corte é textual no primeiro `?`: a parte com usuário, senha e host não é tocada
+ * nem reserializada. */
+function semParametrosDeControle(connectionString: string): string {
   const corte = connectionString.indexOf('?')
   if (corte < 0) return connectionString
 
   const base   = connectionString.slice(0, corte)
   const params = new URLSearchParams(connectionString.slice(corte + 1))
   for (const nome of Array.from(params.keys())) {
-    if (PARAMS_SSL.has(nome.toLowerCase())) params.delete(nome)
+    if (!PARAMS_PERMITIDOS.has(nome.toLowerCase())) params.delete(nome)
   }
 
   const resto = params.toString()
@@ -313,12 +341,24 @@ export function buildSdrPoolConfig(
   const params = url.searchParams
   // Certificado em arquivo faria o `pg` ler o disco do servidor a partir de um valor
   // que veio do cliente, e ignorá-lo em silêncio mudaria a confiança sem avisar.
+  const nomesPresentes = new Set(Array.from(params.keys()).map(n => n.trim().toLowerCase()))
   for (const nome of PARAMS_SSL_ARQUIVO) {
-    if (params.has(nome)) throw new SdrDbError('sdr_tls_nao_suportado')
+    if (nomesPresentes.has(nome)) throw new SdrDbError('sdr_tls_nao_suportado')
   }
 
-  const sslmode = (params.get('sslmode') ?? '').trim().toLowerCase()
-  const sslFlag = (params.get('ssl') ?? '').trim().toLowerCase()
+  /* A chave também é lida sem depender da caixa. `params.get('sslmode')` é sensível
+   * a maiúsculas, então `?SSLMODE=disable` escapava da recusa — e só não abria
+   * conexão em texto puro porque a RETIRADA, essa sim, era insensível. Segurança por
+   * acidente não é segurança: aqui a recusa passa a ser explícita. */
+  const valorDoParam = (chave: string): string => {
+    for (const [nome, valor] of params) {
+      if (nome.trim().toLowerCase() === chave) return valor.trim().toLowerCase()
+    }
+    return ''
+  }
+
+  const sslmode = valorDoParam('sslmode')
+  const sslFlag = valorDoParam('ssl')
   if (sslmode === 'disable' || sslFlag === '0' || sslFlag === 'false') {
     throw new SdrDbError('sdr_tls_desabilitado')
   }
@@ -336,7 +376,7 @@ export function buildSdrPoolConfig(
       : { rejectUnauthorized: true }
 
   return {
-    connectionString: semParametrosSsl(bruta),
+    connectionString: semParametrosDeControle(bruta),
     ssl,
     application_name: SDR_APPLICATION_NAME,
     // Sem isso o pool segura o event loop e o processo não encerra sozinho.
