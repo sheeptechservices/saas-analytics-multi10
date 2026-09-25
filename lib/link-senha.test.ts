@@ -11,6 +11,7 @@ import { bancoDeTeste, usarComoBancoDoApp, soltarBancoDoApp, type BancoDeTeste }
 let banco: BancoDeTeste
 let db: BancoDeTeste['db']
 let donoDoLink: typeof import('@/lib/link-senha')['donoDoLink']
+let usarLinkEGravarSenha: typeof import('@/lib/link-senha')['usarLinkEGravarSenha']
 let esquema: typeof import('@/lib/db/schema')
 
 const AGORA = 1_800_000_000_000
@@ -21,7 +22,7 @@ before(async () => {
   db = banco.db
   usarComoBancoDoApp(db)
   esquema = await import('@/lib/db/schema')
-  ;({ donoDoLink } = await import('@/lib/link-senha'))
+  ;({ donoDoLink, usarLinkEGravarSenha } = await import('@/lib/link-senha'))
 })
 
 after(async () => {
@@ -69,9 +70,45 @@ test('token inexistente não revela nada', async () => {
   assert.equal(await donoDoLink('', AGORA), null)
 })
 
+// ── Uso único ────────────────────────────────────────────────────────────────
+
+async function hashNoBanco() {
+  return db.select({ h: esquema.users.passwordHash }).from(esquema.users).then(r => r[0].h)
+}
+
+test('o link grava a senha uma vez; a segunda tentativa é recusada e não mexe na senha', async () => {
+  await link('vivo', { expiresAt: AGORA + HORA })
+
+  assert.equal(await usarLinkEGravarSenha('vivo', 'hash-1', AGORA), true)
+  assert.equal(await hashNoBanco(), 'hash-1')
+
+  assert.equal(await usarLinkEGravarSenha('vivo', 'hash-2', AGORA + 1), false)
+  assert.equal(await hashNoBanco(), 'hash-1', 'o segundo uso não pode trocar a senha')
+  assert.equal(await donoDoLink('vivo', AGORA + 1), null, 'depois de usado, a tela também o recusa')
+})
+
+test('dois envios simultâneos do mesmo link: só um grava', async () => {
+  await link('vivo', { expiresAt: AGORA + HORA })
+  const r = await Promise.all([
+    usarLinkEGravarSenha('vivo', 'hash-a', AGORA),
+    usarLinkEGravarSenha('vivo', 'hash-b', AGORA),
+  ])
+  assert.equal(r.filter(Boolean).length, 1)
+  assert.equal(await hashNoBanco(), r[0] ? 'hash-a' : 'hash-b')
+})
+
+test('link usado ou vencido não grava senha', async () => {
+  await link('usado', { expiresAt: AGORA + HORA, usedAt: AGORA - 1 })
+  await link('vencido', { expiresAt: AGORA - 1 })
+  assert.equal(await usarLinkEGravarSenha('usado', 'hash-x', AGORA), false)
+  assert.equal(await usarLinkEGravarSenha('vencido', 'hash-x', AGORA), false)
+  assert.equal(await hashNoBanco(), 'x')
+})
+
 // A tela e o POST não podem discordar sobre o que é um link vivo.
-test('o POST da rota usa a mesma regra de link vivo que a tela', () => {
+test('o POST da rota grava pelo caminho de uso único, e o GET não vai para cache', () => {
   const rota = readFileSync(path.join(process.cwd(), 'app/api/auth/reset-password/route.ts'), 'utf8')
-  assert.ok(rota.includes('.where(condicaoLinkVivo(token, now))'), 'o POST deixou de usar condicaoLinkVivo')
+  assert.ok(rota.includes('usarLinkEGravarSenha(token, passwordHash)'), 'o POST deixou de usar usarLinkEGravarSenha')
+  assert.ok(!/\.update\(|\.select\(/.test(rota), 'o POST voltou a consultar o banco por conta própria')
   assert.ok(rota.includes("'Cache-Control': 'no-store'"), 'o GET leva nome e e-mail: não pode ir para cache')
 })

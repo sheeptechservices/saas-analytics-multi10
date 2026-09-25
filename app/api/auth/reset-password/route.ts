@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { users, passwordResetTokens } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { condicaoLinkVivo, donoDoLink } from '@/lib/link-senha'
+import { donoDoLink, usarLinkEGravarSenha } from '@/lib/link-senha'
 
 const LINK_INVALIDO = 'Link inválido ou expirado. Solicite um novo.'
 
@@ -37,29 +34,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'A senha deve ter pelo menos 8 caracteres.' }, { status: 400 })
     }
 
-    const now = Date.now()
-
-    const resetToken = await db
-      .select()
-      .from(passwordResetTokens)
-      .where(condicaoLinkVivo(token, now))
-      .then(r => r[0])
-
-    if (!resetToken) {
-      return NextResponse.json({ error: LINK_INVALIDO }, { status: 400 })
-    }
-
+    // O hash vem antes de tocar no link: é a parte lenta, e fazê-la fora da
+    // transação não segura a linha do token travada enquanto o bcrypt roda.
     const passwordHash = await bcrypt.hash(password, 12)
 
-    await db
-      .update(users)
-      .set({ passwordHash })
-      .where(eq(users.id, resetToken.userId))
-
-    await db
-      .update(passwordResetTokens)
-      .set({ usedAt: now })
-      .where(eq(passwordResetTokens.id, resetToken.id))
+    // Link de uso único: validar e queimar é um passo só (ver lib/link-senha.ts).
+    if (!(await usarLinkEGravarSenha(token, passwordHash))) {
+      return NextResponse.json({ error: LINK_INVALIDO }, { status: 400 })
+    }
 
     return NextResponse.json({ message: 'Senha redefinida com sucesso.' })
   } catch (err) {
