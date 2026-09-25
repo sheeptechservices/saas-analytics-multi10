@@ -37,7 +37,6 @@ interface ImportResult {
   ignorados?:       { total: number; amostra: Array<{ linha: number; motivo: string }> }
   duplicados?:      { total: number; amostra: Array<{ linha: number; telefone: string }> }
   suspeitos?:       { total: number; amostra: Array<{ linha: number; telefone: string }> }
-  n8nStatus?:       number
   leadIds?:         string[]
   existingLeadIds?: string[]
   names?:           Record<string, string>
@@ -72,11 +71,23 @@ const ENROLL_BATCH = 100
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/* A mesma frase nos dois tradutores abaixo, e igual à que /api/sdr/settings devolve
+ * na tela de Parâmetros: é a mesma causa (credencial cadastrada que não abre — chave
+ * de criptografia trocada ou valor corrompido) e a mesma tela que resolve. Vale dizer
+ * onde a credencial é salva, porque "acesse Configurações > Integrações" sozinho
+ * levaria o operador a cadastrar uma fonte que já existe. */
+const CREDENCIAL_SDR_ILEGIVEL =
+  'A credencial da fonte de dados SDR está salva mas não pôde ser lida — salve-a de novo em Configurações > Integrações > Fonte de Dados SDR.'
+
 function friendlyImportError(code: string): string {
   if (code === 'import_url_nao_configurada')
     return 'URL de importação não configurada — acesse Configurações > Credenciais.'
   if (code === 'fonte_sdr_nao_configurada')
     return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
+  // 500: a fonte ESTÁ cadastrada e não pôde ser lida. Mandar cadastrar de novo aqui
+  // seria beco sem saída — o que resolve é salvar a credencial outra vez.
+  if (code === 'config_invalid')
+    return CREDENCIAL_SDR_ILEGIVEL
   return code
 }
 
@@ -109,6 +120,29 @@ function friendlyBlastError(code: string): string {
   // 502: a YCloud respondeu com erro. Não é nada que o operador configure.
   if (code === 'ycloud_error')
     return 'A YCloud recusou a consulta dos modelos. Tente de novo em alguns minutos.'
+  return code
+}
+
+/* Os códigos de /api/sdr/enroll, pela mesma regra do bloco acima. Sem isto a tela
+ * mostrava o token cru — "✗ Erro ao adicionar: db_error" — que não diz ao operador
+ * nem o que houve nem o que fazer. A frase de `fonte_sdr_nao_configurada` é a mesma
+ * dos outros dois tradutores de propósito: é a mesma causa e a mesma tela de saída. */
+function friendlyEnrollError(code: string): string {
+  if (code === 'fonte_sdr_nao_configurada')
+    return 'Fonte de dados SDR não configurada — acesse Configurações > Integrações.'
+  // 500: a fonte está cadastrada e não pôde ser decifrada — mesma frase do import,
+  // porque é a mesma credencial e a mesma tela de saída.
+  if (code === 'config_invalid')
+    return CREDENCIAL_SDR_ILEGIVEL
+  // 502: a base do cliente recusou a gravação. Quando a rota manda junto um `code`
+  // reconhecido, quem chega aqui já é a frase dela (ver runSend) — este texto é a
+  // rede de segurança para o resto.
+  if (code === 'db_error')
+    return 'Não foi possível gravar na base do SDR. Tente de novo em alguns minutos.'
+  // 400 do agendamento: hoje esta tela não manda `agendarPara`, mas o código existe
+  // na rota e chegaria cru à tela se alguém passar a mandar.
+  if (code === 'agendar_para_invalido')
+    return 'A data de agendamento da campanha é inválida — corrija em Parâmetros.'
   return code
 }
 
@@ -236,10 +270,9 @@ function Stepper({ step }: { step: Step }) {
 // ─── Import feedback panel ────────────────────────────────────────────────────
 
 function ImportFeedback({
-  result, n8nFalhou, importadosCount, ignoradosCount, duplicadosCount, onRefresh,
+  result, importadosCount, ignoradosCount, duplicadosCount, onRefresh,
 }: {
   result: ImportResult
-  n8nFalhou: boolean
   importadosCount: number
   ignoradosCount:  number
   duplicadosCount: number
@@ -260,18 +293,16 @@ function ImportFeedback({
   return (
     <div style={{
       marginTop: 12, padding: '14px 18px', borderRadius: 'var(--radius-md)',
-      background: n8nFalhou ? 'var(--warn-dim)' : 'rgba(34,197,94,0.06)',
-      border: `1px solid ${n8nFalhou ? 'rgba(245,158,11,0.35)' : 'rgba(34,197,94,0.25)'}`,
+      background: 'rgba(34,197,94,0.06)',
+      border: '1px solid rgba(34,197,94,0.25)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8, color: n8nFalhou ? 'var(--warn-text)' : 'var(--green)' }}>
-        {n8nFalhou
-          ? <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-          : <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />}
+      {/* Não existe mais meio-termo para avisar: a app grava direto na base do
+          cliente, então ou a gravação confirmou — e é isto que a rota responde — ou a
+          resposta veio com erro e o painel de cima é que aparece. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--green)' }}>
+        <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
-          {n8nFalhou
-            ? <><span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{result.importados !== 1 ? 's' : ''} enviados, mas a importação retornou um erro (HTTP {result.n8nStatus}) — tente novamente ou verifique a configuração.</>
-            : <><span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{result.importados !== 1 ? 's' : ''} enviados para importação</>
-          }
+          <span className="animate-count-pop tabular-nums">{importadosCount}</span> lead{result.importados !== 1 ? 's' : ''} gravados na base
         </span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--gray)', fontWeight: 500, marginBottom: 6 }}>
@@ -438,10 +469,6 @@ export default function NovDisparoPage() {
         !((source === 'base' ? selectedNames[id] : manualNames[id]) ?? '').trim(),
       ).length
 
-  const n8nFalhou = (importResult?.importados ?? 0) > 0
-    && typeof importResult?.n8nStatus === 'number'
-    && (importResult.n8nStatus < 200 || importResult.n8nStatus >= 300)
-
   const importadosCount = useCountUp(importResult?.importados ?? 0, 800)
   const ignoradosCount  = useCountUp(importResult?.ignorados?.total ?? 0, 600)
   const duplicadosCount = useCountUp(importResult?.duplicados?.total ?? 0, 600)
@@ -564,9 +591,15 @@ export default function NovDisparoPage() {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch('/api/sdr/leads/import', { method: 'POST', body: fd })
-      const json = await res.json() as ImportResult & { error?: string }
+      const json = await res.json() as ImportResult & { error?: string; code?: string; message?: string }
       if (!res.ok) {
-        setImportResult({ ok: false, error: json.error ?? `HTTP ${res.status}` })
+        /* A gravação agora é da própria app, e a falha dela chega como
+         * `{ error: 'db_error', code, message }`. Mostrar "db_error" não diz nada;
+         * a frase de `message` diz o que fazer. Ela só passa adiante com um código
+         * reconhecido — é o código que atesta que aquele texto foi escrito para o
+         * usuário ler, e não é texto de driver (mesma regra de lib/api-error.ts). */
+        const doServidor = /^sdr_(db|tls|conn)_/.test(String(json.code ?? '')) ? json.message : undefined
+        setImportResult({ ok: false, error: doServidor ?? json.error ?? `HTTP ${res.status}` })
       } else {
         setImportResult(json)
         setFetchSeq(s => s + 1)
@@ -639,11 +672,18 @@ export default function NovDisparoPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ leadIds: batch }),
           })
-          const body = await res.json() as { ok: boolean; enrolled?: number; error?: string }
+          const body = await res.json() as { ok: boolean; enrolled?: number; error?: string; code?: string; message?: string }
           if (res.ok && body.ok) {
-            totalEnrolled += body.enrolled ?? batch.length
+            // `enrolled` é sempre número e é o que o banco gravou — pode vir menor que
+            // o lote, e sem falha nenhuma. O antigo `?? batch.length` inventava a
+            // contagem quando o campo faltasse, que é justamente o que não queremos.
+            totalEnrolled += body.enrolled ?? 0
           } else {
-            lastError = body.error ?? `HTTP ${res.status}`
+            // Mesma regra do import acima: a frase do servidor só passa adiante com um
+            // código reconhecido, que é o que atesta que aquele texto foi escrito para
+            // o usuário ler e não é texto de driver.
+            const doServidor = /^sdr_(db|tls|conn)_/.test(String(body.code ?? '')) ? body.message : undefined
+            lastError = doServidor ?? body.error ?? `HTTP ${res.status}`
           }
         } catch (e) {
           lastError = (e as Error).message
@@ -922,7 +962,6 @@ export default function NovDisparoPage() {
               {importResult && (
                 <ImportFeedback
                   result={importResult}
-                  n8nFalhou={n8nFalhou}
                   importadosCount={importadosCount}
                   ignoradosCount={ignoradosCount}
                   duplicadosCount={duplicadosCount}
@@ -1321,28 +1360,35 @@ export default function NovDisparoPage() {
               )}
 
               {/* Enroll result */}
+              {/* Zero é resposta honesta da rota (já inscritos, ou sumiram da base) e
+                  não é sucesso: com o visto verde e o painel verde, "0 lead adicionado
+                  à campanha" passava por trabalho feito. */}
               {enrollResult && (
                 <div style={{
                   padding: '20px 24px', borderRadius: 'var(--radius-lg)',
-                  background: enrollResult.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
-                  border: `1px solid ${enrollResult.ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                  background: !enrollResult.ok ? 'rgba(239,68,68,0.06)' : (enrollResult.enrolled ?? 0) === 0 ? 'var(--warn-dim)' : 'rgba(34,197,94,0.06)',
+                  border: `1px solid ${!enrollResult.ok ? 'rgba(239,68,68,0.25)' : (enrollResult.enrolled ?? 0) === 0 ? 'rgba(245,158,11,0.35)' : 'rgba(34,197,94,0.25)'}`,
                   marginBottom: 20,
                 }}>
                   {enrollResult.ok ? (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: 'var(--success-text)' }}>
-                        <Check size={16} style={{ flexShrink: 0 }} />
-                        {enrollResult.enrolled} lead{enrollResult.enrolled !== 1 ? 's' : ''} adicionado{enrollResult.enrolled !== 1 ? 's' : ''} à campanha
+                      <div className="max-lg:wrap-anywhere" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 800, color: (enrollResult.enrolled ?? 0) === 0 ? 'var(--warn-text)' : 'var(--success-text)' }}>
+                        {(enrollResult.enrolled ?? 0) === 0
+                          ? <AlertTriangle size={16} className="shrink-0" />
+                          : <Check size={16} className="shrink-0" />}
+                        {(enrollResult.enrolled ?? 0) === 0
+                          ? 'Nenhum lead entrou na campanha — os selecionados já estavam inscritos ou não estão mais na base.'
+                          : `${enrollResult.enrolled} lead${enrollResult.enrolled !== 1 ? 's' : ''} adicionado${enrollResult.enrolled !== 1 ? 's' : ''} à campanha`}
                       </div>
                       {enrollResult.partialError && (
                         <div className="max-lg:wrap-anywhere" style={{ fontSize: 11, color: 'var(--warn-text)', marginTop: 8, fontWeight: 500 }}>
-                          Alguns lotes falharam: {enrollResult.partialError}
+                          Alguns lotes falharam: {friendlyEnrollError(enrollResult.partialError)}
                         </div>
                       )}
                     </>
                   ) : (
                     <div className="max-lg:wrap-anywhere" style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>
-                      ✗ Erro ao adicionar: {enrollResult.error}
+                      ✗ Erro ao adicionar: {friendlyEnrollError(enrollResult.error ?? 'Erro desconhecido')}
                     </div>
                   )}
                 </div>

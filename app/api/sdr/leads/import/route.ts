@@ -1,22 +1,23 @@
 // POST /api/sdr/leads/import
 //
 // Recebe multipart/form-data com campo "file" (.xlsx/.csv), parseia,
-// valida/normaliza/deduplica (ETL na app) e envia os leads NOVOS ao n8nImportUrl.
+// valida/normaliza/deduplica (ETL na app) e grava os leads na base do cliente.
 //
-// REGRA CRÍTICA: a app nunca escreve no Supabase.
-// O SELECT no Supabase é somente para deduplicação. Inserção = responsabilidade do n8n.
+// A gravação era um salto HTTP para o n8nImportUrl; hoje a app escreve direto
+// (lib/sdr/leads-write), numa instrução só. O que muda para quem lê o relatório: os
+// números são os do banco — `importados` é quantos leads o INSERT criou, não quantos
+// a app tentou mandar.
 //
-// Response: { ok, totalLinhas, importados, ignorados: { total, amostra }, duplicados: { total, amostra }, n8nStatus }
+// Response: { ok, totalLinhas, importados, atualizados, ignorados: { total, amostra }, duplicados: { total, amostra }, ... }
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { logAudit } from '@/lib/audit'
-import { db } from '@/lib/db'
-import { dataSources, campaignSettings } from '@/lib/db/schema'
-import { and, eq } from 'drizzle-orm'
-import { decrypt } from '@/lib/crypto'
 import { assertEntitlement } from '@/lib/entitlements'
-import { withSdrDb } from '@/lib/sdr/pg'
+import { requireTenantUser } from '@/lib/auth-guard'
+import { mapSdrDbError, withSdrDb } from '@/lib/sdr/pg'
+import { conexaoDoTenant } from '@/lib/sdr/conexao-tenant'
+import { gravarLeads, limparParaPostgres, type LeadNovo, type LeadUpdate } from '@/lib/sdr/leads-write'
 import { mapKey, normalizePhone, phoneKey, firstWord } from '@/lib/sdr/leads-etl'
 import {
   IMPORT_ERRORS,
@@ -25,15 +26,15 @@ import {
   extensionError,
   parseImportFile,
 } from '@/lib/sdr/import-parse'
-import { readN8nSecret } from '@/lib/sdr/settings-merge'
 
-const PROVIDER_KEY   = 'supabase-n8n'
-const SOURCE         = 'sdr-n8n'
-const AMOSTRA_MAX    = 20
+const AMOSTRA_MAX = 20
 
 export async function POST(request: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const roleCheck = requireTenantUser(session)
+  if (roleCheck) return roleCheck
 
   const { tenantId } = session.user
   const denied = await assertEntitlement(tenantId, 'sdr.parametros')
@@ -44,29 +45,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: IMPORT_ERRORS.tamanho }, { status: 400 })
   }
 
-  // ── Load n8nImportUrl + secret early — prerequisite for the whole operation ───
-  const [csRow] = await db
-    .select()
-    .from(campaignSettings)
-    .where(and(eq(campaignSettings.tenantId, tenantId), eq(campaignSettings.source, SOURCE)))
-    .limit(1)
-
-  let csSettings: Record<string, unknown> = {}
-  if (csRow) {
-    try { csSettings = JSON.parse(csRow.settings) } catch {}
+  // ── Conexão do cliente: resolvida UMA vez, usada na dedup e na gravação ───────
+  // Pré-requisito da operação inteira, checado antes de parsear o arquivo: sem base
+  // não há onde gravar, e dizer "importado" sem ter escrito seria mentir. As duas
+  // recusas são separadas de propósito — 400 para quem ainda não cadastrou a fonte,
+  // 500 para a credencial que existe e não abre, como já fazem /api/sdr/leads e
+  // /api/sdr/leads/blast. Ver lib/sdr/conexao-tenant.
+  const fonte = await conexaoDoTenant(tenantId)
+  if (fonte.estado === 'nao_configurada') {
+    return NextResponse.json({ error: 'fonte_sdr_nao_configurada' }, { status: 400 })
   }
-
-  const importUrl =
-    typeof csSettings.n8nImportUrl === 'string' && csSettings.n8nImportUrl
-      ? csSettings.n8nImportUrl
-      : null
-
-  if (!importUrl) {
-    return NextResponse.json({ error: 'import_url_nao_configurada' }, { status: 400 })
+  if (fonte.estado === 'ilegivel') {
+    return NextResponse.json({ error: 'config_invalid' }, { status: 500 })
   }
-
-  // Guardado cifrado (legado em texto puro continua legível) — ver lib/sdr/settings-merge.
-  const importSecret = readN8nSecret(csSettings, 'n8nImportSecret') ?? undefined
+  const connectionString = fonte.connectionString
 
   // ── Parse multipart/form-data ─────────────────────────────────────────────────
   let formData: FormData
@@ -108,21 +100,23 @@ export async function POST(request: Request) {
   type IgnoredEntry  = { linha: number; motivo: string }
   type DupEntry      = { linha: number; telefone: string }
   type SuspeitoEntry = { linha: number; telefone: string }
-  type LeadEntry     = { name: string; phone: string; company: string; source: string; status: string }
 
   const ignorados:  IgnoredEntry[]                               = []
   const duplicados: DupEntry[]                                   = []
   const suspeitos:  SuspeitoEntry[]                             = []
-  const candidatos: Array<LeadEntry & { linha: number; key: string }> = []
+  const candidatos: Array<LeadNovo & { linha: number; key: string }> = []
   const seenKeys   = new Set<string>()
 
   for (let i = 0; i < rawRows.length; i++) {
     const linha = i + 2  // row 1 = header, data starts at row 2
 
-    // Remap spreadsheet keys to canonical names
+    // Remap spreadsheet keys to canonical names. `limparParaPostgres` tira o byte NUL
+    // e o surrogate solto — sem isso UMA célula ruim derrubava a gravação da planilha
+    // inteira (ver lib/sdr/leads-write). A gravação limpa de novo, por garantia; aqui
+    // é para o `names` do disparo sair com o mesmo nome que foi gravado na base.
     const row: Record<string, string> = {}
     for (const [k, v] of Object.entries(rawRows[i])) {
-      row[mapKey(k)] = String(v ?? '').trim()
+      row[mapKey(k)] = limparParaPostgres(String(v ?? '')).trim()
     }
 
     const name    = row.name    || ''
@@ -131,7 +125,7 @@ export async function POST(request: Request) {
     const source  = row.source  || 'import'
     const status  = row.status  || 'novo'
 
-    // E.164 required for the n8n payload
+    // E.164 é o formato que sai daqui para a gravação
     const normalized = normalizePhone(phone)
     if (!normalized) {
       ignorados.push({ linha, motivo: 'telefone inválido' })
@@ -171,50 +165,36 @@ export async function POST(request: Request) {
   const existingByKey = new Map<string, { id: string; name: string | null }>()  // phoneKey → { id, name } (1ª ocorrência vence)
 
   if (candidatos.length > 0) {
-    const dsRow = await db
-      .select()
-      .from(dataSources)
-      .where(and(
-        eq(dataSources.tenantId, tenantId),
-        eq(dataSources.providerKey, PROVIDER_KEY),
-      ))
-      .then(r => r[0])
-
-    if (dsRow?.configEnc) {
-      try {
-        const cfg = JSON.parse(decrypt(dsRow.configEnc)) as { connectionString?: string }
-        if (cfg.connectionString) {
-          // Fetch broadly — exact-string match is unreliable across formats;
-          // phoneKey normalizes both sides in the app. SELECT only — never writes.
-          type DedupRow = { id: string; name: string | null; phone: string | null; phone_adjusted: string | null }
-          // Perfil 'largo': esta varredura é a consulta mais pesada da app (a tabela
-          // inteira de leads do cliente) e o catch abaixo engole a falha de propósito.
-          // Com o teto curto, uma base grande derrubaria a dedup em silêncio e os
-          // leads já cadastrados seriam importados — e disparados — de novo.
-          const res = await withSdrDb(cfg.connectionString, sdr => sdr.query<DedupRow>(
-            `SELECT id, name, phone, phone_adjusted
-               FROM leads
-              WHERE phone IS NOT NULL OR phone_adjusted IS NOT NULL`,
-          ), 'largo')
-          for (const r of res.rows) {
-            const k1 = phoneKey(r.phone ?? '')
-            const k2 = phoneKey(r.phone_adjusted ?? '')
-            const entry = { id: r.id, name: r.name }
-            if (k1 && !existingByKey.has(k1)) existingByKey.set(k1, entry)
-            if (k2 && !existingByKey.has(k2)) existingByKey.set(k2, entry)
-          }
-        }
-      } catch (err) {
-        // Non-fatal: skip Supabase dedup if DB is unavailable, proceed with file-only dedup
-        console.error('[sdr import dedup]', err)
+    try {
+      // Fetch broadly — exact-string match is unreliable across formats;
+      // phoneKey normalizes both sides in the app. SELECT only — never writes.
+      type DedupRow = { id: string; name: string | null; phone: string | null; phone_adjusted: string | null }
+      // Perfil 'largo': esta varredura é a consulta mais pesada da app (a tabela
+      // inteira de leads do cliente) e o catch abaixo engole a falha de propósito.
+      // Com o teto curto, uma base grande derrubaria a dedup em silêncio e os
+      // leads já cadastrados seriam importados — e disparados — de novo.
+      const res = await withSdrDb(connectionString, sdr => sdr.query<DedupRow>(
+        `SELECT id, name, phone, phone_adjusted
+           FROM leads
+          WHERE phone IS NOT NULL OR phone_adjusted IS NOT NULL`,
+      ), 'largo')
+      for (const r of res.rows) {
+        const k1 = phoneKey(r.phone ?? '')
+        const k2 = phoneKey(r.phone_adjusted ?? '')
+        const entry = { id: r.id, name: r.name }
+        if (k1 && !existingByKey.has(k1)) existingByKey.set(k1, entry)
+        if (k2 && !existingByKey.has(k2)) existingByKey.set(k2, entry)
       }
+    } catch (err) {
+      // Non-fatal: skip Supabase dedup if DB is unavailable, proceed with file-only dedup.
+      // A GRAVAÇÃO logo abaixo não tem essa licença: lá a falha vira resposta de erro.
+      console.error('[sdr import dedup]', err)
     }
   }
 
   // Partition candidatos into novos (new) vs supabase-duplicates
-  type UpdateEntry = { id: string; name: string; company: string; source: string; status: string }
-  const novos: LeadEntry[] = []
-  const updates: UpdateEntry[] = []
+  const novos: LeadNovo[] = []
+  const updates: LeadUpdate[] = []
   const existingLeadIdSet = new Set<string>()  // ids dos leads JÁ cadastrados que casaram na dedup
   const updatedIdSet = new Set<string>()        // dedup ids within updates
   const names: Record<string, string> = {}      // leadId → 1º nome do Excel (só duplicados com nome não-vazio)
@@ -239,45 +219,35 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── POST new leads to n8n (app never writes to Supabase — n8n does) ──────────
-  let n8nStatus = 0
-  let leadIds:   string[] = []
+  // ── Gravação na base do cliente (INSERT + UPDATE numa instrução só) ──────────
+  // Diferente da dedup acima, aqui falha NÃO é engolida: sem isto o usuário veria
+  // "importado" com o banco intacto.
+  let leadIds:    string[] = []
+  let atualizados = 0
 
-  if (novos.length > 0 || updates.length > 0) {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (importSecret) headers['Authorization'] = `Bearer ${importSecret}`
-    try {
-      const res = await fetch(importUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ tenantId, leads: novos, updates }),
-        signal: AbortSignal.timeout(15_000),
-      })
-      n8nStatus = res.status
-
-      // Tolerantly read n8n response body to extract inserted IDs.
-      // n8n may respond { inserted, ids } or a non-JSON body — never throw.
-      try {
-        const body = await res.json() as Record<string, unknown>
-        const raw  = Array.isArray(body.ids) ? body.ids : []
-        leadIds    = (raw as unknown[]).filter((v): v is string => typeof v === 'string')
-      } catch { /* non-JSON body — leadIds stays [] */ }
-    } catch (err) {
-      console.error('[sdr import → n8n]', err)
-      return NextResponse.json(
-        { ok: false, error: 'Falha ao enviar para importação: ' + (err instanceof Error ? err.message : String(err)) },
-        { status: 502 },
-      )
-    }
+  try {
+    const escrita = await gravarLeads(connectionString, novos, updates)
+    leadIds     = escrita.idsInseridos
+    atualizados = escrita.atualizados
+  } catch (err) {
+    // Texto do driver fica no log; o cliente recebe só código estável + português.
+    console.error('[sdr import write]', err)
+    const erro = mapSdrDbError(err)
+    return NextResponse.json(
+      { ok: false, error: 'db_error', code: erro.code, message: erro.message },
+      { status: 502 },
+    )
   }
 
   // ── Report ────────────────────────────────────────────────────────────────────
-  await logAudit({ req: request, session, action: 'leads.import', metadata: { inserted: novos.length, updated: updates.length, skipped: ignorados.length, total: rawRows.length } })
+  // As contagens são as do banco, não as da intenção: `leadIds.length` é quanto o
+  // INSERT criou e `atualizados` é quanto o UPDATE tocou.
+  await logAudit({ req: request, session, action: 'leads.import', metadata: { inserted: leadIds.length, updated: atualizados, skipped: ignorados.length, total: rawRows.length } })
   return NextResponse.json({
     ok: true,
     totalLinhas: rawRows.length,
-    importados:  novos.length,
-    atualizados: updates.length,
+    importados:  leadIds.length,
+    atualizados,
     ignorados: {
       total:   ignorados.length,
       amostra: ignorados.slice(0, AMOSTRA_MAX),
@@ -290,8 +260,12 @@ export async function POST(request: Request) {
       total:   suspeitos.length,
       amostra: suspeitos.slice(0, AMOSTRA_MAX),
     },
-    n8nStatus,
     leadIds,
+    // ATENÇÃO, este não vem do banco: é a lista de quem a DEDUP casou, montada antes
+    // da gravação e nunca conferida contra o `atualizados` que o UPDATE devolveu. É
+    // intenção, não fato — um id daqui pode ter sumido da base entre a leitura e a
+    // escrita. A tela usa isso só para montar o conjunto de destinatários do disparo
+    // seguinte, que é o mesmo comportamento de antes.
     existingLeadIds: Array.from(existingLeadIdSet),
     names,
     semNome,

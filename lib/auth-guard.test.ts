@@ -111,6 +111,9 @@ const PORTAS: [arquivo: string, metodo: string, porta: 'requireMaster' | 'requir
   ['app/api/sdr/dispatch/route.ts',     'POST',   'requireTenantUser'],
   ['app/api/sdr/enroll/route.ts',       'POST',   'requireTenantUser'],
   ['app/api/sdr/leads/blast/route.ts',  'POST',   'requireTenantUser'],
+  // A importação escreve na base do cliente (INSERT/UPDATE de leads), então precisa
+  // da mesma porta das irmãs — não basta ter sessão.
+  ['app/api/sdr/leads/import/route.ts', 'POST',   'requireTenantUser'],
 ]
 
 test('cada rota chama a porta certa — trocar uma pela outra derruba isto', () => {
