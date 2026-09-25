@@ -1,5 +1,5 @@
 'use client'
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CampoSenha } from '@/components/CampoSenha'
 
@@ -12,6 +12,26 @@ function ResetPasswordForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+
+  /* De quem é a conta: aparece no topo do formulário para a pessoa ter certeza de
+   * que o link é dela antes de escolher a senha. Enquanto carrega, o formulário
+   * fica como sempre foi; só um 400 da rota (link usado, vencido ou inexistente)
+   * troca a tela pelo aviso de link inválido. Falha de rede também deixa o
+   * formulário como era: o POST confere o link de novo, e é ele que manda. */
+  const [dono, setDono] = useState<{ name: string; email: string } | 'invalido' | null>(null)
+
+  useEffect(() => {
+    if (!token) return
+    let vivo = true
+    fetch(`/api/auth/reset-password?token=${encodeURIComponent(token)}`, { cache: 'no-store' })
+      .then(async res => {
+        if (!vivo) return
+        if (res.ok) setDono(await res.json())
+        else if (res.status === 400) setDono('invalido')
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [token])
 
   // No celular fica só o formulário: o painel escuro some pelo CSS, já no HTML do servidor
   const leftPanel = (
@@ -41,7 +61,7 @@ function ResetPasswordForm() {
     </div>
   )
 
-  if (!token) {
+  if (!token || dono === 'invalido') {
     return (
       <div className="grid min-h-dvh grid-cols-1 md:grid-cols-2">
         {leftPanel}
@@ -51,7 +71,9 @@ function ResetPasswordForm() {
               Link inválido.
             </div>
             <p style={{ fontSize: 14, color: 'var(--gray)', marginBottom: 24 }}>
-              O link de redefinição está incompleto ou foi mal formatado.
+              {token
+                ? 'Este link já foi usado ou expirou. Peça um novo para continuar.'
+                : 'O link de redefinição está incompleto ou foi mal formatado.'}
             </p>
             <a
               href="/forgot-password"
@@ -126,9 +148,22 @@ function ResetPasswordForm() {
               <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--black)', letterSpacing: '-0.02em', marginBottom: 6 }}>
                 Nova senha.
               </div>
-              <p style={{ fontSize: 14, color: 'var(--gray)', marginBottom: 32 }}>
+              <p style={{ fontSize: 14, color: 'var(--gray)', marginBottom: dono ? 24 : 32 }}>
                 Escolha uma senha com pelo menos 8 caracteres.
               </p>
+
+              {dono && (
+                <div className="mb-6 flex items-center gap-3 rounded-[10px] border border-line bg-surface px-3.5 py-3">
+                  <div aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-extrabold text-white">
+                    {dono.name.trim().charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="mb-0.5 text-[11px] font-bold tracking-[0.04em] text-gray">CONTA DE</div>
+                    <div className="text-sm font-bold text-ink [overflow-wrap:anywhere]">{dono.name}</div>
+                    <div className="text-13 text-gray [overflow-wrap:anywhere]">{dono.email}</div>
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
