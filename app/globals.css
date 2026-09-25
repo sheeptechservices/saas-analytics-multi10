@@ -1228,3 +1228,50 @@
   .bar-grow-y { height: var(--grow-to); transition: none; }
   .chart-tooltip { animation: none; }
 }
+
+/* ============================================================
+   CAMPO DE SENHA COM OLHO (components/CampoSenha.tsx)
+   ============================================================
+   Mora aqui, e não em estilo em linha, por causa do hover: valor inline vence a
+   folha e obriga a escrever onMouseEnter/Leave, que não existem para quem usa
+   teclado nem para quem usa o dedo. Em CSS, :hover e :focus-visible cobrem os
+   três. O <input> continua com estilo em linha de propósito — ele tem de ficar
+   idêntico ao campo de e-mail logo acima, que é do bloco legado e ainda não
+   migrou. */
+.campo-senha {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.campo-senha-olho {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--gray);
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+
+.campo-senha-olho:hover {
+  color: var(--black);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* O foco do teclado precisa aparecer: o botão fica em cima de um campo claro, e
+   só a troca de cor do ícone não se enxerga. */
+.campo-senha-olho:focus-visible {
+  color: var(--black);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-dim);
+}
+
+/* 44×44 no celular vem de .touch-target, que o componente também aplica. */
